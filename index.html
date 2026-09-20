@@ -2862,7 +2862,7 @@ async function alterarAdministrador(userId, tornar) {
         ? { p_user_id: userId }
         : { p_user_id: userId, p_tornar: false };
 
-    const { error } = await sb.rpc(rpcName, rpcParams);
+    const { data: rpcData, error } = await sb.rpc(rpcName, rpcParams);
 
     if (error) {
         console.error(error);
@@ -2870,6 +2870,31 @@ async function alterarAdministrador(userId, tornar) {
         return;
     }
 
+    // Confirma no banco a alteração antes de redesenhar o painel.
+    const { data: adminsAtualizados, error: leituraAdminError } = await sb
+        .from("extrator_admins")
+        .select("user_id")
+        .eq("user_id", userId);
+
+    if (leituraAdminError) {
+        console.error(leituraAdminError);
+        alert("O privilégio foi alterado, mas não foi possível atualizar a visualização. Recarregue a página.");
+        return;
+    }
+
+    const ficouAdmin = Array.isArray(adminsAtualizados) && adminsAtualizados.some(item => item.user_id === userId);
+
+    if (tornar && !ficouAdmin) {
+        alert("A operação foi executada, mas o usuário ainda não aparece como administrador no banco.");
+        return;
+    }
+
+    if (!tornar && ficouAdmin) {
+        alert("O privilégio não foi removido do banco. Tente novamente.");
+        return;
+    }
+
+    // Atualiza imediatamente a lista na tela.
     await carregarAdminUsuarios();
 }
 
