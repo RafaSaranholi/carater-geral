@@ -235,6 +235,10 @@
 @media(max-width:700px){.admin-message-dates{grid-template-columns:1fr}}
 
 </style>
+
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<meta name="theme-color" content="#0b0f14">
 </head>
 
 <body>
@@ -3295,5 +3299,23 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 
 </div><!-- /conteudo-principal -->
 </div><!-- /appPrincipal -->
+
+<script>
+(function(){
+  if (!('serviceWorker' in navigator)) return;
+  window.addEventListener('load', async function(){
+    try {
+      const reg = await navigator.serviceWorker.register('./sw.js', {scope:'./'});
+      setInterval(() => reg.update().catch(()=>{}), 60 * 1000);
+      reg.update().catch(()=>{});
+      navigator.serviceWorker.addEventListener('controllerchange', function(){
+        if (window.__pwaReloading) return;
+        window.__pwaReloading = true;
+        window.location.reload();
+      });
+    } catch(e) { console.warn('Atualização do aplicativo indisponível:', e); }
+  });
+})();
+</script>
 </body>
 </html>
