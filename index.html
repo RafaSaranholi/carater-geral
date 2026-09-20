@@ -2683,7 +2683,7 @@ async function carregarAdminUsuarios() {
     listaAprovadosEl.innerHTML = '<div class="empty-admin">Carregando...</div>';
     historico.innerHTML = '<div class="empty-admin">Carregando...</div>';
 
-    const [usuariosResult, adminsResult, historicoResult] = await Promise.all([
+    const consultaAdmin = Promise.all([
         sb.from("extrator_usuarios")
             .select("id,re,nome_completo,unidade,email_funcional,status,created_at,updated_at")
             .order("created_at", { ascending: true }),
@@ -2694,11 +2694,26 @@ async function carregarAdminUsuarios() {
             .order("aprovado_em", { ascending: false })
     ]);
 
+    const timeoutAdmin = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Tempo limite ao carregar dados administrativos.")), 12000)
+    );
+
+    let usuariosResult, adminsResult, historicoResult;
+    try {
+        [usuariosResult, adminsResult, historicoResult] = await Promise.race([consultaAdmin, timeoutAdmin]);
+    } catch (erro) {
+        console.error(erro);
+        pendentes.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos. Verifique as permissões do Supabase.</div>';
+        listaAprovadosEl.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos. Verifique as permissões do Supabase.</div>';
+        historico.innerHTML = '<div class="empty-admin">Não foi possível carregar o histórico. Verifique as permissões do Supabase.</div>';
+        return;
+    }
+
     if (usuariosResult.error) {
         console.error(usuariosResult.error);
         pendentes.innerHTML = '<div class="empty-admin">Não foi possível carregar os usuários.</div>';
         listaAprovadosEl.innerHTML = '<div class="empty-admin">Não foi possível carregar os usuários.</div>';
-        usuarios.innerHTML = '<div class="empty-admin">Não foi possível carregar os usuários.</div>';
+        listaAprovadosEl.innerHTML = '<div class="empty-admin">Não foi possível carregar os usuários.</div>';
         return;
     }
 
@@ -2707,7 +2722,7 @@ async function carregarAdminUsuarios() {
         pendentes.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos.</div>';
         listaAprovadosEl.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos.</div>';
         historico.innerHTML = '<div class="empty-admin">Não foi possível carregar o histórico de aprovações.</div>';
-        usuarios.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos.</div>';
+        listaAprovadosEl.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos.</div>';
         return;
     }
 
