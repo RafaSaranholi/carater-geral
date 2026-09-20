@@ -278,6 +278,13 @@
 .selfie-actions button{margin:0;padding:9px 12px}
 #cadSelfiePreview{display:none;width:120px;height:160px;object-fit:cover;border-radius:8px;border:1px solid #555;margin-top:10px;background:#101010}
 .cadastro-selfie-status{font-size:12px;color:#aaa;margin-top:7px}
+.termo-responsabilidade-box{margin-top:14px;padding:12px;background:#151515;border:1px solid #444;border-radius:8px}
+.termo-responsabilidade-box .termo-titulo{font-size:14px;color:#ddd;margin-bottom:7px}
+.termo-responsabilidade-box .termo-texto{max-height:180px;overflow:auto;padding:10px;background:#101010;border:1px solid #333;border-radius:6px;color:#bbb;font-size:12px;line-height:1.5;white-space:pre-line}
+.termo-aceite{display:flex;gap:8px;align-items:flex-start;margin-top:10px;color:#ddd;font-size:12px;line-height:1.45}
+.termo-aceite input{margin-top:2px;accent-color:#2f80ed}
+.cadastro-localizacao-status{font-size:12px;color:#aaa;margin-top:7px;line-height:1.4}
+
 .cad-selfie-overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:110000;padding:14px;box-sizing:border-box}
 .cad-selfie-overlay.open{display:flex}
 .cad-selfie-modal{width:min(520px,100%);background:#202020;border:1px solid #555;border-radius:12px;padding:14px;box-sizing:border-box;box-shadow:0 20px 60px rgba(0,0,0,.65)}
@@ -376,6 +383,32 @@
                 </div>
                 <img id="cadSelfiePreview" alt="Prévia da selfie">
                 <div id="cadSelfieStatus" class="cadastro-selfie-status">Nenhuma selfie selecionada.</div>
+            </div>
+
+            <div class="termo-responsabilidade-box">
+                <div class="termo-titulo">📄 Termo de Responsabilidade, Sigilo e Uso</div>
+                <div class="termo-texto">TERMO DE RESPONSABILIDADE, SIGILO E USO
+
+Declaro que os dados e informações disponibilizados neste sistema possuem finalidade operacional e devem ser tratados com responsabilidade, sigilo e cautela.
+
+Comprometo-me a não compartilhar, copiar, fotografar, encaminhar, publicar ou disponibilizar informações obtidas por meio deste sistema a pessoas que não façam parte do serviço operacional da Polícia Militar do Estado de São Paulo (PMESP), salvo quando houver autorização ou determinação competente.
+
+Meu acesso é pessoal e intransferível. Não devo fornecer minha senha ou permitir que terceiros utilizem minha conta. Também me comprometo a utilizar o sistema somente para finalidade compatível com sua destinação operacional.
+
+Reconheço que o uso indevido, a divulgação indevida ou o compartilhamento não autorizado das informações poderá gerar as responsabilidades cabíveis, conforme a legislação e as normas aplicáveis.
+
+DECLARAÇÃO DE NÃO VÍNCULO INSTITUCIONAL
+
+Declaro estar ciente de que este sistema é uma ferramenta independente e não possui vínculo institucional com a Polícia Militar do Estado de São Paulo (PMESP), não sendo órgão, sistema oficial, plataforma homologada, patrocinada, administrada ou representativa da PMESP. A disponibilização deste sistema e de seu conteúdo não constitui manifestação oficial da PMESP.
+
+Declaro, ainda, que sou responsável pela utilização da minha conta, pela proteção das credenciais de acesso e pelo tratamento das informações às quais tiver acesso.
+
+O aceite deste termo será registrado eletronicamente com a data e hora do aceite e, mediante autorização do navegador/dispositivo e quando disponível, com a latitude, longitude e precisão aproximada da localização no momento do registro.</div>
+                <label class="termo-aceite">
+                    <input id="cadTermoAceito" type="checkbox">
+                    <span>Li, compreendi e aceito o Termo de Responsabilidade, Sigilo e Uso acima, inclusive a declaração de que o sistema não possui vínculo institucional com a PMESP.</span>
+                </label>
+                <div id="cadLocalizacaoStatus" class="cadastro-localizacao-status">A localização será solicitada no momento do envio do cadastro para registrar latitude e longitude do aceite.</div>
             </div>
 
             <div class="auth-actions">
@@ -2901,6 +2934,10 @@ function limparFormularioCadastro() {
         if (el) el.value = "";
     });
     selfieCadastroBase64 = "";
+    const termo = document.getElementById("cadTermoAceito");
+    if (termo) termo.checked = false;
+    const locStatus = document.getElementById("cadLocalizacaoStatus");
+    if (locStatus) locStatus.textContent = "A localização será solicitada no momento do envio do cadastro para registrar latitude e longitude do aceite.";
     selfieLivenessAprovada = false;
     selfieLivenessVerifiedAt = null;
     resetLivenessState();
@@ -3079,6 +3116,40 @@ async function capturarSelfie(){
     const status=document.getElementById("cadSelfieStatus"); if(status) status.textContent="Selfie capturada após verificação de movimento do rosto.";
 }
 
+function obterLocalizacaoAceite() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error("LOCALIZACAO_INDISPONIVEL"));
+            return;
+        }
+        const status = document.getElementById("cadLocalizacaoStatus");
+        if (status) status.textContent = "Solicitando autorização de localização...";
+        navigator.geolocation.getCurrentPosition(
+            position => {
+                const coords = position.coords || {};
+                const resultado = {
+                    latitude: Number(coords.latitude),
+                    longitude: Number(coords.longitude),
+                    precisao: Number.isFinite(coords.accuracy) ? Number(coords.accuracy) : null,
+                    obtida_em: new Date().toISOString()
+                };
+                if (!Number.isFinite(resultado.latitude) || !Number.isFinite(resultado.longitude)) {
+                    reject(new Error("LOCALIZACAO_INVALIDA"));
+                    return;
+                }
+                if (status) status.textContent = "Localização obtida. Latitude e longitude serão registradas junto ao aceite.";
+                resolve(resultado);
+            },
+            error => {
+                console.error("Geolocalização:", error);
+                if (status) status.textContent = "Não foi possível obter a localização. Autorize a localização do navegador e tente novamente.";
+                reject(new Error("LOCALIZACAO_NEGADA"));
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+    });
+}
+
 async function cadastrarUsuario() {
     const re = formatarRE(document.getElementById("cadRE").value);
     const nome = document.getElementById("cadNome").value.trim();
@@ -3108,6 +3179,12 @@ async function cadastrarUsuario() {
         return;
     }
 
+    const termoAceito = document.getElementById("cadTermoAceito")?.checked === true;
+    if (!termoAceito) {
+        mostrarMsg("cadMsg", "Você precisa ler e aceitar o Termo de Responsabilidade, Sigilo e Uso para enviar o cadastro.", "err");
+        return;
+    }
+
     if (!selfieCadastroBase64) {
         mostrarMsg("cadMsg", "A selfie é obrigatória para enviar a solicitação de cadastro.", "err");
         return;
@@ -3115,6 +3192,19 @@ async function cadastrarUsuario() {
 
     const btn = document.querySelector("#cadastroBox .btn-primary");
     if (btn) btn.disabled = true;
+    mostrarMsg("cadMsg", "Obtendo localização para registrar o aceite...", "warn");
+
+    let localizacaoAceite;
+    try {
+        localizacaoAceite = await obterLocalizacaoAceite();
+    } catch (erroLocalizacao) {
+        mostrarMsg("cadMsg", "Para registrar o aceite do termo, é necessário permitir a localização do dispositivo. Ative a permissão de localização no navegador e tente novamente.", "err");
+        if (btn) btn.disabled = false;
+        return;
+    }
+
+    const termoAceitoEm = new Date().toISOString();
+    const termoVersao = "V27-2026-09-20";
     mostrarMsg("cadMsg", "Enviando solicitação...", "warn");
 
     try {
@@ -3147,6 +3237,12 @@ async function cadastrarUsuario() {
                 selfie_base64: selfieCadastroBase64,
                 selfie_liveness_status: selfieLivenessAprovada ? "aprovado" : "reprovado",
                 selfie_liveness_verified_at: selfieLivenessVerifiedAt,
+                termo_aceito: true,
+                termo_aceito_em: termoAceitoEm,
+                termo_versao: termoVersao,
+                termo_latitude: localizacaoAceite.latitude,
+                termo_longitude: localizacaoAceite.longitude,
+                termo_localizacao_precisao: localizacaoAceite.precisao,
                 status: "pendente"
             });
 
