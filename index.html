@@ -1,0 +1,2576 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Extrator de Texto OCR</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+<style>
+    body {
+        margin: 0;
+        padding: 25px;
+        background: #151515;
+        color: #eee;
+        font-family: Arial, sans-serif;
+    }
+
+    h1 {
+        margin-top: 0;
+    }
+
+    .area {
+        border: 2px dashed #555;
+        border-radius: 8px;
+        padding: 25px;
+        text-align: center;
+        margin-bottom: 15px;
+        background: #202020;
+    }
+
+    button {
+        padding: 12px 18px;
+        margin: 5px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 15px;
+    }
+
+    button:hover {
+        opacity: .85;
+    }
+
+    #imagemContainer {
+        position: relative;
+        display: none;
+        margin-top: 20px;
+        max-width: 100%;
+        overflow: auto;
+        border: 1px solid #444;
+        background: #111;
+    }
+
+    #imagem {
+        display: block;
+        max-width: none;
+        cursor: crosshair;
+    }
+
+    #selecao {
+        position: absolute;
+        border: 2px solid red;
+        background: rgba(255,0,0,.12);
+        display: none;
+        pointer-events: none;
+    }
+
+    textarea {
+        width: 100%;
+        min-height: 260px;
+        box-sizing: border-box;
+        background: #101010;
+        color: #ddd;
+        border: 1px solid #555;
+        border-radius: 6px;
+        padding: 12px;
+        font-size: 16px;
+        resize: vertical;
+    }
+
+    #status {
+        margin: 15px 0;
+        color: #bbb;
+    }
+
+    .placa-box {
+        margin-top: 15px;
+        padding: 15px;
+        border: 1px solid #444;
+        border-radius: 6px;
+        background: #202020;
+    }
+
+    .placa {
+        font-size: 28px;
+        font-weight: bold;
+        letter-spacing: 4px;
+        margin-top: 8px;
+    }
+
+    input[type=file] {
+        margin: 10px;
+    }
+
+    .info {
+        color: #aaa;
+        font-size: 13px;
+        margin-top: 8px;
+    }
+
+.conteudo-principal{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:start}
+.painel-lista{background:#202020;border:1px solid #444;border-radius:8px;padding:15px;position:sticky;top:15px}
+.painel-lista h3{margin-top:0}
+#listaSalvos{max-height:600px;overflow-y:auto;margin-bottom:10px}
+.item-salvo{background:#101010;border:1px solid #444;border-radius:6px;padding:10px;margin-bottom:8px;white-space:pre-wrap;word-break:break-word;font-size:14px;cursor:pointer}
+.item-salvo:hover{border-color:#777}
+.item-salvo .item-numero{color:#aaa;font-size:12px;margin-bottom:5px}
+.botoes-lista{display:flex;flex-wrap:wrap;gap:5px}
+.botoes-salvar-abaixo{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;margin-bottom:12px}
+@media(max-width:900px){.conteudo-principal{grid-template-columns:1fr}.painel-lista{position:static}}
+
+
+
+/* =========================================================
+   ACESSO ONLINE / CADASTRO / ADMINISTRAÇÃO
+========================================================= */
+.auth-shell{min-height:calc(100vh - 50px);display:flex;align-items:center;justify-content:center;padding:10px 0}
+.auth-card{width:min(460px,100%);background:#202020;border:1px solid #444;border-radius:12px;padding:26px;box-sizing:border-box;box-shadow:0 15px 45px rgba(0,0,0,.28)}
+.auth-card h2{margin:0 0 8px}
+.auth-card p{color:#aaa;margin:0 0 18px;font-size:14px;line-height:1.45}
+.auth-card label{display:block;margin:12px 0 6px;font-size:14px;color:#ddd}
+.auth-card input{width:100%;box-sizing:border-box;padding:12px 13px;border-radius:7px;border:1px solid #555;background:#101010;color:#eee;font-size:15px}
+.auth-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.auth-actions button{flex:1;min-width:145px}
+.btn-primary{background:#0d6efd;color:#fff}
+.btn-secondary{background:#333;color:#eee;border:1px solid #555}
+.btn-success{background:#198754;color:#fff}
+.btn-danger{background:#b02a37;color:#fff}
+.auth-link{display:inline-block;margin-top:14px;color:#7fb7ff;cursor:pointer;text-decoration:underline}
+.auth-msg{margin-top:14px;padding:11px 12px;border-radius:7px;background:#151515;border:1px solid #444;color:#ccc;font-size:14px;line-height:1.4}
+.auth-msg.ok{border-color:#1f7a4d;color:#ccebdc}
+.auth-msg.err{border-color:#8d2834;color:#ffd5d9}
+.auth-msg.warn{border-color:#8a6d1d;color:#ffe9a8}
+.user-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:15px;padding:10px 12px;background:#1b1b1b;border:1px solid #444;border-radius:8px}
+.user-bar .user-info{color:#bbb;font-size:13px}
+.user-bar .user-info strong{color:#eee}
+.user-bar .user-actions{display:flex;gap:6px;flex-wrap:wrap}
+.user-bar button{margin:0;padding:9px 12px;font-size:13px}
+#appPrincipal,#adminArea{display:none}
+.admin-card{background:#202020;border:1px solid #444;border-radius:10px;padding:16px;margin-bottom:18px}
+.admin-card h2{margin-top:0}
+.admin-list{display:grid;gap:10px}
+.admin-item{background:#101010;border:1px solid #444;border-radius:8px;padding:12px}
+.admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 14px;font-size:14px}
+.admin-grid div span:first-child{color:#999}
+.admin-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.admin-actions button{margin:0;padding:9px 13px}
+.empty-admin{color:#aaa;padding:10px 0}
+@media(max-width:700px){.admin-grid{grid-template-columns:1fr}.auth-card{padding:20px}}
+
+</style>
+</head>
+
+<body>
+
+<!-- =========================================================
+     TELA DE ACESSO
+========================================================= -->
+<div id="telaAcesso" class="auth-shell">
+    <div class="auth-card">
+        <div id="loginBox">
+            <h2>Extrator de Caráter Geral</h2>
+            <p>Acesso restrito. Entre utilizando seu <strong>RE</strong> e sua senha.</p>
+
+            <label for="loginRE">RE</label>
+            <input id="loginRE" type="text" inputmode="numeric" autocomplete="username" placeholder="Digite seu RE">
+
+            <label for="loginSenha">Senha</label>
+            <input id="loginSenha" type="password" autocomplete="current-password" placeholder="Digite sua senha">
+
+            <div class="auth-actions">
+                <button id="btnEntrar" class="btn-primary" type="button" onclick="entrarSistema()">Entrar</button>
+                <button class="btn-secondary" type="button" onclick="mostrarCadastro()">Solicitar cadastro</button>
+            </div>
+
+            <div id="loginMsg" class="auth-msg" style="display:none"></div>
+        </div>
+
+        <div id="cadastroBox" style="display:none">
+            <h2>Solicitar cadastro</h2>
+            <p>Preencha seus dados. O acesso só será liberado depois da aprovação do administrador.</p>
+
+            <label for="cadRE">RE</label>
+            <input id="cadRE" type="text" inputmode="numeric" autocomplete="off" placeholder="Digite seu RE">
+
+            <label for="cadNome">Nome completo</label>
+            <input id="cadNome" type="text" autocomplete="name" placeholder="Nome completo">
+
+            <label for="cadUnidade">Unidade</label>
+            <input id="cadUnidade" type="text" autocomplete="organization" placeholder="Ex.: COPOM, BPM, CIA...">
+
+            <label for="cadEmail">E-mail funcional</label>
+            <input id="cadEmail" type="email" autocomplete="email" placeholder="seu.email@pm.sp.gov.br">
+
+            <label for="cadSenha">Senha</label>
+            <input id="cadSenha" type="password" autocomplete="new-password" placeholder="Crie uma senha">
+
+            <label for="cadSenha2">Confirmar senha</label>
+            <input id="cadSenha2" type="password" autocomplete="new-password" placeholder="Repita a senha">
+
+            <div class="auth-actions">
+                <button class="btn-primary" type="button" onclick="cadastrarUsuario()">Enviar cadastro</button>
+                <button class="btn-secondary" type="button" onclick="mostrarLogin()">Voltar para login</button>
+            </div>
+
+            <div id="cadMsg" class="auth-msg" style="display:none"></div>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     ÁREA DO ADMINISTRADOR
+========================================================= -->
+<div id="adminArea">
+    <div class="admin-card">
+        <h2>Administração de cadastros</h2>
+        <p class="info">Aprove ou rejeite as solicitações de acesso ao Extrator de Caráter Geral.</p>
+        <div class="auth-actions">
+            <button class="btn-secondary" type="button" onclick="voltarDoAdmin()">Voltar ao extrator</button>
+            <button class="btn-secondary" type="button" onclick="carregarPendentes()">Atualizar</button>
+        </div>
+    </div>
+    <div class="admin-card">
+        <h3>Solicitações pendentes</h3>
+        <div id="listaPendentes" class="admin-list"><div class="empty-admin">Carregando...</div></div>
+    </div>
+</div>
+
+<!-- =========================================================
+     APLICAÇÃO ORIGINAL
+========================================================= -->
+<div id="appPrincipal">
+<div class="user-bar">
+    <div class="user-info" id="usuarioBarraInfo">Acesso autenticado.</div>
+    <div class="user-actions">
+        <button id="btnAdmin" class="btn-secondary" type="button" onclick="abrirAdmin()" style="display:none">⚙️ Aprovações</button>
+        <button class="btn-secondary" type="button" onclick="sairSistema()">Sair</button>
+    </div>
+</div>
+
+<div class="conteudo-principal"><div class="conteudo-esquerdo">
+
+<h1>Extrator de Texto OCR</h1>
+
+<div class="area" id="areaColar">
+
+    <strong>Cole uma imagem aqui usando Ctrl+V</strong>
+
+    <div class="info">
+        Você também pode selecionar uma imagem pelo botão abaixo.
+    </div>
+
+    <input type="file" id="arquivo" accept="image/*">
+
+</div>
+
+<div>
+
+    <button onclick="extrairSelecionado()">
+        🔎 Extrair texto selecionado
+    </button>
+
+    <button onclick="extrairInteira()">
+        📄 Extrair imagem inteira
+    </button>
+
+    <button onclick="copiarTexto()">
+        📋 Copiar texto
+    </button>
+
+    <button onclick="extrairSomenteCarater()">
+        🔎 Extrair somente o caráter
+    </button>
+
+</div>
+
+<div id="status">
+    Aguardando imagem...
+</div>
+
+<div id="imagemContainer">
+
+    <img id="imagem">
+
+    <div id="selecao"></div>
+
+</div>
+
+<div class="placa-box">
+
+    <strong>Placa identificada:</strong>
+
+    <div id="placa" class="placa">
+        ---
+    </div>
+
+</div>
+
+<h3>Texto extraído</h3>
+
+<textarea
+    id="resultado"
+    placeholder="O texto reconhecido aparecerá aqui..."
+></textarea>
+
+<div class="botoes-salvar-abaixo">
+<button onclick="salvarTextoLista()">💾 Salvar texto</button>
+<button onclick="baixarListaTxt()">📥 Salvar lista TXT</button>
+</div>
+
+<script>
+
+let imagemOriginal = null;
+
+let selecionando = false;
+
+let inicioX = 0;
+let inicioY = 0;
+
+let selecaoX = 0;
+let selecaoY = 0;
+let selecaoW = 0;
+let selecaoH = 0;
+
+
+/* =========================================================
+   CARREGAR ARQUIVO
+========================================================= */
+
+document.getElementById("arquivo").addEventListener(
+    "change",
+    function(e) {
+
+        const arquivo = e.target.files[0];
+
+        if (!arquivo) return;
+
+        carregarImagem(arquivo);
+    }
+);
+
+
+/* =========================================================
+   CTRL + V
+========================================================= */
+
+document.addEventListener("paste", function(e) {
+
+    const itens = e.clipboardData.items;
+
+    if (!itens) return;
+
+    for (const item of itens) {
+
+        if (item.type.startsWith("image/")) {
+
+            const arquivo = item.getAsFile();
+
+            if (arquivo) {
+
+                carregarImagem(arquivo);
+
+            }
+
+            e.preventDefault();
+
+            return;
+        }
+    }
+});
+
+
+/* =========================================================
+   CARREGAR IMAGEM
+========================================================= */
+
+function carregarImagem(arquivo) {
+
+    const leitor = new FileReader();
+
+    leitor.onload = function(e) {
+
+        imagemOriginal = new Image();
+
+        imagemOriginal.onload = function() {
+
+            const img =
+                document.getElementById("imagem");
+
+            img.src = e.target.result;
+
+            document
+                .getElementById("imagemContainer")
+                .style.display = "block";
+
+            document
+                .getElementById("status")
+                .innerText =
+                "Imagem carregada. Se quiser, selecione uma região.";
+
+            limparSelecao();
+
+            document
+                .getElementById("placa")
+                .innerText = "---";
+        };
+
+        imagemOriginal.src = e.target.result;
+    };
+
+    leitor.readAsDataURL(arquivo);
+}
+
+
+/* =========================================================
+   SELEÇÃO
+========================================================= */
+
+const imgTela = document.getElementById("imagem");
+const selecao = document.getElementById("selecao");
+
+function obterPontoImagem(e) {
+    const rect = imgTela.getBoundingClientRect();
+    return {
+        x: Math.max(0, Math.min(rect.width, e.clientX - rect.left)),
+        y: Math.max(0, Math.min(rect.height, e.clientY - rect.top))
+    };
+}
+
+function atualizarSelecao(e) {
+    if (!selecionando) return;
+
+    const p = obterPontoImagem(e);
+    const esquerda = Math.min(inicioX, p.x);
+    const topo = Math.min(inicioY, p.y);
+    const largura = Math.abs(p.x - inicioX);
+    const altura = Math.abs(p.y - inicioY);
+
+    selecao.style.left = esquerda + "px";
+    selecao.style.top = topo + "px";
+    selecao.style.width = largura + "px";
+    selecao.style.height = altura + "px";
+
+    selecaoX = esquerda;
+    selecaoY = topo;
+    selecaoW = largura;
+    selecaoH = altura;
+}
+
+function finalizarSelecao(e) {
+    if (!selecionando) return;
+    atualizarSelecao(e);
+    selecionando = false;
+    selecao.style.display = "block";
+
+    if (imgTela.hasPointerCapture && imgTela.hasPointerCapture(e.pointerId)) {
+        imgTela.releasePointerCapture(e.pointerId);
+    }
+}
+
+imgTela.addEventListener("pointerdown", function(e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+
+    const p = obterPontoImagem(e);
+    inicioX = p.x;
+    inicioY = p.y;
+    selecaoX = p.x;
+    selecaoY = p.y;
+    selecaoW = 0;
+    selecaoH = 0;
+    selecionando = true;
+
+    selecao.style.display = "block";
+    selecao.style.left = p.x + "px";
+    selecao.style.top = p.y + "px";
+    selecao.style.width = "0px";
+    selecao.style.height = "0px";
+
+    if (imgTela.setPointerCapture) imgTela.setPointerCapture(e.pointerId);
+});
+
+imgTela.addEventListener("pointermove", function(e) {
+    if (!selecionando) return;
+    e.preventDefault();
+    atualizarSelecao(e);
+});
+
+imgTela.addEventListener("pointerup", function(e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    finalizarSelecao(e);
+});
+
+imgTela.addEventListener("pointercancel", function(e) {
+    if (!selecionando) return;
+    finalizarSelecao(e);
+});
+
+/* =========================================================
+   PREPARAÇÃO DA IMAGEM
+========================================================= */
+
+function prepararImagem(canvas, modo) {
+
+    /*
+     * Aumentamos bastante a imagem.
+     *
+     * Não usamos binarização pesada.
+     * Isso evita transformar letras pequenas
+     * em ruído.
+     */
+
+    const escala = 4;
+
+    const novo =
+        document.createElement("canvas");
+
+    novo.width =
+        canvas.width * escala;
+
+    novo.height =
+        canvas.height * escala;
+
+    const ctx =
+        novo.getContext("2d");
+
+    ctx.imageSmoothingEnabled = true;
+
+    ctx.imageSmoothingQuality = "high";
+
+    ctx.drawImage(
+        canvas,
+        0,
+        0,
+        novo.width,
+        novo.height
+    );
+
+
+    /*
+     * Modo 0:
+     * imagem aumentada normal.
+     */
+
+    if (modo === 0) {
+
+        return novo;
+    }
+
+
+    /*
+     * Modo 1:
+     * escala de cinza + contraste moderado.
+     */
+
+    const dados =
+        ctx.getImageData(
+            0,
+            0,
+            novo.width,
+            novo.height
+        );
+
+    const p = dados.data;
+
+
+    for (let i = 0; i < p.length; i += 4) {
+
+        let r = p[i];
+        let g = p[i + 1];
+        let b = p[i + 2];
+
+        let cinza =
+            0.299 * r +
+            0.587 * g +
+            0.114 * b;
+
+        /*
+         * Contraste moderado.
+         */
+
+        cinza =
+            ((cinza - 128) * 1.20) + 128;
+
+        cinza =
+            Math.max(
+                0,
+                Math.min(255, cinza)
+            );
+
+        p[i] = cinza;
+        p[i + 1] = cinza;
+        p[i + 2] = cinza;
+    }
+
+    ctx.putImageData(dados, 0, 0);
+
+    return novo;
+}
+
+
+/* =========================================================
+   CANVAS DA ÁREA
+========================================================= */
+
+function obterCanvasSelecionado() {
+
+    if (!imagemOriginal)
+        return null;
+
+
+    const canvas =
+        document.createElement("canvas");
+
+
+    /*
+     * Sem seleção:
+     * imagem inteira.
+     */
+
+    if (
+        selecaoW < 10 ||
+        selecaoH < 10
+    ) {
+
+        canvas.width =
+            imagemOriginal.naturalWidth;
+
+        canvas.height =
+            imagemOriginal.naturalHeight;
+
+        const ctx =
+            canvas.getContext("2d");
+
+        ctx.drawImage(
+            imagemOriginal,
+            0,
+            0
+        );
+
+        return canvas;
+    }
+
+
+    /*
+     * Converter coordenadas
+     * da tela para a imagem original.
+     */
+
+    const escalaX =
+        imagemOriginal.naturalWidth /
+        imgTela.clientWidth;
+
+    const escalaY =
+        imagemOriginal.naturalHeight /
+        imgTela.clientHeight;
+
+
+    const x =
+        selecaoX * escalaX;
+
+    const y =
+        selecaoY * escalaY;
+
+    const largura =
+        selecaoW * escalaX;
+
+    const altura =
+        selecaoH * escalaY;
+
+
+    canvas.width =
+        Math.max(
+            1,
+            Math.round(largura)
+        );
+
+    canvas.height =
+        Math.max(
+            1,
+            Math.round(altura)
+        );
+
+
+    const ctx =
+        canvas.getContext("2d");
+
+    ctx.drawImage(
+        imagemOriginal,
+        x,
+        y,
+        largura,
+        altura,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+
+    return canvas;
+}
+
+
+/* =========================================================
+   OCR
+========================================================= */
+
+async function fazerOCR(canvas, modo, psm) {
+
+    const imagem =
+        prepararImagem(canvas, modo);
+
+
+    const resultado =
+        await Tesseract.recognize(
+            imagem,
+            "por",
+            {
+
+                logger: function(info) {
+
+                    if (
+                        info.status ===
+                        "recognizing text"
+                    ) {
+
+                        const porcentagem =
+                            Math.round(
+                                info.progress * 100
+                            );
+
+                        document
+                            .getElementById("status")
+                            .innerText =
+                            "Reconhecendo texto... " +
+                            porcentagem +
+                            "%";
+                    }
+                },
+
+                config: {
+
+                    /*
+                     * PSM 6:
+                     * bloco de texto.
+                     */
+
+                    tessedit_pageseg_mode:
+                        String(psm),
+
+                    /*
+                     * Mantém os espaços.
+                     */
+
+                    preserve_interword_spaces:
+                        "1"
+                }
+            }
+        );
+
+
+    return resultado;
+}
+
+
+/* =========================================================
+   ESCOLHER MELHOR LEITURA
+========================================================= */
+
+function pontuarTexto(texto, confianca) {
+
+    if (!texto)
+        return -9999;
+
+
+    let pontos =
+        Number(confianca || 0);
+
+
+    /*
+     * Texto muito curto provavelmente
+     * perdeu informação.
+     */
+
+    if (texto.length < 15)
+        pontos -= 30;
+
+
+    /*
+     * Penaliza excesso de caracteres estranhos.
+     */
+
+    const estranhos =
+        (
+            texto.match(
+                /[^A-Za-zÀ-ÿ0-9\s:;,.\/()\-]/g
+            ) || []
+        ).length;
+
+
+    pontos -= estranhos * 2;
+
+
+    /*
+     * Premia palavras esperadas.
+     */
+
+    const palavras = [
+
+        "FURTO",
+        "CADASTRO",
+        "VEÍCULO",
+        "VEICULO",
+        "TIPO",
+        "AUTOMÓVEL",
+        "AUTOMOVEL",
+        "MARCA",
+        "COR",
+        "ANO",
+        "MUNICÍPIO",
+        "MUNICIPIO",
+        "SITUAÇÃO",
+        "SITUACAO"
+    ];
+
+
+    for (const palavra of palavras) {
+
+        if (
+            texto
+                .toUpperCase()
+                .includes(palavra)
+        ) {
+
+            pontos += 8;
+        }
+    }
+
+
+    return pontos;
+}
+
+
+/* =========================================================
+   OCR PRINCIPAL
+========================================================= */
+
+async function executarOCRSelecionado(canvas) {
+
+    // Mantida por compatibilidade. A seleção agora é filtrada
+    // diretamente a partir do OCR da imagem inteira.
+    const dados = await executarOCR(canvas, true);
+    return dados?.text?.trim() || "";
+}
+
+
+async function executarOCR(canvas, retornarDados = false) {
+
+    document
+        .getElementById("status")
+        .innerText =
+        "Preparando reconhecimento...";
+
+
+    /*
+     * Primeira leitura:
+     * imagem normal.
+     */
+
+    const r1 =
+        await fazerOCR(
+            canvas,
+            0,
+            6
+        );
+
+
+    /*
+     * Segunda leitura:
+     * cinza + contraste moderado.
+     */
+
+    const r2 =
+        await fazerOCR(
+            canvas,
+            1,
+            6
+        );
+
+
+    /*
+     * Terceira leitura:
+     * modo automático de segmentação.
+     */
+
+    const r3 =
+        await fazerOCR(
+            canvas,
+            0,
+            11
+        );
+
+
+    const candidatos = [
+
+        {
+            texto: r1.data.text.trim(),
+            confianca: r1.data.confidence,
+            dados: r1.data
+        },
+
+        {
+            texto: r2.data.text.trim(),
+            confianca: r2.data.confidence,
+            dados: r2.data
+        },
+
+        {
+            texto: r3.data.text.trim(),
+            confianca: r3.data.confidence,
+            dados: r3.data
+        }
+    ];
+
+
+    let melhor = "";
+
+    let maiorPontuacao = -Infinity;
+
+
+    for (const item of candidatos) {
+
+        const pontuacao =
+            pontuarTexto(
+                item.texto,
+                item.confianca
+            );
+
+
+        if (
+            pontuacao >
+            maiorPontuacao
+        ) {
+
+            maiorPontuacao =
+                pontuacao;
+
+            melhor =
+                item.texto;
+        }
+    }
+
+    if (retornarDados) {
+        const escolhido = candidatos.find(c => c.texto === melhor);
+        if (!escolhido || !escolhido.dados) return null;
+
+        // Retorna o texto e os dados geométricos da MESMA leitura
+        // escolhida pelo OCR completo.
+        return {
+            text: escolhido.texto,
+            confidence: escolhido.confianca,
+            lines: escolhido.dados.lines || [],
+            words: escolhido.dados.words || [],
+            data: escolhido.dados
+        };
+    }
+
+    return melhor;
+}
+
+
+/* =========================================================
+   LIMPEZA
+========================================================= */
+
+function limparTexto(texto) {
+
+    return texto
+        .replace(/\r/g, "")
+        .replace(/[ \t]+/g, " ")
+        .replace(/\n[ \t]+/g, "\n")
+        .trim();
+}
+
+
+/* =========================================================
+   CORREÇÃO SOMENTE DE CAMPOS
+========================================================= */
+
+function corrigirCampos(texto) {
+
+    /*
+     * IMPORTANTE:
+     *
+     * Não fazemos substituições globais.
+     *
+     * Isso evita transformar:
+     *
+     * SITUAÇÃO
+     * FURTO
+     * MARCA
+     *
+     * em números ou caracteres errados.
+     */
+
+
+    texto =
+        texto.replace(
+            /\bCADASTRO\s+VE[ÍI1]CULO\b/gi,
+            "CADASTRO VEÍCULO"
+        );
+
+
+    texto =
+        texto.replace(
+            /\bCADASTRO\s+VEICULO\b/gi,
+            "CADASTRO VEÍCULO"
+        );
+
+
+    texto =
+        texto.replace(
+            /\bTIEO\b/gi,
+            "TIPO"
+        );
+
+
+    texto =
+        texto.replace(
+            /\bMARCAR\b/gi,
+            "MARCA"
+        );
+
+
+    texto =
+        texto.replace(
+            /\bFUR[ÍI1]O\b/gi,
+            "FURTO"
+        );
+
+
+    texto =
+        texto.replace(
+            /\bDOR\s*:\s*BRANCA\b/gi,
+            "COR: BRANCA"
+        );
+
+
+    texto =
+        texto.replace(
+            /\bMUNIC[ÍI1]P[ÍI1]O\b/gi,
+            "MUNICÍPIO"
+        );
+
+
+    texto =
+        texto.replace(
+            /\bSITUA[ÇC]AO\b/gi,
+            "SITUAÇÃO"
+        );
+
+
+    return texto;
+}
+
+
+/* =========================================================
+   NORMALIZAR CANDIDATO
+========================================================= */
+
+function normalizarCandidato(valor) {
+
+    if (!valor)
+        return "";
+
+
+    return valor
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "");
+}
+
+
+/* =========================================================
+   PLACA ANTIGA
+   LLLNNNN
+========================================================= */
+
+function corrigirPlacaAntiga(valor) {
+
+    if (!valor)
+        return null;
+
+
+    valor =
+        normalizarCandidato(valor);
+
+
+    if (valor.length !== 7)
+        return null;
+
+
+    const saida = [];
+
+
+    /*
+     * 3 primeiras posições = letras
+     */
+
+    for (let i = 0; i < 3; i++) {
+
+        let c = valor[i];
+
+
+        const mapa = {
+
+            "0": "O",
+            "1": "I",
+            "2": "Z",
+            "5": "S",
+            "6": "G",
+            "8": "B"
+        };
+
+
+        if (mapa[c])
+            c = mapa[c];
+
+
+        saida.push(c);
+    }
+
+
+    /*
+     * Últimas 4 = números
+     */
+
+    for (let i = 3; i < 7; i++) {
+
+        let c = valor[i];
+
+
+        const mapa = {
+
+            "O": "0",
+            "Q": "0",
+            "D": "0",
+
+            "I": "1",
+            "L": "1",
+
+            "S": "5",
+
+            "B": "8",
+
+            "G": "6"
+        };
+
+
+        if (mapa[c])
+            c = mapa[c];
+
+
+        saida.push(c);
+    }
+
+
+    const placa =
+        saida.join("");
+
+
+    if (
+        /^[A-Z]{3}[0-9]{4}$/.test(placa)
+    ) {
+
+        return placa;
+    }
+
+
+    return null;
+}
+
+
+/* =========================================================
+   PLACA MERCOSUL
+   LLLNLNN
+========================================================= */
+
+function corrigirPlacaMercosul(valor) {
+
+    if (!valor)
+        return null;
+
+
+    valor =
+        normalizarCandidato(valor);
+
+
+    if (valor.length !== 7)
+        return null;
+
+
+    const saida = [];
+
+
+    /*
+     * LETRAS
+     */
+
+    for (let i = 0; i < 3; i++) {
+
+        let c = valor[i];
+
+
+        const mapa = {
+
+            "0": "O",
+            "1": "I",
+            "2": "Z",
+            "5": "S",
+            "6": "G",
+            "8": "B"
+        };
+
+
+        if (mapa[c])
+            c = mapa[c];
+
+
+        saida.push(c);
+    }
+
+
+    /*
+     * NÚMERO
+     */
+
+    let c3 = valor[3];
+
+
+    const mapaNumero = {
+
+        "O": "0",
+        "Q": "0",
+        "D": "0",
+
+        "I": "1",
+        "L": "1",
+
+        "S": "5",
+
+        "B": "8",
+
+        "G": "6"
+    };
+
+
+    if (mapaNumero[c3])
+        c3 = mapaNumero[c3];
+
+
+    saida.push(c3);
+
+
+    /*
+     * LETRA
+     */
+
+    let c4 = valor[4];
+
+
+    const mapaLetra = {
+
+        "0": "O",
+        "1": "I",
+        "2": "Z",
+        "5": "S",
+        "6": "G",
+        "8": "B"
+    };
+
+
+    if (mapaLetra[c4])
+        c4 = mapaLetra[c4];
+
+
+    saida.push(c4);
+
+
+    /*
+     * DOIS ÚLTIMOS NÚMEROS
+     */
+
+    for (let i = 5; i < 7; i++) {
+
+        let c = valor[i];
+
+
+        if (mapaNumero[c])
+            c = mapaNumero[c];
+
+
+        saida.push(c);
+    }
+
+
+    const placa =
+        saida.join("");
+
+
+    if (
+        /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(placa)
+    ) {
+
+        return placa;
+    }
+
+
+    return null;
+}
+
+
+/* =========================================================
+   DETECTAR PLACA
+========================================================= */
+
+function encontrarPlaca(texto) {
+
+    if (!texto)
+        return null;
+
+
+    const textoMaiusculo =
+        texto.toUpperCase();
+
+
+    /*
+     * Primeiro procura especificamente
+     * depois de CADASTRO VEÍCULO.
+     */
+
+    const campo =
+        textoMaiusculo.match(
+            /CADASTRO\s+VE[ÍI1]CULO\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s\-]{5,14})/
+        );
+
+
+    if (campo) {
+
+        const trecho =
+            campo[1];
+
+
+        const limpo =
+            trecho.replace(
+                /[^A-Z0-9]/g,
+                ""
+            );
+
+
+        /*
+         * Testa sequências de 7.
+         */
+
+        for (
+            let i = 0;
+            i <= limpo.length - 7;
+            i++
+        ) {
+
+            const candidato =
+                limpo.substring(
+                    i,
+                    i + 7
+                );
+
+
+            /*
+             * Primeiro Mercosul.
+             */
+
+            const mercosul =
+                corrigirPlacaMercosul(
+                    candidato
+                );
+
+
+            if (mercosul)
+                return mercosul;
+
+
+            /*
+             * Depois placa antiga.
+             */
+
+            const antiga =
+                corrigirPlacaAntiga(
+                    candidato
+                );
+
+
+            if (antiga)
+                return antiga;
+        }
+    }
+
+
+    /*
+     * Procura no texto inteiro.
+     */
+
+    const geral =
+        textoMaiusculo.replace(
+            /[^A-Z0-9]/g,
+            " "
+        );
+
+
+    const candidatos =
+        geral.match(
+            /[A-Z0-9]{7}/g
+        ) || [];
+
+
+    for (const candidato of candidatos) {
+
+        const mercosul =
+            corrigirPlacaMercosul(
+                candidato
+            );
+
+
+        if (mercosul)
+            return mercosul;
+
+
+        const antiga =
+            corrigirPlacaAntiga(
+                candidato
+            );
+
+
+        if (antiga)
+            return antiga;
+    }
+
+
+    return null;
+}
+
+
+/* =========================================================
+   CORRIGIR ANO
+========================================================= */
+
+function corrigirAno(texto) {
+
+    /*
+     * Só mexe no campo ANO.
+     */
+
+    const regex =
+        /(ANO\s*[:\-]?\s*)([0-9A-ZIOBS]{4})\s*[\/\-]\s*([0-9A-ZIOBS]{4})/i;
+
+
+    const encontrado =
+        texto.match(regex);
+
+
+    if (!encontrado)
+        return texto;
+
+
+    function converter(valor) {
+
+        const mapa = {
+
+            "O": "0",
+            "Q": "0",
+
+            "I": "1",
+            "L": "1",
+
+            "S": "5",
+
+            "B": "8",
+
+            "G": "6"
+        };
+
+
+        return valor
+            .toUpperCase()
+            .split("")
+            .map(c => mapa[c] || c)
+            .join("");
+    }
+
+
+    const ano1 =
+        converter(encontrado[2]);
+
+
+    const ano2 =
+        converter(encontrado[3]);
+
+
+    const n1 =
+        parseInt(ano1);
+
+
+    const n2 =
+        parseInt(ano2);
+
+
+    /*
+     * Só altera se forem anos plausíveis.
+     */
+
+    if (
+        n1 >= 1900 &&
+        n1 <= 2100 &&
+        n2 >= 1900 &&
+        n2 <= 2100
+    ) {
+
+        texto =
+            texto.replace(
+                regex,
+                "$1" +
+                ano1 +
+                "/" +
+                ano2
+            );
+    }
+
+
+    return texto;
+}
+
+
+/* =========================================================
+   PROCESSAR RESULTADO
+========================================================= */
+
+function processarTexto(texto) {
+
+    texto =
+        limparTexto(texto);
+
+
+    texto =
+        corrigirCampos(texto);
+
+
+    texto =
+        corrigirAno(texto);
+
+
+    /*
+     * Detecta placa separadamente.
+     *
+     * NÃO altera o texto original.
+     */
+
+    const placa =
+        encontrarPlaca(texto);
+
+
+    if (placa) {
+
+        document
+            .getElementById("placa")
+            .innerText = placa;
+
+    } else {
+
+        document
+            .getElementById("placa")
+            .innerText = "---";
+    }
+
+
+    return texto;
+}
+
+
+/* =========================================================
+   EXTRAIR SELECIONADO
+========================================================= */
+
+async function extrairSelecionado() {
+
+    if (!imagemOriginal) {
+        alert("Cole ou carregue uma imagem primeiro.");
+        return;
+    }
+
+    if (selecaoW < 10 || selecaoH < 10) {
+        alert("Selecione uma área da imagem primeiro.");
+        return;
+    }
+
+    try {
+        document.getElementById("status").innerText =
+            "Preparando área selecionada...";
+
+        /*
+         * IMPORTANTE:
+         * O OCR é feito na IMAGEM INTEIRA usando exatamente a mesma
+         * rotina do botão "Extrair imagem inteira". Depois filtramos
+         * somente as linhas cujo centro está dentro da área vermelha.
+         *
+         * Assim a seleção não perde qualidade por reduzir/cortar a
+         * resolução da imagem antes do Tesseract.
+         */
+        const canvasCompleto = document.createElement("canvas");
+        canvasCompleto.width = imagemOriginal.naturalWidth;
+        canvasCompleto.height = imagemOriginal.naturalHeight;
+        const ctxCompleto = canvasCompleto.getContext("2d");
+        ctxCompleto.drawImage(imagemOriginal, 0, 0);
+
+        const dados = await executarOCR(canvasCompleto, true);
+
+        if (!dados) {
+            throw new Error("Não foi possível obter os dados do OCR.");
+        }
+
+        const escalaX = imagemOriginal.naturalWidth / imgTela.clientWidth;
+        const escalaY = imagemOriginal.naturalHeight / imgTela.clientHeight;
+
+        const x1 = selecaoX * escalaX;
+        const y1 = selecaoY * escalaY;
+        const x2 = (selecaoX + selecaoW) * escalaX;
+        const y2 = (selecaoY + selecaoH) * escalaY;
+
+        /*
+         * ATENÇÃO: prepararImagem() aumenta a imagem 4x antes do Tesseract.
+         * Portanto, os bbox retornados pelo OCR estão em coordenadas 4x.
+         * A seleção, porém, está em coordenadas da imagem original.
+         * A V9 comparava essas duas escalas diferentes, causando exatamente
+         * o sintoma de aparecer só a primeira palavra ou não aparecer nada.
+         */
+        const ESCALA_OCR = 4;
+
+        function bboxOriginal(b) {
+            return {
+                x0: b.x0 / ESCALA_OCR,
+                y0: b.y0 / ESCALA_OCR,
+                x1: b.x1 / ESCALA_OCR,
+                y1: b.y1 / ESCALA_OCR
+            };
+        }
+
+        function cruzaSelecao(b) {
+            return b.x1 >= x1 && b.x0 <= x2 &&
+                   b.y1 >= y1 && b.y0 <= y2;
+        }
+
+        const linhas = (dados.lines || [])
+            .map(linha => {
+                if (!linha.bbox) return null;
+                return { ...linha, bboxOriginal: bboxOriginal(linha.bbox) };
+            })
+            .filter(linha => linha && cruzaSelecao(linha.bboxOriginal))
+            .sort((a, b) => a.bboxOriginal.y0 - b.bboxOriginal.y0);
+
+        let texto = linhas
+            .map(l => (l.text || "").trim())
+            .filter(Boolean)
+            .join("\n");
+
+        /*
+         * Para seleções menores ou que cortem uma linha, usa as palavras
+         * individualmente. Também corrige a escala dos bbox.
+         */
+        if (!texto || linhas.length === 0) {
+            const palavras = (dados.words || [])
+                .map(palavra => {
+                    if (!palavra.bbox) return null;
+                    return { ...palavra, bboxOriginal: bboxOriginal(palavra.bbox) };
+                })
+                .filter(palavra => palavra && cruzaSelecao(palavra.bboxOriginal))
+                .sort((a, b) => {
+                    const ya = a.bboxOriginal.y0;
+                    const yb = b.bboxOriginal.y0;
+                    if (Math.abs(ya - yb) > 8) return ya - yb;
+                    return a.bboxOriginal.x0 - b.bboxOriginal.x0;
+                });
+
+            const grupos = [];
+            for (const palavra of palavras) {
+                const centroY = (palavra.bboxOriginal.y0 + palavra.bboxOriginal.y1) / 2;
+                let grupo = grupos.find(g => Math.abs(g.y - centroY) <= 8);
+                if (!grupo) {
+                    grupo = { y: centroY, palavras: [] };
+                    grupos.push(grupo);
+                }
+                grupo.palavras.push(palavra);
+            }
+
+            grupos.sort((a, b) => a.y - b.y);
+            texto = grupos.map(g =>
+                g.palavras
+                    .sort((a, b) => a.bboxOriginal.x0 - b.bboxOriginal.x0)
+                    .map(p => (p.text || "").trim())
+                    .filter(Boolean)
+                    .join(" ")
+            ).filter(Boolean).join("\n");
+        }
+
+        const final = processarTexto(texto);
+
+        document.getElementById("resultado").value = final;
+        document.getElementById("status").innerText =
+            "Texto selecionado extraído com sucesso.";
+
+    } catch (erro) {
+        console.error(erro);
+        document.getElementById("status").innerText =
+            "Erro durante o OCR.";
+        alert("Não foi possível reconhecer o texto.");
+    }
+}
+
+
+/* =========================================================
+   EXTRAIR IMAGEM INTEIRA
+========================================================= */
+
+async function extrairInteira() {
+
+    if (!imagemOriginal) {
+
+        alert(
+            "Cole ou carregue uma imagem primeiro."
+        );
+
+        return;
+    }
+
+
+    try {
+
+        document
+            .getElementById("status")
+            .innerText =
+            "Preparando imagem inteira...";
+
+
+        /*
+         * Força imagem inteira,
+         * mesmo que exista seleção.
+         */
+
+        const canvas =
+            document.createElement("canvas");
+
+
+        canvas.width =
+            imagemOriginal.naturalWidth;
+
+        canvas.height =
+            imagemOriginal.naturalHeight;
+
+
+        const ctx =
+            canvas.getContext("2d");
+
+
+        ctx.drawImage(
+            imagemOriginal,
+            0,
+            0
+        );
+
+
+        const texto =
+            await executarOCR(canvas);
+
+
+        const final =
+            processarTexto(texto);
+
+
+        document
+            .getElementById("resultado")
+            .value = final;
+
+
+        document
+            .getElementById("status")
+            .innerText =
+            "Texto completo extraído com sucesso.";
+
+    }
+
+    catch (erro) {
+
+        console.error(erro);
+
+        document
+            .getElementById("status")
+            .innerText =
+            "Erro durante o OCR.";
+
+        alert(
+            "Não foi possível reconhecer o texto."
+        );
+    }
+}
+
+
+/* =========================================================
+   COPIAR
+========================================================= */
+
+function copiarTexto() {
+
+    const campo =
+        document.getElementById("resultado");
+
+
+    navigator.clipboard.writeText(
+        campo.value
+    )
+    .then(function() {
+
+        document
+            .getElementById("status")
+            .innerText =
+            "Texto copiado.";
+
+    })
+    .catch(function() {
+
+        campo.select();
+
+        document.execCommand("copy");
+
+        document
+            .getElementById("status")
+            .innerText =
+            "Texto copiado.";
+    });
+}
+
+
+/* =========================================================
+   EXTRAIR SOMENTE O CARÁTER
+   Retira o conteúdo depois de "CADASTRO VEÍCULO:" até
+   o final do campo "SITUAÇÃO".
+========================================================= */
+
+async function extrairSomenteCarater() {
+
+    if (!imagemOriginal) {
+        alert("Cole ou carregue uma imagem primeiro.");
+        return;
+    }
+
+    try {
+        document.getElementById("status").innerText =
+            "Lendo imagem e extraindo caráter...";
+
+        // Faz a leitura diretamente da imagem inteira, sem exigir
+        // qualquer seleção da área vermelha e sem mostrar o OCR completo.
+        const canvas = document.createElement("canvas");
+        canvas.width = imagemOriginal.naturalWidth;
+        canvas.height = imagemOriginal.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(imagemOriginal, 0, 0);
+
+        const dados = await executarOCR(canvas, true);
+        const texto = processarTexto((dados && dados.text) ? dados.text : "");
+
+        if (!texto.trim()) {
+            throw new Error("OCR não retornou texto.");
+        }
+
+        // Procura CADASTRO VEÍCULO: e extrai até o final do valor de SITUAÇÃO.
+        const inicioRegex = /CADASTRO\s+VE[ÍIÌÎÏI]?CULO\s*:/i;
+        const inicioMatch = inicioRegex.exec(texto);
+
+        if (!inicioMatch) {
+            alert('Não foi encontrado "CADASTRO VEÍCULO:" no texto lido.');
+            return;
+        }
+
+        const inicio = inicioMatch.index + inicioMatch[0].length;
+        const restante = texto.slice(inicio);
+
+        const situacaoRegex = /SITUA[CÇC]?[AÃA]?O\s*:/i;
+        const situacaoMatch = situacaoRegex.exec(restante);
+
+        if (!situacaoMatch) {
+            alert('Não foi encontrado "SITUAÇÃO:" no texto lido.');
+            return;
+        }
+
+        const fimMarcador = situacaoMatch.index + situacaoMatch[0].length;
+        const depoisSituacao = restante.slice(fimMarcador);
+
+        // Mantém somente o valor da situação, encerrando no próximo ; ou quebra de linha.
+        const fimValor = depoisSituacao.search(/[;\n\r]/);
+        const fim = fimValor >= 0
+            ? fimMarcador + fimValor
+            : restante.length;
+
+        const resultado = restante.slice(0, fim).trim();
+
+        if (!resultado) {
+            alert("Não foi possível extrair o caráter.");
+            return;
+        }
+
+        // Mostra somente o resultado final, sem exigir seleção e sem
+        // substituir a imagem ou alterar a lista de textos salvos.
+        document.getElementById("resultado").value = resultado;
+        document.getElementById("placa").innerText = encontrarPlaca(resultado) || "---";
+        document.getElementById("status").innerText =
+            "Caráter extraído com sucesso.";
+
+    } catch (erro) {
+        console.error(erro);
+        document.getElementById("status").innerText =
+            "Erro durante a leitura do caráter.";
+        alert("Não foi possível reconhecer o caráter.");
+    }
+}
+
+/* =========================================================
+   LISTA DE CARÁTER GERAL — ONLINE / SUPABASE
+========================================================= */
+
+let listaTextos = [];
+let canalLista = null;
+
+async function carregarLista() {
+    const container = document.getElementById("listaSalvos");
+    if (!container) return;
+
+    container.innerHTML = '<div class="info">Carregando lista online...</div>';
+
+    const { data, error } = await sb
+        .from("extrator_lista_carater")
+        .select("id,texto,created_at")
+        .order("created_at", { ascending: true });
+
+    if (error) {
+        console.error(error);
+        container.innerHTML = '<div class="info">Não foi possível carregar a lista online.</div>';
+        return;
+    }
+
+    listaTextos = Array.isArray(data) ? data : [];
+    renderizarLista();
+}
+
+function renderizarLista() {
+    const container = document.getElementById("listaSalvos");
+    const contador = document.getElementById("contadorCarater");
+    if (!container) return;
+
+    if (contador) {
+        contador.textContent = "Total: " + listaTextos.length;
+    }
+
+    if (!listaTextos.length) {
+        container.innerHTML = '<div class="info">Nenhum texto salvo.</div>';
+        return;
+    }
+
+    container.innerHTML = "";
+
+    listaTextos.forEach(function(registro, indice) {
+        const item = document.createElement("div");
+        item.className = "item-salvo";
+        item.title = "Clique para carregar este registro no texto abaixo.";
+
+        const numero = document.createElement("div");
+        numero.className = "item-numero";
+        numero.textContent = "Registro " + (indice + 1);
+
+        const conteudo = document.createElement("div");
+        conteudo.textContent = registro.texto || "";
+
+        item.appendChild(numero);
+        item.appendChild(conteudo);
+
+        item.addEventListener("click", function() {
+            document.getElementById("resultado").value = registro.texto || "";
+            document.getElementById("placa").innerText = encontrarPlaca(registro.texto || "") || "---";
+            document.getElementById("status").innerText =
+                "Registro " + (indice + 1) + " carregado.";
+        });
+
+        container.appendChild(item);
+    });
+}
+
+async function salvarTextoLista() {
+    const texto = document.getElementById("resultado").value.trim();
+
+    if (!texto) {
+        alert("Não há texto para salvar.");
+        return;
+    }
+
+    const { error } = await sb
+        .from("extrator_lista_carater")
+        .insert({
+            texto: texto,
+            criado_por: usuarioAtual.id
+        });
+
+    if (error) {
+        console.error(error);
+        alert("Não foi possível salvar o caráter na lista online.");
+        return;
+    }
+
+    document.getElementById("status").innerText = "Texto salvo na lista online.";
+
+    imagemOriginal = null;
+
+    const img = document.getElementById("imagem");
+    img.removeAttribute("src");
+
+    document.getElementById("imagemContainer").style.display = "none";
+    document.getElementById("resultado").value = "";
+    document.getElementById("placa").innerText = "---";
+
+    limparSelecao();
+    document.getElementById("arquivo").value = "";
+
+    await carregarLista();
+}
+
+function baixarListaTxt() {
+    if (!listaTextos.length) {
+        alert("A lista está vazia.");
+        return;
+    }
+
+    const conteudo = listaTextos.map(function(registro, indice) {
+        return "===== REGISTRO " + (indice + 1) + " =====\n\n" + (registro.texto || "");
+    }).join("\n\n");
+
+    const blob = new Blob([conteudo], {type:"text/plain;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "lista_carater_geral.txt";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+
+    document.getElementById("status").innerText = "Lista salva em arquivo TXT.";
+}
+
+async function excluirUltimoOnline() {
+    if (!listaTextos.length) {
+        alert("A lista está vazia.");
+        return;
+    }
+
+    const ultimo = listaTextos[listaTextos.length - 1];
+    if (!confirm("Tem certeza que deseja excluir o último registro da lista online?")) return;
+
+    const { error } = await sb
+        .from("extrator_lista_carater")
+        .delete()
+        .eq("id", ultimo.id);
+
+    if (error) {
+        console.error(error);
+        alert("Não foi possível excluir o registro.");
+        return;
+    }
+
+    await carregarLista();
+    document.getElementById("status").innerText = "Último registro excluído.";
+}
+
+async function limparListaOnline() {
+    if (!listaTextos.length) return;
+
+    if (!confirm("Tem certeza que deseja apagar toda a lista online?")) return;
+
+    const { error } = await sb
+        .from("extrator_lista_carater")
+        .delete()
+        .not("id", "is", null);
+
+    if (error) {
+        console.error(error);
+        alert("Não foi possível limpar a lista.");
+        return;
+    }
+
+    await carregarLista();
+    document.getElementById("status").innerText = "Lista online apagada.";
+}
+
+function iniciarRealtimeLista() {
+    if (canalLista) return;
+
+    canalLista = sb
+        .channel("extrator-lista-carater-realtime")
+        .on(
+            "postgres_changes",
+            {
+                event: "*",
+                schema: "public",
+                table: "extrator_lista_carater"
+            },
+            function() {
+                carregarLista();
+            }
+        )
+        .subscribe();
+}
+
+function pararRealtimeLista() {
+    if (!canalLista) return;
+    sb.removeChannel(canalLista);
+    canalLista = null;
+}
+
+
+
+
+
+/* =========================================================
+   AUTENTICAÇÃO / APROVAÇÃO
+========================================================= */
+
+const SUPABASE_URL = "https://jbecezbglolnfsqkiaad.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_IZERnXQn9IXcXNXoxfdkJg_nwif_DIr";
+const sb = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY,
+    {
+        auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: false
+        }
+    }
+);
+
+let usuarioAtual = null;
+let perfilAtual = null;
+let souAdmin = false;
+
+function normalizarRE(valor) {
+    return String(valor || "")
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "");
+}
+
+function reEmailAuth(re) {
+    return "re." + normalizarRE(re).toLowerCase() + "@jbecezbglolnfsqkiaad.supabase.co";
+}
+
+function mostrarMsg(id, texto, tipo) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = texto || "";
+    el.className = "auth-msg" + (tipo ? " " + tipo : "");
+    el.style.display = texto ? "block" : "none";
+}
+
+function mostrarLogin() {
+    document.getElementById("loginBox").style.display = "block";
+    document.getElementById("cadastroBox").style.display = "none";
+    mostrarMsg("cadMsg", "", "");
+}
+
+function mostrarCadastro() {
+    document.getElementById("loginBox").style.display = "none";
+    document.getElementById("cadastroBox").style.display = "block";
+    mostrarMsg("loginMsg", "", "");
+}
+
+function mostrarTelaAcesso() {
+    document.getElementById("telaAcesso").style.display = "flex";
+    document.getElementById("appPrincipal").style.display = "none";
+    document.getElementById("adminArea").style.display = "none";
+    mostrarLogin();
+}
+
+function mostrarAplicacao() {
+    document.getElementById("telaAcesso").style.display = "none";
+    document.getElementById("adminArea").style.display = "none";
+    document.getElementById("appPrincipal").style.display = "block";
+}
+
+function limparFormularioCadastro() {
+    ["cadRE","cadNome","cadUnidade","cadEmail","cadSenha","cadSenha2"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+    });
+}
+
+async function cadastrarUsuario() {
+    const re = normalizarRE(document.getElementById("cadRE").value);
+    const nome = document.getElementById("cadNome").value.trim();
+    const unidade = document.getElementById("cadUnidade").value.trim();
+    const email = document.getElementById("cadEmail").value.trim().toLowerCase();
+    const senha = document.getElementById("cadSenha").value;
+    const senha2 = document.getElementById("cadSenha2").value;
+
+    if (!re || re.length < 3) {
+        mostrarMsg("cadMsg", "Informe um RE válido.", "err");
+        return;
+    }
+    if (!nome || !unidade || !email) {
+        mostrarMsg("cadMsg", "Preencha todos os campos do cadastro.", "err");
+        return;
+    }
+    if (senha.length < 6) {
+        mostrarMsg("cadMsg", "A senha deve ter pelo menos 6 caracteres.", "err");
+        return;
+    }
+    if (senha !== senha2) {
+        mostrarMsg("cadMsg", "A confirmação da senha não confere.", "err");
+        return;
+    }
+
+    const btn = document.querySelector("#cadastroBox .btn-primary");
+    if (btn) btn.disabled = true;
+    mostrarMsg("cadMsg", "Enviando solicitação...", "warn");
+
+    try {
+        const authEmail = reEmailAuth(re);
+
+        const { data: signData, error: signError } = await sb.auth.signUp({
+            email: authEmail,
+            password: senha,
+            options: {
+                data: {
+                    re: re,
+                    nome_completo: nome,
+                    unidade: unidade,
+                    email_funcional: email
+                }
+            }
+        });
+
+        if (signError) throw signError;
+        if (!signData.user) throw new Error("Não foi possível criar a conta.");
+
+        const { error: perfilError } = await sb
+            .from("extrator_usuarios")
+            .insert({
+                id: signData.user.id,
+                re: re,
+                nome_completo: nome,
+                unidade: unidade,
+                email_funcional: email,
+                status: "pendente"
+            });
+
+        if (perfilError) {
+            console.error(perfilError);
+            // Tenta limpar a sessão mesmo que a inclusão do perfil falhe.
+            await sb.auth.signOut();
+            throw perfilError;
+        }
+
+        await sb.auth.signOut();
+        limparFormularioCadastro();
+        mostrarMsg(
+            "cadMsg",
+            "Cadastro enviado com sucesso. Aguarde a aprovação do administrador para acessar o sistema.",
+            "ok"
+        );
+
+    } catch (erro) {
+        console.error(erro);
+        const msg = String(erro?.message || "");
+        if (/already registered|already exists|duplicate/i.test(msg)) {
+            mostrarMsg("cadMsg", "Este RE já possui um cadastro ou uma solicitação.", "err");
+        } else {
+            mostrarMsg("cadMsg", "Não foi possível concluir o cadastro. Verifique os dados e tente novamente.", "err");
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function consultarPerfilAtual() {
+    if (!usuarioAtual) return null;
+
+    const { data, error } = await sb
+        .from("extrator_usuarios")
+        .select("id,re,nome_completo,unidade,email_funcional,status,created_at")
+        .eq("id", usuarioAtual.id)
+        .single();
+
+    if (error) {
+        console.error(error);
+        return null;
+    }
+
+    perfilAtual = data;
+    return data;
+}
+
+async function atualizarIndicadoresAcesso() {
+    if (!usuarioAtual) return;
+
+    const { data: adminData, error: adminError } = await sb.rpc("extrator_sou_admin");
+    souAdmin = !adminError && adminData === true;
+
+    const btnAdmin = document.getElementById("btnAdmin");
+    const botoesLista = document.getElementById("botoesAdminLista");
+
+    if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
+    if (botoesLista) botoesLista.style.display = souAdmin ? "flex" : "none";
+}
+
+async function entrarSistema() {
+    const re = normalizarRE(document.getElementById("loginRE").value);
+    const senha = document.getElementById("loginSenha").value;
+
+    if (!re || !senha) {
+        mostrarMsg("loginMsg", "Informe o RE e a senha.", "err");
+        return;
+    }
+
+    const btn = document.getElementById("btnEntrar");
+    if (btn) btn.disabled = true;
+    mostrarMsg("loginMsg", "Entrando...", "warn");
+
+    try {
+        const { data, error } = await sb.auth.signInWithPassword({
+            email: reEmailAuth(re),
+            password: senha
+        });
+
+        if (error) throw error;
+        usuarioAtual = data.user;
+
+        const perfil = await consultarPerfilAtual();
+
+        if (!perfil) {
+            await sb.auth.signOut();
+            usuarioAtual = null;
+            perfilAtual = null;
+            throw new Error("Perfil não encontrado.");
+        }
+
+        if (perfil.status !== "aprovado") {
+            await sb.auth.signOut();
+            usuarioAtual = null;
+            perfilAtual = null;
+
+            if (perfil.status === "pendente") {
+                mostrarMsg("loginMsg", "Seu cadastro ainda está aguardando aprovação do administrador.", "warn");
+            } else {
+                mostrarMsg("loginMsg", "Seu cadastro não está autorizado a acessar o sistema.", "err");
+            }
+            return;
+        }
+
+        document.getElementById("usuarioBarraInfo").innerHTML =
+            "Usuário: <strong>RE " + perfil.re + "</strong> — " +
+            escapeHtml(perfil.nome_completo) + " — " +
+            escapeHtml(perfil.unidade);
+
+        await atualizarIndicadoresAcesso();
+        mostrarAplicacao();
+        iniciarRealtimeLista();
+        await carregarLista();
+
+        document.getElementById("loginSenha").value = "";
+        mostrarMsg("loginMsg", "", "");
+
+    } catch (erro) {
+        console.error(erro);
+        const msg = String(erro?.message || "");
+        if (/invalid login credentials/i.test(msg)) {
+            mostrarMsg("loginMsg", "RE ou senha incorretos.", "err");
+        } else {
+            mostrarMsg("loginMsg", "Não foi possível entrar. Tente novamente.", "err");
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function sairSistema() {
+    pararRealtimeLista();
+    await sb.auth.signOut();
+    usuarioAtual = null;
+    perfilAtual = null;
+    souAdmin = false;
+    document.getElementById("loginRE").value = "";
+    document.getElementById("loginSenha").value = "";
+    mostrarTelaAcesso();
+}
+
+async function abrirAdmin() {
+    if (!souAdmin) return;
+    document.getElementById("appPrincipal").style.display = "none";
+    document.getElementById("adminArea").style.display = "block";
+    await carregarPendentes();
+}
+
+function voltarDoAdmin() {
+    document.getElementById("adminArea").style.display = "none";
+    document.getElementById("appPrincipal").style.display = "block";
+}
+
+function escapeHtml(valor) {
+    return String(valor || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+async function carregarPendentes() {
+    if (!souAdmin) return;
+
+    const container = document.getElementById("listaPendentes");
+    container.innerHTML = '<div class="empty-admin">Carregando solicitações...</div>';
+
+    const { data, error } = await sb
+        .from("extrator_usuarios")
+        .select("id,re,nome_completo,unidade,email_funcional,status,created_at")
+        .eq("status", "pendente")
+        .order("created_at", { ascending: true });
+
+    if (error) {
+        console.error(error);
+        container.innerHTML = '<div class="empty-admin">Não foi possível carregar as solicitações.</div>';
+        return;
+    }
+
+    if (!data || !data.length) {
+        container.innerHTML = '<div class="empty-admin">Nenhuma solicitação pendente.</div>';
+        return;
+    }
+
+    container.innerHTML = "";
+
+    data.forEach(function(usuario) {
+        const item = document.createElement("div");
+        item.className = "admin-item";
+
+        const dataTexto = usuario.created_at
+            ? new Date(usuario.created_at).toLocaleString("pt-BR")
+            : "-";
+
+        item.innerHTML =
+            '<div class="admin-grid">' +
+                '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
+                '<div><span>Unidade:</span> <strong>' + escapeHtml(usuario.unidade) + '</strong></div>' +
+                '<div><span>Nome:</span> ' + escapeHtml(usuario.nome_completo) + '</div>' +
+                '<div><span>E-mail funcional:</span> ' + escapeHtml(usuario.email_funcional) + '</div>' +
+                '<div><span>Solicitado em:</span> ' + escapeHtml(dataTexto) + '</div>' +
+            '</div>' +
+            '<div class="admin-actions">' +
+                '<button class="btn-success" type="button" onclick="alterarStatusUsuario(\'' + usuario.id + '\', \'aprovado\')">✅ Aprovar</button>' +
+                '<button class="btn-danger" type="button" onclick="alterarStatusUsuario(\'' + usuario.id + '\', \'rejeitado\')">❌ Rejeitar</button>' +
+            '</div>';
+
+        container.appendChild(item);
+    });
+}
+
+async function alterarStatusUsuario(id, novoStatus) {
+    if (!souAdmin) return;
+
+    const texto = novoStatus === "aprovado" ? "aprovar" : "rejeitar";
+    if (!confirm("Deseja " + texto + " este cadastro?")) return;
+
+    const { error } = await sb
+        .from("extrator_usuarios")
+        .update({ status: novoStatus, updated_at: new Date().toISOString() })
+        .eq("id", id);
+
+    if (error) {
+        console.error(error);
+        alert("Não foi possível alterar o status do cadastro.");
+        return;
+    }
+
+    await carregarPendentes();
+}
+
+async function restaurarSessao() {
+    const { data } = await sb.auth.getSession();
+    if (!data || !data.session || !data.session.user) {
+        mostrarTelaAcesso();
+        return;
+    }
+
+    usuarioAtual = data.session.user;
+    const perfil = await consultarPerfilAtual();
+
+    if (!perfil || perfil.status !== "aprovado") {
+        await sb.auth.signOut();
+        usuarioAtual = null;
+        perfilAtual = null;
+        mostrarTelaAcesso();
+        if (perfil && perfil.status === "pendente") {
+            mostrarMsg("loginMsg", "Seu cadastro ainda está aguardando aprovação do administrador.", "warn");
+        }
+        return;
+    }
+
+    document.getElementById("usuarioBarraInfo").innerHTML =
+        "Usuário: <strong>RE " + perfil.re + "</strong> — " +
+        escapeHtml(perfil.nome_completo) + " — " +
+        escapeHtml(perfil.unidade);
+
+    await atualizarIndicadoresAcesso();
+    mostrarAplicacao();
+    iniciarRealtimeLista();
+    await carregarLista();
+}
+
+// Mantém o login persistente entre recarregamentos.
+sb.auth.onAuthStateChange(function(event, session) {
+    if (event === "SIGNED_OUT") {
+        usuarioAtual = null;
+        perfilAtual = null;
+        souAdmin = false;
+        pararRealtimeLista();
+        mostrarTelaAcesso();
+    }
+});
+
+// Primeiro acesso / restauração de sessão.
+window.addEventListener("DOMContentLoaded", restaurarSessao);
+</script>
+
+
+</div>
+<div class="painel-lista">
+<h3>Lista de Caráter Geral <span id="contadorCarater" class="contador-carater">Total: 0</span></h3>
+<div id="listaSalvos"><div class="info">A lista online será carregada após o login.</div></div>
+<div class="botoes-lista" id="botoesAdminLista" style="display:none">
+<button onclick="excluirUltimoOnline()">↩️ Excluir último</button>
+<button onclick="limparListaOnline()">🗑️ Limpar lista</button>
+</div>
+<div class="info">A lista é compartilhada online entre os usuários aprovados.</div>
+</div></div>
+
+</div><!-- /conteudo-principal -->
+</div><!-- /appPrincipal -->
+</body>
+</html>
