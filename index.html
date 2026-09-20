@@ -319,7 +319,7 @@
             <p>Acesso restrito. Entre utilizando seu <strong>RE</strong> e sua senha.</p>
 
             <label for="loginRE">RE</label>
-            <input id="loginRE" type="text" inputmode="numeric" autocomplete="username" placeholder="Ex.: 210493-8" maxlength="20">
+            <input id="loginRE" type="text" inputmode="numeric" autocomplete="username" placeholder="Ex.: 123456-7" maxlength="20">
 
             <label for="loginSenha">Senha</label>
             <input id="loginSenha" type="password" autocomplete="current-password" placeholder="Digite sua senha">
@@ -341,7 +341,7 @@
             </div>
 
             <label for="resetRE">RE</label>
-            <input id="resetRE" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex.: 210493-8" maxlength="20">
+            <input id="resetRE" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex.: 123456-7" maxlength="20">
 
             <label for="resetEmail">E-mail funcional</label>
             <input id="resetEmail" type="email" autocomplete="email" placeholder="seu.email@policiamilitar.sp.gov.br">
@@ -358,7 +358,7 @@
             <p>Preencha seus dados. O acesso só será liberado depois da aprovação do administrador.</p>
 
             <label for="cadRE">RE</label>
-            <input id="cadRE" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex.: 210493-8" maxlength="20">
+            <input id="cadRE" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex.: 123456-7" maxlength="20">
 
             <label for="cadNome">Nome completo</label>
             <input id="cadNome" type="text" autocomplete="name" placeholder="Nome completo">
@@ -3159,7 +3159,7 @@ async function cadastrarUsuario() {
     const senha2 = document.getElementById("cadSenha2").value;
 
     if (!reValido(re)) {
-        mostrarMsg("cadMsg", "Informe o RE no formato com hífen, por exemplo: 210493-8.", "err");
+        mostrarMsg("cadMsg", "Informe o RE no formato com hífen, por exemplo: 123456-7.", "err");
         return;
     }
     if (!nome || !unidade || !email) {
@@ -3278,7 +3278,7 @@ async function redefinirSenha() {
     const email = document.getElementById("resetEmail").value.trim().toLowerCase();
 
     if (!reValido(re)) {
-        mostrarMsg("resetMsg", "Informe o RE no formato com hífen, por exemplo: 210493-8.", "err");
+        mostrarMsg("resetMsg", "Informe o RE no formato com hífen, por exemplo: 123456-7.", "err");
         return;
     }
     if (!emailFuncionalValido(email)) {
@@ -3587,7 +3587,7 @@ async function entrarSistema() {
         return;
     }
     if (!reValido(re)) {
-        mostrarMsg("loginMsg", "Informe o RE no formato com hífen, por exemplo: 210493-8.", "err");
+        mostrarMsg("loginMsg", "Informe o RE no formato com hífen, por exemplo: 123456-7.", "err");
         return;
     }
 
@@ -3724,7 +3724,7 @@ async function carregarAdminUsuarios() {
 
     const consultaAdmin = Promise.all([
         sb.from("extrator_usuarios")
-            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at")
+            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at,aprovacao_em,aprovacao_latitude,aprovacao_longitude,aprovacao_localizacao_precisao")
             .order("created_at", { ascending: true }),
         sb.rpc("extrator_lista_admins")
     ]);
@@ -3783,6 +3783,10 @@ function montarCardUsuario(usuario, adminIds, pendente) {
     const ehAdmin = adminIds.has(usuario.id);
     const ehEu = usuario.id === usuarioAtual?.id;
     const dataTexto = usuario.created_at ? new Date(usuario.created_at).toLocaleString("pt-BR") : "-";
+    const aprovacaoDataTexto = usuario.aprovacao_em ? new Date(usuario.aprovacao_em).toLocaleString("pt-BR") : "-";
+    const aprovacaoLocalTexto = (Number.isFinite(Number(usuario.aprovacao_latitude)) && Number.isFinite(Number(usuario.aprovacao_longitude)))
+        ? Number(usuario.aprovacao_latitude).toFixed(6) + ", " + Number(usuario.aprovacao_longitude).toFixed(6) + (Number.isFinite(Number(usuario.aprovacao_localizacao_precisao)) ? " (±" + Math.round(Number(usuario.aprovacao_localizacao_precisao)) + " m)" : "")
+        : "-";
     const badgeStatus = usuario.status === "aprovado"
         ? '<span class="admin-status-badge ok">APROVADO</span>'
         : usuario.status === "rejeitado"
@@ -3800,6 +3804,8 @@ function montarCardUsuario(usuario, adminIds, pendente) {
             '<div><span>Selfie:</span> <button type="button" class="btn-secondary btn-ver-selfie" style="margin:0;padding:6px 9px;font-size:12px" ' + (usuario.selfie_base64 ? '' : 'disabled') + '>📸 ' + (usuario.selfie_base64 ? 'Ver selfie' : 'Não enviada') + '</button></div>' +
             '<div><span>Verificação de movimento:</span> ' + (usuario.selfie_liveness_status === 'aprovado' ? '<span class="admin-status-badge ok">APROVADA</span>' : '<span class="admin-status-badge">NÃO VERIFICADA</span>') + '</div>' +
             '<div><span>Cadastrado em:</span> ' + escapeHtml(dataTexto) + '</div>' +
+            (usuario.status === "aprovado" ? '<div><span>Aprovado em:</span> ' + escapeHtml(aprovacaoDataTexto) + '</div>' +
+            '<div><span>Local da aprovação:</span> ' + escapeHtml(aprovacaoLocalTexto) + '</div>' : '') +
         '</div>' +
         '<div class="admin-actions" id="acoes-' + escapeHtml(usuario.id) + '"></div>';
 
@@ -3890,9 +3896,30 @@ async function alterarStatusUsuario(id, novoStatus) {
     const texto = novoStatus === "aprovado" ? "aprovar" : "rejeitar";
     if (!confirm("Deseja " + texto + " este cadastro?")) return;
 
+    let dadosAtualizacao = {
+        status: novoStatus,
+        updated_at: new Date().toISOString()
+    };
+
+    if (novoStatus === "aprovado") {
+        let localizacaoAprovacao;
+        try {
+            localizacaoAprovacao = await obterLocalizacaoAprovacao();
+        } catch (erro) {
+            console.error("Localização da aprovação:", erro);
+            alert("Para aprovar o usuário, é necessário permitir a localização do dispositivo. Autorize a localização no navegador e tente novamente.");
+            return;
+        }
+
+        dadosAtualizacao.aprovacao_em = new Date().toISOString();
+        dadosAtualizacao.aprovacao_latitude = localizacaoAprovacao.latitude;
+        dadosAtualizacao.aprovacao_longitude = localizacaoAprovacao.longitude;
+        dadosAtualizacao.aprovacao_localizacao_precisao = localizacaoAprovacao.precisao;
+    }
+
     const { error } = await sb
         .from("extrator_usuarios")
-        .update({ status: novoStatus, updated_at: new Date().toISOString() })
+        .update(dadosAtualizacao)
         .eq("id", id);
 
     if (error) {
@@ -3902,6 +3929,36 @@ async function alterarStatusUsuario(id, novoStatus) {
     }
 
     await carregarAdminUsuarios();
+}
+
+function obterLocalizacaoAprovacao() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error("LOCALIZACAO_INDISPONIVEL"));
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            position => {
+                const coords = position.coords || {};
+                const latitude = Number(coords.latitude);
+                const longitude = Number(coords.longitude);
+                const precisao = Number.isFinite(coords.accuracy) ? Number(coords.accuracy) : null;
+
+                if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+                    reject(new Error("LOCALIZACAO_INVALIDA"));
+                    return;
+                }
+
+                resolve({ latitude, longitude, precisao });
+            },
+            error => {
+                console.error("Geolocalização da aprovação:", error);
+                reject(new Error("LOCALIZACAO_NEGADA"));
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+    });
 }
 
 async function alterarAdministrador(userId, tornar) {
