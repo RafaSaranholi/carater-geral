@@ -2126,8 +2126,10 @@ async function carregarLista() {
 function textoNormalizadoPesquisa(valor) {
     return String(valor || "")
         .normalize("NFD")
-        .replace(/[\\u0300-\\u036f]/g, "")
-        .toLowerCase();
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim();
 }
 
 function obterTextoPesquisaLista() {
@@ -3258,10 +3260,14 @@ async function restaurarSessao() {
     });
 });
 
-const campoBuscaLista = document.getElementById("buscaLista");
-if (campoBuscaLista) {
-    campoBuscaLista.addEventListener("input", renderizarLista);
-}
+// O campo de pesquisa fica no HTML depois deste <script>.
+// Por isso usamos delegação de evento para garantir que funcione
+// tanto para usuários comuns quanto para administradores.
+document.addEventListener("input", function(evento) {
+    if (evento.target && evento.target.id === "buscaLista") {
+        renderizarLista();
+    }
+});
 
 // Mantém o login persistente entre recarregamentos.
 sb.auth.onAuthStateChange(function(event, session) {
