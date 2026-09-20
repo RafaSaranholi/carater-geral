@@ -2706,13 +2706,16 @@ async function mostrarMensagemProgramadaNoLogin() {
         return;
     }
 
-    // Marca a consulta desta sessão para que o aviso não reapareça
-    // até o próximo login, mesmo que o usuário feche a janela.
+    // A função SQL retorna TABLE, portanto o Supabase entrega um array.
+    const mensagem = Array.isArray(data) ? data[0] : data;
+
+    // Só marca como exibida quando existe uma mensagem válida.
+    // Assim, se não houver mensagem hoje, um próximo login poderá consultá-la novamente.
+    if (!mensagem || !mensagem.mensagem) return;
+
     sessionStorage.setItem("extrator_mensagem_login_exibida", "1");
 
-    if (!data || !data.mensagem) return;
-
-    conteudo.textContent = data.mensagem;
+    conteudo.textContent = mensagem.mensagem;
     overlay.style.display = "flex";
 }
 
@@ -2892,8 +2895,7 @@ async function carregarAdminUsuarios() {
         sb.from("extrator_usuarios")
             .select("id,re,nome_completo,unidade,email_funcional,status,created_at,updated_at")
             .order("created_at", { ascending: true }),
-        sb.from("extrator_admins")
-            .select("user_id")
+        sb.rpc("extrator_lista_admins")
     ]);
 
     const timeoutAdmin = new Promise((_, reject) =>
@@ -2926,7 +2928,8 @@ async function carregarAdminUsuarios() {
     }
 
     const todos = usuariosResult.data || [];
-    const adminIds = new Set((adminsResult.data || []).map(item => item.user_id));
+    const listaAdmins = Array.isArray(adminsResult.data) ? adminsResult.data : [];
+    const adminIds = new Set(listaAdmins.map(item => item.user_id || item.id));
     const pendentesData = todos.filter(u => u.status === "pendente");
     const aprovados = todos.filter(u => u.status === "aprovado");
     document.getElementById("contagemPendentes").textContent = pendentesData.length + " pendente(s)";
@@ -3076,7 +3079,7 @@ async function alterarAdministrador(userId, tornar) {
         ? { p_user_id: userId }
         : { p_user_id: userId, p_tornar: false };
 
-    const { data: rpcData, error } = await sb.rpc(rpcName, rpcParams);
+    const { error } = await sb.rpc(rpcName, rpcParams);
 
     if (error) {
         console.error(error);
@@ -3084,31 +3087,8 @@ async function alterarAdministrador(userId, tornar) {
         return;
     }
 
-    // Confirma no banco a alteração antes de redesenhar o painel.
-    const { data: adminsAtualizados, error: leituraAdminError } = await sb
-        .from("extrator_admins")
-        .select("user_id")
-        .eq("user_id", userId);
-
-    if (leituraAdminError) {
-        console.error(leituraAdminError);
-        alert("O privilégio foi alterado, mas não foi possível atualizar a visualização. Recarregue a página.");
-        return;
-    }
-
-    const ficouAdmin = Array.isArray(adminsAtualizados) && adminsAtualizados.some(item => item.user_id === userId);
-
-    if (tornar && !ficouAdmin) {
-        alert("A operação foi executada, mas o usuário ainda não aparece como administrador no banco.");
-        return;
-    }
-
-    if (!tornar && ficouAdmin) {
-        alert("O privilégio não foi removido do banco. Tente novamente.");
-        return;
-    }
-
-    // Atualiza imediatamente a lista na tela.
+    // A RLS da tabela de administradores permite leitura apenas do próprio
+    // registro. Por isso a tela é atualizada através da RPC que lista todos.
     await carregarAdminUsuarios();
 }
 
