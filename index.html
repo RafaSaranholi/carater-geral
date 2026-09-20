@@ -2854,16 +2854,19 @@ async function alterarAdministrador(userId, tornar) {
         : "Deseja retirar o acesso de administrador deste usuário?";
     if (!confirm(pergunta)) return;
 
-    let resultado;
-    if (tornar) {
-        resultado = await sb.from("extrator_admins").insert({ user_id: userId });
-    } else {
-        resultado = await sb.from("extrator_admins").delete().eq("user_id", userId);
-    }
+    const rpcName = tornar
+        ? "extrator_conceder_admin"
+        : "extrator_alterar_admin";
 
-    if (resultado.error) {
-        console.error(resultado.error);
-        alert("Não foi possível alterar o privilégio administrativo.");
+    const rpcParams = tornar
+        ? { p_user_id: userId }
+        : { p_user_id: userId, p_tornar: false };
+
+    const { error } = await sb.rpc(rpcName, rpcParams);
+
+    if (error) {
+        console.error(error);
+        alert(error.message || "Não foi possível alterar o privilégio administrativo.");
         return;
     }
 
