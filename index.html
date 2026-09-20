@@ -147,8 +147,20 @@
 .user-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:15px;padding:10px 12px;background:#1b1b1b;border:1px solid #444;border-radius:8px}
 .user-bar .user-info{color:#bbb;font-size:13px}
 .user-bar .user-info strong{color:#eee}
-.user-bar .user-actions{display:flex;gap:6px;flex-wrap:wrap}
+.user-bar .user-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;position:relative}
 .user-bar button{margin:0;padding:9px 12px;font-size:13px}
+.admin-message-dropdown{position:absolute;right:0;top:calc(100% + 8px);width:370px;max-width:calc(100vw - 24px);background:#202020;border:1px solid #555;border-radius:10px;box-shadow:0 18px 45px rgba(0,0,0,.5);padding:14px;box-sizing:border-box;z-index:5000;display:none}
+.admin-message-dropdown.open{display:block}
+.admin-message-dropdown h3{margin:0 0 6px;font-size:16px}
+.admin-message-dropdown .dropdown-info{margin:0 0 12px;color:#aaa;font-size:12px;line-height:1.4}
+.admin-message-dropdown label{display:block;margin:9px 0 5px;color:#ccc;font-size:12px}
+.admin-message-dropdown textarea{width:100%;min-height:105px;box-sizing:border-box;background:#101010;color:#eee;border:1px solid #555;border-radius:7px;padding:10px;resize:vertical;font-family:inherit}
+.admin-message-dropdown input[type=date]{width:100%;box-sizing:border-box;background:#101010;color:#eee;border:1px solid #555;border-radius:7px;padding:9px}
+.admin-message-dropdown .admin-message-dates{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:0}
+.admin-message-dropdown .auth-actions{margin-top:12px}
+.admin-message-dropdown .auth-actions button{min-width:0;padding:8px 9px;font-size:12px}
+.admin-message-dropdown .admin-message-current{margin-top:12px;padding:10px;font-size:12px;line-height:1.45;max-height:190px;overflow:auto}
+@media(max-width:700px){.admin-message-dropdown{right:-4px;width:calc(100vw - 24px)}}
 #appPrincipal,#adminArea{display:none}
 .admin-card{background:#202020;border:1px solid #444;border-radius:10px;padding:16px;margin-bottom:18px}
 .admin-card h2{margin-top:0}
@@ -316,33 +328,6 @@
 
     <div class="admin-card">
         <div class="admin-section-title">
-            <h3>Mensagem aos usuários</h3>
-            <span class="admin-count">Exibida no próximo login dentro do período definido</span>
-        </div>
-        <div class="admin-message-form">
-            <label for="adminMensagemTexto">Mensagem</label>
-            <textarea id="adminMensagemTexto" placeholder="Escreva aqui a mensagem que será exibida aos usuários..."></textarea>
-            <div class="admin-message-dates">
-                <div>
-                    <label for="adminMensagemInicio">Data de início</label>
-                    <input id="adminMensagemInicio" type="date">
-                </div>
-                <div>
-                    <label for="adminMensagemFim">Data de fim</label>
-                    <input id="adminMensagemFim" type="date">
-                </div>
-            </div>
-            <div class="auth-actions">
-                <button class="btn-primary" type="button" onclick="publicarMensagemUsuarios()">📢 Publicar mensagem</button>
-                <button class="btn-danger" type="button" onclick="desativarMensagemUsuarios()">🗑️ Desativar mensagem atual</button>
-            </div>
-            <div id="adminMensagemMsg" class="auth-msg" style="display:none"></div>
-            <div id="adminMensagemAtual" class="admin-message-current" style="display:none"></div>
-        </div>
-    </div>
-
-    <div class="admin-card">
-        <div class="admin-section-title">
             <h3>Solicitações pendentes</h3>
             <span id="contagemPendentes" class="admin-count"></span>
         </div>
@@ -379,8 +364,36 @@
 <div class="user-bar">
     <div class="user-info" id="usuarioBarraInfo">Acesso autenticado.</div>
     <div class="user-actions">
+        <button id="btnMensagemAdmin" class="btn-secondary" type="button" onclick="alternarMensagemAdmin(event)" style="display:none">💬 Mensagem</button>
         <button id="btnAdmin" class="btn-secondary" type="button" onclick="abrirAdmin()" style="display:none">⚙️ Aprovações</button>
         <button class="btn-secondary" type="button" onclick="sairSistema()">Sair</button>
+
+        <div id="adminMensagemDropdown" class="admin-message-dropdown" aria-hidden="true">
+            <h3>Mensagem aos usuários</h3>
+            <p class="dropdown-info">A mensagem será exibida somente para usuários aprovados que não são administradores, no próximo login dentro do período definido.</p>
+
+            <label for="adminMensagemTexto">Mensagem</label>
+            <textarea id="adminMensagemTexto" placeholder="Escreva aqui a mensagem que será exibida aos usuários..."></textarea>
+
+            <div class="admin-message-dates">
+                <div>
+                    <label for="adminMensagemInicio">Data de início</label>
+                    <input id="adminMensagemInicio" type="date">
+                </div>
+                <div>
+                    <label for="adminMensagemFim">Data de fim</label>
+                    <input id="adminMensagemFim" type="date">
+                </div>
+            </div>
+
+            <div class="auth-actions">
+                <button class="btn-primary" type="button" onclick="publicarMensagemUsuarios()">📢 Publicar</button>
+                <button class="btn-danger" type="button" onclick="desativarMensagemUsuarios()">🗑️ Desativar</button>
+            </div>
+
+            <div id="adminMensagemMsg" class="auth-msg" style="display:none"></div>
+            <div id="adminMensagemAtual" class="admin-message-current" style="display:none"></div>
+        </div>
     </div>
 </div>
 
@@ -2618,16 +2631,19 @@ async function carregarMensagemAdmin() {
         return;
     }
 
-    if (!data) {
-        atualEl.style.display = "none";
+    const mensagemAtual = Array.isArray(data) ? data[0] : data;
+
+    if (!mensagemAtual) {
+        atualEl.innerHTML = "<strong>Nenhuma mensagem publicada.</strong>";
+        atualEl.style.display = "block";
         return;
     }
 
-    const inicio = data.inicio ? new Date(data.inicio + "T00:00:00").toLocaleDateString("pt-BR") : "-";
-    const fim = data.fim ? new Date(data.fim + "T00:00:00").toLocaleDateString("pt-BR") : "-";
+    const inicio = mensagemAtual.inicio ? new Date(mensagemAtual.inicio + "T00:00:00").toLocaleDateString("pt-BR") : "-";
+    const fim = mensagemAtual.fim ? new Date(mensagemAtual.fim + "T00:00:00").toLocaleDateString("pt-BR") : "-";
     atualEl.innerHTML =
-        "<strong>Mensagem programada:</strong><br>" +
-        escapeHtml(data.mensagem || "") +
+        "<strong>Mensagem publicada:</strong><br>" +
+        escapeHtml(mensagemAtual.mensagem || "") +
         "<br><br><span class='info'>Período: " + escapeHtml(inicio) + " até " + escapeHtml(fim) + "</span>";
     atualEl.style.display = "block";
 }
@@ -2693,6 +2709,9 @@ async function desativarMensagemUsuarios() {
 }
 
 async function mostrarMensagemProgramadaNoLogin() {
+    // Administradores não recebem o aviso; ele é destinado somente aos usuários comuns.
+    if (souAdmin) return;
+
     const overlay = document.getElementById("mensagemOverlay");
     const conteudo = document.getElementById("mensagemConteudo");
     if (!overlay || !conteudo || !usuarioAtual) return;
@@ -2724,6 +2743,35 @@ function fecharMensagemProgramada() {
     if (overlay) overlay.style.display = "none";
 }
 
+function alternarMensagemAdmin(event) {
+    if (event) event.stopPropagation();
+    if (!souAdmin) return;
+
+    const dropdown = document.getElementById("adminMensagemDropdown");
+    if (!dropdown) return;
+
+    const abrir = !dropdown.classList.contains("open");
+    dropdown.classList.toggle("open", abrir);
+    dropdown.setAttribute("aria-hidden", abrir ? "false" : "true");
+
+    if (abrir) carregarMensagemAdmin();
+}
+
+function fecharMensagemAdmin() {
+    const dropdown = document.getElementById("adminMensagemDropdown");
+    if (!dropdown) return;
+    dropdown.classList.remove("open");
+    dropdown.setAttribute("aria-hidden", "true");
+}
+
+document.addEventListener("click", function(event) {
+    const dropdown = document.getElementById("adminMensagemDropdown");
+    const botao = document.getElementById("btnMensagemAdmin");
+    if (!dropdown || !dropdown.classList.contains("open")) return;
+    if (dropdown.contains(event.target) || botao?.contains(event.target)) return;
+    fecharMensagemAdmin();
+});
+
 async function consultarPerfilAtual() {
     if (!usuarioAtual) return null;
 
@@ -2749,11 +2797,14 @@ async function atualizarIndicadoresAcesso() {
     souAdmin = !adminError && adminData === true;
 
     const btnAdmin = document.getElementById("btnAdmin");
+    const btnMensagemAdmin = document.getElementById("btnMensagemAdmin");
     const botoesLista = document.getElementById("botoesAdminLista");
     const botoesUsuarioLista = document.getElementById("botoesUsuarioLista");
     const botoesEditor = document.getElementById("botoesEditorLista");
 
     if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
+    if (btnMensagemAdmin) btnMensagemAdmin.style.display = souAdmin ? "inline-block" : "none";
+    if (!souAdmin) fecharMensagemAdmin();
     if (botoesLista) botoesLista.style.display = souAdmin ? "flex" : "none";
     if (botoesUsuarioLista) botoesUsuarioLista.style.display = souAdmin ? "none" : "flex";
     if (botoesEditor) botoesEditor.style.display = souAdmin ? "flex" : "none";
@@ -2845,6 +2896,7 @@ async function entrarSistema() {
 }
 
 async function sairSistema() {
+    fecharMensagemAdmin();
     pararRealtimeLista();
     await sb.auth.signOut();
     usuarioAtual = null;
@@ -2858,6 +2910,7 @@ async function sairSistema() {
 
 async function abrirAdmin() {
     if (!souAdmin) return;
+    fecharMensagemAdmin();
     document.getElementById("appPrincipal").style.display = "none";
     document.getElementById("adminArea").style.display = "block";
     await carregarAdmin();
