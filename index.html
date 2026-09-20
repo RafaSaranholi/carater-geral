@@ -161,6 +161,38 @@
 .empty-admin{color:#aaa;padding:10px 0}
 @media(max-width:700px){.admin-grid{grid-template-columns:1fr}.auth-card{padding:20px}}
 
+
+
+/* =========================================================
+   LISTA ONLINE — PESQUISA / COPIAR / PERMISSÕES
+========================================================= */
+.lista-toolbar{display:flex;gap:8px;align-items:center;margin:8px 0 10px}
+.lista-toolbar input{flex:1;min-width:0;box-sizing:border-box;padding:12px 13px;border-radius:7px;border:1px solid #555;background:#101010;color:#eee;font-size:15px}
+.lista-toolbar button{margin:0;padding:9px 13px;min-width:42px;background:#333;color:#eee;border:1px solid #555}
+.item-salvo{position:relative;padding-bottom:46px;cursor:default}
+.item-salvo:hover{border-color:#666}
+.item-salvo .item-conteudo{line-height:1.28}
+.btn-copiar-registro{position:absolute;right:10px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#333;color:#eee;border:1px solid #555}
+.btn-copiar-registro:hover{background:#454545}
+.admin-status-badge{display:inline-block;padding:3px 7px;border-radius:999px;font-size:11px;border:1px solid #555;color:#bbb}
+.admin-status-badge.ok{border-color:#1f7a4d;color:#bfe8d1}
+.admin-status-badge.pending{border-color:#8a6d1d;color:#ffe9a8}
+.admin-status-badge.admin{border-color:#3466a8;color:#c9dcff}
+.admin-actions .btn-warning{background:#7a5b13;color:#fff}
+.admin-actions .btn-info{background:#245b78;color:#fff}
+.admin-actions .btn-dark{background:#333;color:#eee;border:1px solid #555}
+.admin-section-title{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.admin-count{font-size:12px;color:#aaa}
+
+
+
+/* Usuário não administrador: somente consulta da lista. */
+#appPrincipal.readonly-user .conteudo-principal{grid-template-columns:1fr !important;display:block !important}
+#appPrincipal.readonly-user .conteudo-esquerdo{display:none !important}
+#appPrincipal.readonly-user .painel-lista{display:block !important;position:relative;top:auto;max-width:none;width:100%;box-sizing:border-box}
+#appPrincipal.readonly-user #listaSalvos{max-height:calc(100vh - 185px);min-height:calc(100vh - 240px)}
+.reset-warning{margin-top:10px;padding:12px;border-radius:8px;background:#2b1f1f;border:1px solid #6f3a3a;color:#ffd9d9;font-size:13px;line-height:1.5}
+
 </style>
 </head>
 
@@ -176,7 +208,7 @@
             <p>Acesso restrito. Entre utilizando seu <strong>RE</strong> e sua senha.</p>
 
             <label for="loginRE">RE</label>
-            <input id="loginRE" type="text" inputmode="numeric" autocomplete="username" placeholder="Digite seu RE">
+            <input id="loginRE" type="text" inputmode="numeric" autocomplete="username" placeholder="Ex.: 210493-8" maxlength="20">
 
             <label for="loginSenha">Senha</label>
             <input id="loginSenha" type="password" autocomplete="current-password" placeholder="Digite sua senha">
@@ -185,8 +217,29 @@
                 <button id="btnEntrar" class="btn-primary" type="button" onclick="entrarSistema()">Entrar</button>
                 <button class="btn-secondary" type="button" onclick="mostrarCadastro()">Solicitar cadastro</button>
             </div>
+            <button class="auth-link" type="button" onclick="mostrarResetSenha()" style="background:none;border:none;padding:0;margin-left:5px">🔐 Redefinir senha</button>
 
             <div id="loginMsg" class="auth-msg" style="display:none"></div>
+        </div>
+
+        <div id="resetBox" style="display:none">
+            <h2>Redefinir senha</h2>
+            <p>Para redefinir o acesso, informe seu RE e seu e-mail funcional.</p>
+            <div class="reset-warning">
+                <strong>Atenção:</strong> ao confirmar, sua conta atual será excluída. Você deverá fazer um novo cadastro e aguardar novamente a aprovação do administrador.
+            </div>
+
+            <label for="resetRE">RE</label>
+            <input id="resetRE" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex.: 210493-8" maxlength="20">
+
+            <label for="resetEmail">E-mail funcional</label>
+            <input id="resetEmail" type="email" autocomplete="email" placeholder="seu.email@policiamilitar.sp.gov.br">
+
+            <div class="auth-actions">
+                <button class="btn-danger" type="button" onclick="redefinirSenha()">Excluir conta e refazer cadastro</button>
+                <button class="btn-secondary" type="button" onclick="mostrarLogin()">Voltar para login</button>
+            </div>
+            <div id="resetMsg" class="auth-msg" style="display:none"></div>
         </div>
 
         <div id="cadastroBox" style="display:none">
@@ -194,7 +247,7 @@
             <p>Preencha seus dados. O acesso só será liberado depois da aprovação do administrador.</p>
 
             <label for="cadRE">RE</label>
-            <input id="cadRE" type="text" inputmode="numeric" autocomplete="off" placeholder="Digite seu RE">
+            <input id="cadRE" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex.: 210493-8" maxlength="20">
 
             <label for="cadNome">Nome completo</label>
             <input id="cadNome" type="text" autocomplete="name" placeholder="Nome completo">
@@ -203,7 +256,7 @@
             <input id="cadUnidade" type="text" autocomplete="organization" placeholder="Ex.: COPOM, BPM, CIA...">
 
             <label for="cadEmail">E-mail funcional</label>
-            <input id="cadEmail" type="email" autocomplete="email" placeholder="seu.email@pm.sp.gov.br">
+            <input id="cadEmail" type="email" autocomplete="email" placeholder="seu.email@policiamilitar.sp.gov.br">
 
             <label for="cadSenha">Senha</label>
             <input id="cadSenha" type="password" autocomplete="new-password" placeholder="Crie uma senha">
@@ -226,16 +279,44 @@
 ========================================================= -->
 <div id="adminArea">
     <div class="admin-card">
-        <h2>Administração de cadastros</h2>
-        <p class="info">Aprove ou rejeite as solicitações de acesso ao Extrator de Caráter Geral.</p>
+        <h2>Administração</h2>
+        <p class="info">Apenas administradores podem aprovar, excluir usuários, conceder ou retirar privilégios administrativos e consultar o histórico de aprovações.</p>
         <div class="auth-actions">
             <button class="btn-secondary" type="button" onclick="voltarDoAdmin()">Voltar ao extrator</button>
-            <button class="btn-secondary" type="button" onclick="carregarPendentes()">Atualizar</button>
+            <button class="btn-secondary" type="button" onclick="carregarAdmin()">Atualizar</button>
         </div>
     </div>
+
     <div class="admin-card">
-        <h3>Solicitações pendentes</h3>
+        <div class="admin-section-title">
+            <h3>Solicitações pendentes</h3>
+            <span id="contagemPendentes" class="admin-count"></span>
+        </div>
         <div id="listaPendentes" class="admin-list"><div class="empty-admin">Carregando...</div></div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-section-title">
+            <h3>Usuários aprovados</h3>
+            <span id="contagemAprovados" class="admin-count"></span>
+        </div>
+        <div id="listaAprovados" class="admin-list"><div class="empty-admin">Carregando...</div></div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-section-title">
+            <h3>Histórico de aprovações</h3>
+            <span id="contagemHistorico" class="admin-count"></span>
+        </div>
+        <div id="listaHistoricoAprovados" class="admin-list"><div class="empty-admin">Carregando...</div></div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-section-title">
+            <h3>Outros cadastros</h3>
+            <span id="contagemUsuarios" class="admin-count"></span>
+        </div>
+        <div id="listaUsuarios" class="admin-list"><div class="empty-admin">Carregando...</div></div>
     </div>
 </div>
 
@@ -253,7 +334,7 @@
 
 <div class="conteudo-principal"><div class="conteudo-esquerdo">
 
-<h1>Extrator de Texto OCR</h1>
+<h1>Extrator de Caráter Geral</h1>
 
 <div class="area" id="areaColar">
 
@@ -316,8 +397,8 @@
     placeholder="O texto reconhecido aparecerá aqui..."
 ></textarea>
 
-<div class="botoes-salvar-abaixo">
-<button onclick="salvarTextoLista()">💾 Salvar texto</button>
+<div class="botoes-salvar-abaixo" id="botoesEditorLista">
+<button onclick="salvarTextoLista()">💾 Salvar texto na lista</button>
 <button onclick="baixarListaTxt()">📥 Salvar lista TXT</button>
 </div>
 
@@ -1959,7 +2040,7 @@ async function carregarLista() {
     const { data, error } = await sb
         .from("extrator_lista_carater")
         .select("id,texto,created_at")
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false });
 
     if (error) {
         console.error(error);
@@ -1971,49 +2052,104 @@ async function carregarLista() {
     renderizarLista();
 }
 
+function textoNormalizadoPesquisa(valor) {
+    return String(valor || "")
+        .normalize("NFD")
+        .replace(/[\\u0300-\\u036f]/g, "")
+        .toLowerCase();
+}
+
+function obterTextoPesquisaLista() {
+    return textoNormalizadoPesquisa(document.getElementById("buscaLista")?.value || "");
+}
+
 function renderizarLista() {
     const container = document.getElementById("listaSalvos");
     const contador = document.getElementById("contadorCarater");
     if (!container) return;
 
-    if (contador) {
-        contador.textContent = "Total: " + listaTextos.length;
-    }
+    if (contador) contador.textContent = "Total: " + listaTextos.length;
 
-    if (!listaTextos.length) {
-        container.innerHTML = '<div class="info">Nenhum texto salvo.</div>';
+    const termo = obterTextoPesquisaLista();
+    const filtrados = !termo
+        ? listaTextos
+        : listaTextos.filter(registro => textoNormalizadoPesquisa(registro.texto).includes(termo));
+
+    if (!filtrados.length) {
+        container.innerHTML = termo
+            ? '<div class="info">Nenhum registro encontrado para a pesquisa.</div>'
+            : '<div class="info">Nenhum texto salvo.</div>';
         return;
     }
 
     container.innerHTML = "";
 
-    listaTextos.forEach(function(registro, indice) {
+    filtrados.forEach(function(registro) {
+        const indiceOriginal = listaTextos.findIndex(item => item.id === registro.id);
+        const numeroRegistro = listaTextos.length - indiceOriginal;
+
         const item = document.createElement("div");
         item.className = "item-salvo";
-        item.title = "Clique para carregar este registro no texto abaixo.";
 
         const numero = document.createElement("div");
         numero.className = "item-numero";
-        numero.textContent = "Registro " + (indice + 1);
+        numero.textContent = "Registro " + numeroRegistro;
 
         const conteudo = document.createElement("div");
+        conteudo.className = "item-conteudo";
         conteudo.textContent = registro.texto || "";
+
+        const botaoCopiar = document.createElement("button");
+        botaoCopiar.type = "button";
+        botaoCopiar.className = "btn-copiar-registro";
+        botaoCopiar.textContent = "📋 Copiar";
+        botaoCopiar.addEventListener("click", function(e) {
+            e.stopPropagation();
+            copiarRegistroLista(registro.texto || "", numeroRegistro);
+        });
 
         item.appendChild(numero);
         item.appendChild(conteudo);
+        item.appendChild(botaoCopiar);
 
         item.addEventListener("click", function() {
-            document.getElementById("resultado").value = registro.texto || "";
-            document.getElementById("placa").innerText = encontrarPlaca(registro.texto || "") || "---";
-            document.getElementById("status").innerText =
-                "Registro " + (indice + 1) + " carregado.";
+            copiarRegistroLista(registro.texto || "", numeroRegistro);
         });
 
         container.appendChild(item);
     });
 }
 
+async function copiarRegistroLista(texto, numeroRegistro) {
+    try {
+        await navigator.clipboard.writeText(texto);
+    } catch (e) {
+        const area = document.createElement("textarea");
+        area.value = texto;
+        area.style.position = "fixed";
+        area.style.opacity = "0";
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand("copy");
+        area.remove();
+    }
+    document.getElementById("status").innerText = "Registro " + numeroRegistro + " copiado.";
+}
+
+function limparBuscaLista() {
+    const campo = document.getElementById("buscaLista");
+    if (campo) campo.value = "";
+    renderizarLista();
+    campo?.focus();
+}
+
+
 async function salvarTextoLista() {
+    if (!souAdmin) {
+        alert("Somente administradores podem adicionar registros à lista online.");
+        return;
+    }
+
     const texto = document.getElementById("resultado").value.trim();
 
     if (!texto) {
@@ -2173,12 +2309,29 @@ let souAdmin = false;
 function normalizarRE(valor) {
     return String(valor || "")
         .trim()
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, "");
+        .toUpperCase();
+}
+
+function somenteDigitosRE(valor) {
+    return normalizarRE(valor).replace(/[^0-9]/g, "");
+}
+
+function formatarRE(valor) {
+    const digitos = somenteDigitosRE(valor);
+    if (digitos.length <= 1) return digitos;
+    return digitos.slice(0, -1) + "-" + digitos.slice(-1);
+}
+
+function reValido(valor) {
+    return /^[0-9]+-[0-9]+$/.test(normalizarRE(valor));
+}
+
+function emailFuncionalValido(valor) {
+    return /^[^@\s]+@policiamilitar\.sp\.gov\.br$/i.test(String(valor || "").trim());
 }
 
 function reEmailAuth(re) {
-    return "re." + normalizarRE(re).toLowerCase() + "@jbecezbglolnfsqkiaad.supabase.co";
+    return "re." + somenteDigitosRE(re).toLowerCase() + "@jbecezbglolnfsqkiaad.supabase.co";
 }
 
 function mostrarMsg(id, texto, tipo) {
@@ -2192,13 +2345,24 @@ function mostrarMsg(id, texto, tipo) {
 function mostrarLogin() {
     document.getElementById("loginBox").style.display = "block";
     document.getElementById("cadastroBox").style.display = "none";
+    document.getElementById("resetBox").style.display = "none";
     mostrarMsg("cadMsg", "", "");
+    mostrarMsg("resetMsg", "", "");
 }
 
 function mostrarCadastro() {
     document.getElementById("loginBox").style.display = "none";
     document.getElementById("cadastroBox").style.display = "block";
+    document.getElementById("resetBox").style.display = "none";
     mostrarMsg("loginMsg", "", "");
+}
+
+function mostrarResetSenha() {
+    document.getElementById("loginBox").style.display = "none";
+    document.getElementById("cadastroBox").style.display = "none";
+    document.getElementById("resetBox").style.display = "block";
+    mostrarMsg("loginMsg", "", "");
+    mostrarMsg("resetMsg", "", "");
 }
 
 function mostrarTelaAcesso() {
@@ -2222,19 +2386,23 @@ function limparFormularioCadastro() {
 }
 
 async function cadastrarUsuario() {
-    const re = normalizarRE(document.getElementById("cadRE").value);
+    const re = formatarRE(document.getElementById("cadRE").value);
     const nome = document.getElementById("cadNome").value.trim();
     const unidade = document.getElementById("cadUnidade").value.trim();
     const email = document.getElementById("cadEmail").value.trim().toLowerCase();
     const senha = document.getElementById("cadSenha").value;
     const senha2 = document.getElementById("cadSenha2").value;
 
-    if (!re || re.length < 3) {
-        mostrarMsg("cadMsg", "Informe um RE válido.", "err");
+    if (!reValido(re)) {
+        mostrarMsg("cadMsg", "Informe o RE no formato com hífen, por exemplo: 210493-8.", "err");
         return;
     }
     if (!nome || !unidade || !email) {
         mostrarMsg("cadMsg", "Preencha todos os campos do cadastro.", "err");
+        return;
+    }
+    if (!emailFuncionalValido(email)) {
+        mostrarMsg("cadMsg", "O e-mail funcional deve obrigatoriamente terminar com @policiamilitar.sp.gov.br.", "err");
         return;
     }
     if (senha.length < 6) {
@@ -2282,7 +2450,6 @@ async function cadastrarUsuario() {
 
         if (perfilError) {
             console.error(perfilError);
-            // Tenta limpar a sessão mesmo que a inclusão do perfil falhe.
             await sb.auth.signOut();
             throw perfilError;
         }
@@ -2307,6 +2474,59 @@ async function cadastrarUsuario() {
         if (btn) btn.disabled = false;
     }
 }
+
+async function redefinirSenha() {
+    const re = formatarRE(document.getElementById("resetRE").value);
+    const email = document.getElementById("resetEmail").value.trim().toLowerCase();
+
+    if (!reValido(re)) {
+        mostrarMsg("resetMsg", "Informe o RE no formato com hífen, por exemplo: 210493-8.", "err");
+        return;
+    }
+    if (!emailFuncionalValido(email)) {
+        mostrarMsg("resetMsg", "O e-mail funcional deve obrigatoriamente terminar com @policiamilitar.sp.gov.br.", "err");
+        return;
+    }
+
+    const confirmado = confirm(
+        "ATENÇÃO\n\n" +
+        "Sua conta será EXCLUÍDA e você perderá o acesso atual.\n\n" +
+        "Depois disso, será necessário fazer um novo cadastro e aguardar nova aprovação do administrador.\n\n" +
+        "Deseja realmente continuar?"
+    );
+
+    if (!confirmado) return;
+
+    mostrarMsg("resetMsg", "Processando exclusão da conta...", "warn");
+
+    try {
+        const { data, error } = await sb.rpc("extrator_redefinir_cadastro", {
+            p_re: re,
+            p_email: email
+        });
+
+        if (error) throw error;
+
+        if (data !== true) {
+            mostrarMsg("resetMsg", "Não foi possível localizar uma conta com esse RE e e-mail funcional.", "err");
+            return;
+        }
+
+        document.getElementById("resetRE").value = "";
+        document.getElementById("resetEmail").value = "";
+        mostrarLogin();
+        mostrarMsg(
+            "loginMsg",
+            "Sua conta foi excluída. Agora faça um novo cadastro e aguarde novamente a aprovação do administrador.",
+            "ok"
+        );
+
+    } catch (erro) {
+        console.error(erro);
+        mostrarMsg("resetMsg", "Não foi possível excluir a conta. Tente novamente ou procure o administrador.", "err");
+    }
+}
+
 
 async function consultarPerfilAtual() {
     if (!usuarioAtual) return null;
@@ -2334,17 +2554,30 @@ async function atualizarIndicadoresAcesso() {
 
     const btnAdmin = document.getElementById("btnAdmin");
     const botoesLista = document.getElementById("botoesAdminLista");
+    const botoesEditor = document.getElementById("botoesEditorLista");
 
     if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
     if (botoesLista) botoesLista.style.display = souAdmin ? "flex" : "none";
+    if (botoesEditor) botoesEditor.style.display = souAdmin ? "flex" : "none";
+
+    const app = document.getElementById("appPrincipal");
+    if (app) {
+        app.classList.toggle("readonly-user", !souAdmin);
+        const editor = app.querySelector(".conteudo-esquerdo");
+        if (editor) editor.style.display = souAdmin ? "block" : "none";
+    }
 }
 
 async function entrarSistema() {
-    const re = normalizarRE(document.getElementById("loginRE").value);
+    const re = formatarRE(document.getElementById("loginRE").value);
     const senha = document.getElementById("loginSenha").value;
 
     if (!re || !senha) {
         mostrarMsg("loginMsg", "Informe o RE e a senha.", "err");
+        return;
+    }
+    if (!reValido(re)) {
+        mostrarMsg("loginMsg", "Informe o RE no formato com hífen, por exemplo: 210493-8.", "err");
         return;
     }
 
@@ -2424,7 +2657,7 @@ async function abrirAdmin() {
     if (!souAdmin) return;
     document.getElementById("appPrincipal").style.display = "none";
     document.getElementById("adminArea").style.display = "block";
-    await carregarPendentes();
+    await carregarAdmin();
 }
 
 function voltarDoAdmin() {
@@ -2441,55 +2674,192 @@ function escapeHtml(valor) {
         .replace(/'/g, "&#039;");
 }
 
-async function carregarPendentes() {
+async function carregarAdmin() {
     if (!souAdmin) return;
+    await carregarAdminUsuarios();
+}
 
-    const container = document.getElementById("listaPendentes");
-    container.innerHTML = '<div class="empty-admin">Carregando solicitações...</div>';
+async function carregarAdminUsuarios() {
+    const pendentes = document.getElementById("listaPendentes");
+    const listaAprovadosEl = document.getElementById("listaAprovados");
+    const historico = document.getElementById("listaHistoricoAprovados");
+    const usuarios = document.getElementById("listaUsuarios");
+    if (!pendentes || !listaAprovadosEl || !historico || !usuarios) return;
 
-    const { data, error } = await sb
-        .from("extrator_usuarios")
-        .select("id,re,nome_completo,unidade,email_funcional,status,created_at")
-        .eq("status", "pendente")
-        .order("created_at", { ascending: true });
+    pendentes.innerHTML = '<div class="empty-admin">Carregando...</div>';
+    listaAprovadosEl.innerHTML = '<div class="empty-admin">Carregando...</div>';
+    historico.innerHTML = '<div class="empty-admin">Carregando...</div>';
+    usuarios.innerHTML = '<div class="empty-admin">Carregando...</div>';
 
-    if (error) {
-        console.error(error);
-        container.innerHTML = '<div class="empty-admin">Não foi possível carregar as solicitações.</div>';
+    const [usuariosResult, adminsResult, historicoResult] = await Promise.all([
+        sb.from("extrator_usuarios")
+            .select("id,re,nome_completo,unidade,email_funcional,status,created_at,updated_at")
+            .order("created_at", { ascending: true }),
+        sb.from("extrator_admins")
+            .select("user_id"),
+        sb.from("extrator_historico_aprovados")
+            .select("id,usuario_id,re,nome_completo,unidade,email_funcional,aprovado_em")
+            .order("aprovado_em", { ascending: false })
+    ]);
+
+    if (usuariosResult.error) {
+        console.error(usuariosResult.error);
+        pendentes.innerHTML = '<div class="empty-admin">Não foi possível carregar os usuários.</div>';
+        listaAprovadosEl.innerHTML = '<div class="empty-admin">Não foi possível carregar os usuários.</div>';
+        usuarios.innerHTML = '<div class="empty-admin">Não foi possível carregar os usuários.</div>';
         return;
     }
 
-    if (!data || !data.length) {
+    if (adminsResult.error || historicoResult.error) {
+        console.error(adminsResult.error || historicoResult.error);
+        pendentes.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos.</div>';
+        aprovados.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos.</div>';
+        historico.innerHTML = '<div class="empty-admin">Não foi possível carregar o histórico de aprovações.</div>';
+        usuarios.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos.</div>';
+        return;
+    }
+
+    const todos = usuariosResult.data || [];
+    const historicoData = historicoResult.data || [];
+    const adminIds = new Set((adminsResult.data || []).map(item => item.user_id));
+    const pendentesData = todos.filter(u => u.status === "pendente");
+    const aprovados = todos.filter(u => u.status === "aprovado");
+    const rejeitados = todos.filter(u => u.status === "rejeitado");
+
+    document.getElementById("contagemPendentes").textContent = pendentesData.length + " pendente(s)";
+    document.getElementById("contagemAprovados").textContent = aprovados.length + " aprovado(s)";
+    document.getElementById("contagemHistorico").textContent = historicoData.length + " registro(s)";
+    document.getElementById("contagemUsuarios").textContent = rejeitados.length + " rejeitado(s)";
+
+    renderizarCardsPendentes(pendentes, pendentesData, adminIds);
+    renderizarCardsUsuarios(listaAprovadosEl, aprovados, adminIds);
+    renderizarHistoricoAprovados(historico, historicoData);
+    renderizarCardsUsuarios(usuarios, rejeitados, adminIds);
+}
+
+function montarCardUsuario(usuario, adminIds, pendente) {
+    const item = document.createElement("div");
+    item.className = "admin-item";
+
+    const ehAdmin = adminIds.has(usuario.id);
+    const ehEu = usuario.id === usuarioAtual?.id;
+    const dataTexto = usuario.created_at ? new Date(usuario.created_at).toLocaleString("pt-BR") : "-";
+    const badgeStatus = usuario.status === "aprovado"
+        ? '<span class="admin-status-badge ok">APROVADO</span>'
+        : usuario.status === "rejeitado"
+            ? '<span class="admin-status-badge">REJEITADO</span>'
+            : '<span class="admin-status-badge pending">PENDENTE</span>';
+    const badgeAdmin = ehAdmin ? ' <span class="admin-status-badge admin">ADMINISTRADOR</span>' : '';
+
+    item.innerHTML =
+        '<div class="admin-grid">' +
+            '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
+            '<div><span>Status:</span> ' + badgeStatus + badgeAdmin + '</div>' +
+            '<div><span>Nome:</span> ' + escapeHtml(usuario.nome_completo) + '</div>' +
+            '<div><span>Unidade:</span> ' + escapeHtml(usuario.unidade) + '</div>' +
+            '<div><span>E-mail funcional:</span> ' + escapeHtml(usuario.email_funcional) + '</div>' +
+            '<div><span>Cadastrado em:</span> ' + escapeHtml(dataTexto) + '</div>' +
+        '</div>' +
+        '<div class="admin-actions" id="acoes-' + escapeHtml(usuario.id) + '"></div>';
+
+    const actions = item.querySelector(".admin-actions");
+
+    if (pendente) {
+        const aprovar = document.createElement("button");
+        aprovar.className = "btn-success";
+        aprovar.type = "button";
+        aprovar.textContent = "✅ Aprovar";
+        aprovar.onclick = () => alterarStatusUsuario(usuario.id, "aprovado");
+
+        const rejeitar = document.createElement("button");
+        rejeitar.className = "btn-danger";
+        rejeitar.type = "button";
+        rejeitar.textContent = "❌ Rejeitar";
+        rejeitar.onclick = () => alterarStatusUsuario(usuario.id, "rejeitado");
+
+        actions.append(aprovar, rejeitar);
+    } else {
+        if (usuario.status === "rejeitado") {
+            const aprovar = document.createElement("button");
+            aprovar.className = "btn-success";
+            aprovar.type = "button";
+            aprovar.textContent = "✅ Aprovar";
+            aprovar.onclick = () => alterarStatusUsuario(usuario.id, "aprovado");
+            actions.appendChild(aprovar);
+        } else {
+            if (!ehAdmin) {
+                const tornarAdmin = document.createElement("button");
+                tornarAdmin.className = "btn-info";
+                tornarAdmin.type = "button";
+                tornarAdmin.textContent = "👑 Tornar administrador";
+                tornarAdmin.onclick = () => alterarAdministrador(usuario.id, true);
+                actions.appendChild(tornarAdmin);
+            } else {
+                const retirarAdmin = document.createElement("button");
+                retirarAdmin.className = "btn-warning";
+                retirarAdmin.type = "button";
+                retirarAdmin.textContent = "↩️ Retirar administrador";
+                retirarAdmin.disabled = ehEu;
+                retirarAdmin.title = ehEu ? "Você não pode retirar seu próprio acesso administrativo." : "Retirar acesso de administrador";
+                retirarAdmin.onclick = () => alterarAdministrador(usuario.id, false);
+                actions.appendChild(retirarAdmin);
+            }
+        }
+
+        const excluir = document.createElement("button");
+        excluir.className = "btn-danger";
+        excluir.type = "button";
+        excluir.textContent = "🗑️ Excluir usuário";
+        excluir.disabled = ehEu;
+        excluir.title = ehEu ? "Você não pode excluir seu próprio usuário." : "Excluir usuário e remover o acesso";
+        excluir.onclick = () => excluirUsuario(usuario.id, usuario.re, usuario.nome_completo);
+        actions.appendChild(excluir);
+    }
+
+    return item;
+}
+
+function renderizarCardsPendentes(container, lista, adminIds) {
+    container.innerHTML = "";
+    if (!lista.length) {
         container.innerHTML = '<div class="empty-admin">Nenhuma solicitação pendente.</div>';
         return;
     }
+    lista.forEach(usuario => container.appendChild(montarCardUsuario(usuario, adminIds, true)));
+}
 
+function renderizarCardsUsuarios(container, lista, adminIds) {
     container.innerHTML = "";
+    if (!lista.length) {
+        container.innerHTML = '<div class="empty-admin">Nenhum usuário cadastrado.</div>';
+        return;
+    }
+    lista.forEach(usuario => container.appendChild(montarCardUsuario(usuario, adminIds, false)));
+}
 
-    data.forEach(function(usuario) {
+function renderizarHistoricoAprovados(container, lista) {
+    container.innerHTML = "";
+    if (!lista.length) {
+        container.innerHTML = '<div class="empty-admin">Nenhuma aprovação registrada ainda.</div>';
+        return;
+    }
+
+    lista.forEach(function(registro) {
         const item = document.createElement("div");
         item.className = "admin-item";
-
-        const dataTexto = usuario.created_at
-            ? new Date(usuario.created_at).toLocaleString("pt-BR")
-            : "-";
-
+        const dataTexto = registro.aprovado_em ? new Date(registro.aprovado_em).toLocaleString("pt-BR") : "-";
         item.innerHTML =
             '<div class="admin-grid">' +
-                '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
-                '<div><span>Unidade:</span> <strong>' + escapeHtml(usuario.unidade) + '</strong></div>' +
-                '<div><span>Nome:</span> ' + escapeHtml(usuario.nome_completo) + '</div>' +
-                '<div><span>E-mail funcional:</span> ' + escapeHtml(usuario.email_funcional) + '</div>' +
-                '<div><span>Solicitado em:</span> ' + escapeHtml(dataTexto) + '</div>' +
-            '</div>' +
-            '<div class="admin-actions">' +
-                '<button class="btn-success" type="button" onclick="alterarStatusUsuario(\'' + usuario.id + '\', \'aprovado\')">✅ Aprovar</button>' +
-                '<button class="btn-danger" type="button" onclick="alterarStatusUsuario(\'' + usuario.id + '\', \'rejeitado\')">❌ Rejeitar</button>' +
+                '<div><span>RE:</span> <strong>' + escapeHtml(registro.re) + '</strong></div>' +
+                '<div><span>Aprovado em:</span> ' + escapeHtml(dataTexto) + '</div>' +
+                '<div><span>Nome:</span> ' + escapeHtml(registro.nome_completo) + '</div>' +
+                '<div><span>Unidade:</span> ' + escapeHtml(registro.unidade) + '</div>' +
+                '<div><span>E-mail funcional:</span> ' + escapeHtml(registro.email_funcional) + '</div>' +
             '</div>';
-
         container.appendChild(item);
     });
 }
+
 
 async function alterarStatusUsuario(id, novoStatus) {
     if (!souAdmin) return;
@@ -2508,7 +2878,54 @@ async function alterarStatusUsuario(id, novoStatus) {
         return;
     }
 
-    await carregarPendentes();
+    await carregarAdminUsuarios();
+}
+
+async function alterarAdministrador(userId, tornar) {
+    if (!souAdmin || !userId) return;
+    if (!tornar && userId === usuarioAtual?.id) {
+        alert("Você não pode retirar seu próprio acesso administrativo.");
+        return;
+    }
+
+    const pergunta = tornar
+        ? "Deseja tornar este usuário administrador?"
+        : "Deseja retirar o acesso de administrador deste usuário?";
+    if (!confirm(pergunta)) return;
+
+    let resultado;
+    if (tornar) {
+        resultado = await sb.from("extrator_admins").insert({ user_id: userId });
+    } else {
+        resultado = await sb.from("extrator_admins").delete().eq("user_id", userId);
+    }
+
+    if (resultado.error) {
+        console.error(resultado.error);
+        alert("Não foi possível alterar o privilégio administrativo.");
+        return;
+    }
+
+    await carregarAdminUsuarios();
+}
+
+async function excluirUsuario(userId, re, nome) {
+    if (!souAdmin || !userId || userId === usuarioAtual?.id) {
+        alert("Seu próprio usuário não pode ser excluído.");
+        return;
+    }
+
+    if (!confirm("Excluir permanentemente o usuário RE " + re + " (" + nome + ")?\n\nEssa ação remove o acesso à conta e não pode ser desfeita.")) return;
+
+    const { error } = await sb.rpc("extrator_excluir_usuario", { p_user_id: userId });
+
+    if (error) {
+        console.error(error);
+        alert("Não foi possível excluir o usuário. Verifique se a migração de administração foi executada no Supabase.");
+        return;
+    }
+
+    await carregarAdminUsuarios();
 }
 
 async function restaurarSessao() {
@@ -2543,6 +2960,25 @@ async function restaurarSessao() {
     await carregarLista();
 }
 
+// Formatação automática do RE com hífen.
+["cadRE", "loginRE", "resetRE"].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("input", function() {
+        const inicio = el.selectionStart;
+        const antes = el.value;
+        el.value = formatarRE(antes);
+        if (inicio !== null && document.activeElement === el) {
+            el.selectionStart = el.selectionEnd = el.value.length;
+        }
+    });
+});
+
+const campoBuscaLista = document.getElementById("buscaLista");
+if (campoBuscaLista) {
+    campoBuscaLista.addEventListener("input", renderizarLista);
+}
+
 // Mantém o login persistente entre recarregamentos.
 sb.auth.onAuthStateChange(function(event, session) {
     if (event === "SIGNED_OUT") {
@@ -2562,12 +2998,16 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 </div>
 <div class="painel-lista">
 <h3>Lista de Caráter Geral <span id="contadorCarater" class="contador-carater">Total: 0</span></h3>
+<div class="lista-toolbar">
+    <input id="buscaLista" type="search" placeholder="🔎 Pesquisar emplacamento ou qualquer palavra..." autocomplete="off">
+    <button type="button" onclick="limparBuscaLista()" title="Limpar pesquisa">✕</button>
+</div>
 <div id="listaSalvos"><div class="info">A lista online será carregada após o login.</div></div>
 <div class="botoes-lista" id="botoesAdminLista" style="display:none">
 <button onclick="excluirUltimoOnline()">↩️ Excluir último</button>
 <button onclick="limparListaOnline()">🗑️ Limpar lista</button>
 </div>
-<div class="info">A lista é compartilhada online entre os usuários aprovados.</div>
+<div class="info">Usuários não administradores podem somente pesquisar e copiar. Somente administradores podem adicionar, excluir e gerenciar os registros.</div>
 </div></div>
 
 </div><!-- /conteudo-principal -->
