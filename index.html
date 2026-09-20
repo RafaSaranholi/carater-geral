@@ -209,6 +209,39 @@
 .reset-warning{margin-top:10px;padding:12px;border-radius:8px;background:#2b1f1f;border:1px solid #6f3a3a;color:#ffd9d9;font-size:13px;line-height:1.5}
 
 
+/* Seleção de área após captura de tela */
+.captura-selecao-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;
+    align-items:center;justify-content:center;z-index:100000;padding:14px;box-sizing:border-box;
+}
+.captura-selecao-overlay.open{display:flex}
+.captura-selecao-modal{
+    width:min(1200px,100%);max-height:94vh;background:#202020;border:1px solid #555;
+    border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.65);padding:14px;box-sizing:border-box;
+    display:flex;flex-direction:column;gap:10px;
+}
+.captura-selecao-cabecalho{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.captura-selecao-cabecalho h2{margin:0 0 4px;font-size:18px}
+.captura-selecao-ajuda{color:#aaa;font-size:12px;line-height:1.4}
+.captura-selecao-fechar{margin:0;padding:7px 10px;min-width:auto}
+.captura-selecao-container{
+    position:relative;display:flex;align-items:center;justify-content:center;
+    width:100%;min-height:240px;max-height:72vh;overflow:hidden;background:#101010;
+    border:1px solid #444;border-radius:8px;touch-action:none;user-select:none;
+}
+#capturaSelecaoImagem{display:block;max-width:100%;max-height:72vh;width:auto;height:auto;object-fit:contain;user-select:none;touch-action:none}
+.captura-selecao-retangulo{
+    position:absolute;border:2px solid #00d4ff;background:rgba(0,212,255,.16);
+    display:none;pointer-events:none;box-sizing:border-box;
+}
+.captura-selecao-rodape{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#aaa;font-size:12px}
+.captura-selecao-rodape button{margin:0;padding:8px 12px}
+@media(max-width:700px){
+    .captura-selecao-modal{padding:10px}
+    .captura-selecao-container{min-height:200px}
+    .captura-selecao-rodape{font-size:11px}
+}
+
 /* Mensagem programada aos usuários */
 .mensagem-overlay{
     position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;
@@ -365,6 +398,29 @@
 </div>
 
 <!-- =========================================================
+     SELEÇÃO DA ÁREA DA CAPTURA DE TELA
+========================================================= -->
+<div id="capturaSelecaoOverlay" class="captura-selecao-overlay" aria-hidden="true">
+    <div class="captura-selecao-modal" role="dialog" aria-modal="true" aria-labelledby="capturaSelecaoTitulo">
+        <div class="captura-selecao-cabecalho">
+            <div>
+                <h2 id="capturaSelecaoTitulo">Selecione o que deseja extrair</h2>
+                <div class="captura-selecao-ajuda">Arraste sobre a imagem para selecionar a área. Ao soltar, a seleção será aplicada automaticamente.</div>
+            </div>
+            <button type="button" class="btn-secondary captura-selecao-fechar" onclick="cancelarSelecaoCaptura()" title="Cancelar">✕</button>
+        </div>
+        <div id="capturaSelecaoContainer" class="captura-selecao-container">
+            <img id="capturaSelecaoImagem" alt="Captura de tela para seleção">
+            <div id="capturaSelecaoRetangulo" class="captura-selecao-retangulo"></div>
+        </div>
+        <div class="captura-selecao-rodape">
+            <span>Escolha somente a parte que contém o caráter geral.</span>
+            <button type="button" class="btn-secondary" onclick="cancelarSelecaoCaptura()">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
      APLICAÇÃO ORIGINAL
 ========================================================= -->
 <div id="appPrincipal">
@@ -423,16 +479,8 @@
 
 <div>
 
-    <button onclick="extrairSelecionado()">
-        🔎 Extrair texto selecionado
-    </button>
-
     <button onclick="extrairInteira()">
         📄 Extrair imagem inteira
-    </button>
-
-    <button onclick="copiarTexto()">
-        📋 Copiar texto
     </button>
 
     <button onclick="extrairSomenteCarater()">
@@ -2480,10 +2528,10 @@ async function capturarTelaAdmin() {
             }, "image/png");
         });
 
-        const arquivo = new File([blob], "captura-tela.png", { type: "image/png" });
-        carregarImagem(arquivo);
-
-        if (status) status.innerText = "Captura realizada. Agora clique no botão de extração desejado.";
+        // A janela nativa de compartilhamento já terminou.
+        // Agora abrimos imediatamente a janela interna para recortar somente o que interessa.
+        abrirSeletorCaptura(blob);
+        if (status) status.innerText = "Selecione a área desejada na captura.";
     } catch (erro) {
         console.error(erro);
         if (erro?.name === "NotAllowedError") {
@@ -2503,6 +2551,183 @@ async function capturarTelaAdmin() {
         if (botao) botao.disabled = false;
     }
 }
+
+let capturaSelecaoAtiva = false;
+let capturaSelecaoInicioX = 0;
+let capturaSelecaoInicioY = 0;
+let capturaSelecaoX = 0;
+let capturaSelecaoY = 0;
+let capturaSelecaoW = 0;
+let capturaSelecaoH = 0;
+let capturaSelecaoArquivo = null;
+
+function abrirSeletorCaptura(blob) {
+    const overlay = document.getElementById("capturaSelecaoOverlay");
+    const img = document.getElementById("capturaSelecaoImagem");
+    const ret = document.getElementById("capturaSelecaoRetangulo");
+    if (!overlay || !img || !ret) return;
+
+    capturaSelecaoArquivo = blob;
+    capturaSelecaoAtiva = false;
+    capturaSelecaoX = 0;
+    capturaSelecaoY = 0;
+    capturaSelecaoW = 0;
+    capturaSelecaoH = 0;
+    ret.style.display = "none";
+
+    const url = URL.createObjectURL(blob);
+    img.onload = function() {
+        try { URL.revokeObjectURL(url); } catch (_) {}
+    };
+    img.src = url;
+
+    overlay.classList.add("open");
+    overlay.setAttribute("aria-hidden", "false");
+}
+
+function cancelarSelecaoCaptura() {
+    const overlay = document.getElementById("capturaSelecaoOverlay");
+    const img = document.getElementById("capturaSelecaoImagem");
+    const ret = document.getElementById("capturaSelecaoRetangulo");
+    capturaSelecaoAtiva = false;
+    capturaSelecaoArquivo = null;
+    if (ret) ret.style.display = "none";
+    if (img) img.removeAttribute("src");
+    if (overlay) {
+        overlay.classList.remove("open");
+        overlay.setAttribute("aria-hidden", "true");
+    }
+    const status = document.getElementById("status");
+    if (status) status.innerText = "Captura cancelada. Aguardando nova ação.";
+}
+
+function obterPontoSelecaoCaptura(e) {
+    const img = document.getElementById("capturaSelecaoImagem");
+    const rect = img.getBoundingClientRect();
+    return {
+        x: Math.max(0, Math.min(rect.width, e.clientX - rect.left)),
+        y: Math.max(0, Math.min(rect.height, e.clientY - rect.top))
+    };
+}
+
+function atualizarSelecaoCaptura(e) {
+    if (!capturaSelecaoAtiva) return;
+    const ret = document.getElementById("capturaSelecaoRetangulo");
+    const p = obterPontoSelecaoCaptura(e);
+    const esquerda = Math.min(capturaSelecaoInicioX, p.x);
+    const topo = Math.min(capturaSelecaoInicioY, p.y);
+    const largura = Math.abs(p.x - capturaSelecaoInicioX);
+    const altura = Math.abs(p.y - capturaSelecaoInicioY);
+
+    capturaSelecaoX = esquerda;
+    capturaSelecaoY = topo;
+    capturaSelecaoW = largura;
+    capturaSelecaoH = altura;
+
+    if (ret) {
+        ret.style.display = "block";
+        ret.style.left = esquerda + "px";
+        ret.style.top = topo + "px";
+        ret.style.width = largura + "px";
+        ret.style.height = altura + "px";
+    }
+}
+
+async function finalizarSelecaoCaptura(e) {
+    if (!capturaSelecaoAtiva) return;
+    atualizarSelecaoCaptura(e);
+    capturaSelecaoAtiva = false;
+
+    const img = document.getElementById("capturaSelecaoImagem");
+    const rect = img.getBoundingClientRect();
+
+    if (capturaSelecaoW < 10 || capturaSelecaoH < 10 || !img.naturalWidth || !img.naturalHeight) {
+        const status = document.getElementById("status");
+        if (status) status.innerText = "Selecione uma área maior da captura.";
+        return;
+    }
+
+    try {
+        const escalaX = img.naturalWidth / rect.width;
+        const escalaY = img.naturalHeight / rect.height;
+        const sx = Math.round(capturaSelecaoX * escalaX);
+        const sy = Math.round(capturaSelecaoY * escalaY);
+        const sw = Math.max(1, Math.round(capturaSelecaoW * escalaX));
+        const sh = Math.max(1, Math.round(capturaSelecaoH * escalaY));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = sw;
+        canvas.height = sh;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+
+        const blob = await new Promise((resolve, reject) => {
+            canvas.toBlob(result => {
+                if (result) resolve(result);
+                else reject(new Error("Não foi possível recortar a seleção."));
+            }, "image/png");
+        });
+
+        const arquivo = new File([blob], "captura-selecionada.png", {type:"image/png"});
+
+        cancelarSelecaoCaptura();
+        carregarImagem(arquivo);
+
+        const status = document.getElementById("status");
+        if (status) status.innerText = "Área selecionada. Escolha uma opção de extração.";
+
+        // Volta para a área de pesquisa/extrator.
+        setTimeout(() => {
+            const alvo = document.getElementById("imagemContainer") || document.getElementById("areaColar");
+            if (alvo) alvo.scrollIntoView({behavior:"smooth", block:"center"});
+        }, 120);
+    } catch (erro) {
+        console.error(erro);
+        const status = document.getElementById("status");
+        if (status) status.innerText = "Não foi possível aplicar a seleção.";
+        alert("Não foi possível recortar a área selecionada.");
+    }
+}
+
+const capturaSelecaoImagemEl = document.getElementById("capturaSelecaoImagem");
+if (capturaSelecaoImagemEl) {
+    capturaSelecaoImagemEl.addEventListener("pointerdown", function(e) {
+        if (e.button !== 0 && e.pointerType === "mouse") return;
+        e.preventDefault();
+        const p = obterPontoSelecaoCaptura(e);
+        capturaSelecaoInicioX = p.x;
+        capturaSelecaoInicioY = p.y;
+        capturaSelecaoX = p.x;
+        capturaSelecaoY = p.y;
+        capturaSelecaoW = 0;
+        capturaSelecaoH = 0;
+        capturaSelecaoAtiva = true;
+        const ret = document.getElementById("capturaSelecaoRetangulo");
+        if (ret) {
+            ret.style.display = "block";
+            ret.style.left = p.x + "px";
+            ret.style.top = p.y + "px";
+            ret.style.width = "0px";
+            ret.style.height = "0px";
+        }
+        if (capturaSelecaoImagemEl.setPointerCapture) capturaSelecaoImagemEl.setPointerCapture(e.pointerId);
+    });
+    capturaSelecaoImagemEl.addEventListener("pointermove", function(e) {
+        if (!capturaSelecaoAtiva) return;
+        e.preventDefault();
+        atualizarSelecaoCaptura(e);
+    });
+    capturaSelecaoImagemEl.addEventListener("pointerup", function(e) {
+        if (!capturaSelecaoAtiva) return;
+        e.preventDefault();
+        finalizarSelecaoCaptura(e);
+    });
+    capturaSelecaoImagemEl.addEventListener("pointercancel", function(e) {
+        if (!capturaSelecaoAtiva) return;
+        finalizarSelecaoCaptura(e);
+    });
+}
+
 
 /* =========================================================
    AUTENTICAÇÃO / APROVAÇÃO
