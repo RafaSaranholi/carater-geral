@@ -2677,13 +2677,11 @@ async function carregarAdminUsuarios() {
     const pendentes = document.getElementById("listaPendentes");
     const listaAprovadosEl = document.getElementById("listaAprovados");
     const historico = document.getElementById("listaHistoricoAprovados");
-    const usuarios = document.getElementById("listaUsuarios");
-    if (!pendentes || !listaAprovadosEl || !historico || !usuarios) return;
+    if (!pendentes || !listaAprovadosEl || !historico) return;
 
     pendentes.innerHTML = '<div class="empty-admin">Carregando...</div>';
     listaAprovadosEl.innerHTML = '<div class="empty-admin">Carregando...</div>';
     historico.innerHTML = '<div class="empty-admin">Carregando...</div>';
-    usuarios.innerHTML = '<div class="empty-admin">Carregando...</div>';
 
     const [usuariosResult, adminsResult, historicoResult] = await Promise.all([
         sb.from("extrator_usuarios")
@@ -2707,7 +2705,7 @@ async function carregarAdminUsuarios() {
     if (adminsResult.error || historicoResult.error) {
         console.error(adminsResult.error || historicoResult.error);
         pendentes.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos.</div>';
-        aprovados.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos.</div>';
+        listaAprovadosEl.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos.</div>';
         historico.innerHTML = '<div class="empty-admin">Não foi possível carregar o histórico de aprovações.</div>';
         usuarios.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos.</div>';
         return;
@@ -2718,17 +2716,13 @@ async function carregarAdminUsuarios() {
     const adminIds = new Set((adminsResult.data || []).map(item => item.user_id));
     const pendentesData = todos.filter(u => u.status === "pendente");
     const aprovados = todos.filter(u => u.status === "aprovado");
-    const rejeitados = todos.filter(u => u.status === "rejeitado");
-
     document.getElementById("contagemPendentes").textContent = pendentesData.length + " pendente(s)";
     document.getElementById("contagemAprovados").textContent = aprovados.length + " aprovado(s)";
     document.getElementById("contagemHistorico").textContent = historicoData.length + " registro(s)";
-    document.getElementById("contagemUsuarios").textContent = rejeitados.length + " rejeitado(s)";
 
     renderizarCardsPendentes(pendentes, pendentesData, adminIds);
     renderizarCardsUsuarios(listaAprovadosEl, aprovados, adminIds);
     renderizarHistoricoAprovados(historico, historicoData);
-    renderizarCardsUsuarios(usuarios, rejeitados, adminIds);
 }
 
 function montarCardUsuario(usuario, adminIds, pendente) {
