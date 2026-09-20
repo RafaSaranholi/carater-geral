@@ -4,12 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Caráter Geral — Sartech Technology</title>
-
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-<link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
-<link rel="manifest" href="manifest.json">
+<title>Extrator de Texto OCR</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -191,6 +186,8 @@
 .item-salvo .item-conteudo{line-height:1.28}
 .btn-copiar-registro{position:absolute;right:10px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#333;color:#eee;border:1px solid #555}
 .btn-copiar-registro:hover{background:#454545}
+.btn-excluir-registro{position:absolute;right:82px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#6b2525;color:#fff;border:1px solid #8f4444}
+.btn-excluir-registro:hover{background:#8a3030}
 .admin-status-badge{display:inline-block;padding:3px 7px;border-radius:999px;font-size:11px;border:1px solid #555;color:#bbb}
 .admin-status-badge.ok{border-color:#1f7a4d;color:#bfe8d1}
 .admin-status-badge.pending{border-color:#8a6d1d;color:#ffe9a8}
@@ -2182,6 +2179,20 @@ function renderizarLista() {
         item.appendChild(conteudo);
         item.appendChild(botaoCopiar);
 
+        // Administradores podem excluir individualmente qualquer registro.
+        if (souAdmin) {
+            const botaoExcluir = document.createElement("button");
+            botaoExcluir.type = "button";
+            botaoExcluir.className = "btn-excluir-registro";
+            botaoExcluir.textContent = "🗑️ Excluir";
+            botaoExcluir.title = "Excluir este registro";
+            botaoExcluir.addEventListener("click", function(e) {
+                e.stopPropagation();
+                excluirRegistroOnline(registro.id, numeroRegistro);
+            });
+            item.appendChild(botaoExcluir);
+        }
+
         item.addEventListener("click", function() {
             copiarRegistroLista(registro.texto || "", numeroRegistro);
         });
@@ -2279,6 +2290,34 @@ function baixarListaTxt() {
     URL.revokeObjectURL(url);
 
     document.getElementById("status").innerText = "Lista salva em arquivo TXT.";
+}
+
+async function excluirRegistroOnline(id, numeroRegistro) {
+    if (!souAdmin) {
+        alert("Somente administradores podem excluir registros.");
+        return;
+    }
+
+    const registro = listaTextos.find(item => item.id === id);
+    if (!registro) return;
+
+    if (!confirm("Tem certeza que deseja excluir o Registro " + numeroRegistro + "?\n\n" + (registro.texto || ""))) {
+        return;
+    }
+
+    const { error } = await sb
+        .from("extrator_lista_carater")
+        .delete()
+        .eq("id", id);
+
+    if (error) {
+        console.error(error);
+        alert("Não foi possível excluir o registro.");
+        return;
+    }
+
+    await carregarLista();
+    document.getElementById("status").innerText = "Registro " + numeroRegistro + " excluído.";
 }
 
 async function excluirUltimoOnline() {
