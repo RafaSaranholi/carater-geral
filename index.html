@@ -310,14 +310,6 @@
         </div>
         <div id="listaHistoricoAprovados" class="admin-list"><div class="empty-admin">Carregando...</div></div>
     </div>
-
-    <div class="admin-card">
-        <div class="admin-section-title">
-            <h3>Outros cadastros</h3>
-            <span id="contagemUsuarios" class="admin-count"></span>
-        </div>
-        <div id="listaUsuarios" class="admin-list"><div class="empty-admin">Carregando...</div></div>
-    </div>
 </div>
 
 <!-- =========================================================
@@ -2554,10 +2546,12 @@ async function atualizarIndicadoresAcesso() {
 
     const btnAdmin = document.getElementById("btnAdmin");
     const botoesLista = document.getElementById("botoesAdminLista");
+    const botoesUsuarioLista = document.getElementById("botoesUsuarioLista");
     const botoesEditor = document.getElementById("botoesEditorLista");
 
     if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
     if (botoesLista) botoesLista.style.display = souAdmin ? "flex" : "none";
+    if (botoesUsuarioLista) botoesUsuarioLista.style.display = souAdmin ? "none" : "flex";
     if (botoesEditor) botoesEditor.style.display = souAdmin ? "flex" : "none";
 
     const app = document.getElementById("appPrincipal");
@@ -3007,7 +3001,10 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 <button onclick="excluirUltimoOnline()">↩️ Excluir último</button>
 <button onclick="limparListaOnline()">🗑️ Limpar lista</button>
 </div>
-<div class="info">Usuários não administradores podem somente pesquisar e copiar. Somente administradores podem adicionar, excluir e gerenciar os registros.</div>
+<div class="botoes-lista" id="botoesUsuarioLista" style="display:none">
+<button type="button" onclick="baixarListaTxt()">📥 Baixar lista de caráter</button>
+</div>
+<div class="info">Usuários não administradores podem somente pesquisar, copiar e baixar a lista. Somente administradores podem adicionar, excluir e gerenciar os registros.</div>
 </div></div>
 
 </div><!-- /conteudo-principal -->
