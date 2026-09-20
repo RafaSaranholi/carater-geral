@@ -280,7 +280,7 @@
 <div id="adminArea">
     <div class="admin-card">
         <h2>Administração</h2>
-        <p class="info">Apenas administradores podem aprovar, excluir usuários, conceder ou retirar privilégios administrativos e consultar o histórico de aprovações.</p>
+        <p class="info">Apenas administradores podem aprovar, excluir usuários e conceder ou retirar privilégios administrativos.</p>
         <div class="auth-actions">
             <button class="btn-secondary" type="button" onclick="voltarDoAdmin()">Voltar ao extrator</button>
             <button class="btn-secondary" type="button" onclick="carregarAdmin()">Atualizar</button>
@@ -303,13 +303,6 @@
         <div id="listaAprovados" class="admin-list"><div class="empty-admin">Carregando...</div></div>
     </div>
 
-    <div class="admin-card">
-        <div class="admin-section-title">
-            <h3>Histórico de aprovações</h3>
-            <span id="contagemHistorico" class="admin-count"></span>
-        </div>
-        <div id="listaHistoricoAprovados" class="admin-list"><div class="empty-admin">Carregando...</div></div>
-    </div>
 </div>
 
 <!-- =========================================================
@@ -2676,36 +2669,30 @@ async function carregarAdmin() {
 async function carregarAdminUsuarios() {
     const pendentes = document.getElementById("listaPendentes");
     const listaAprovadosEl = document.getElementById("listaAprovados");
-    const historico = document.getElementById("listaHistoricoAprovados");
-    if (!pendentes || !listaAprovadosEl || !historico) return;
+    if (!pendentes || !listaAprovadosEl) return;
 
     pendentes.innerHTML = '<div class="empty-admin">Carregando...</div>';
     listaAprovadosEl.innerHTML = '<div class="empty-admin">Carregando...</div>';
-    historico.innerHTML = '<div class="empty-admin">Carregando...</div>';
 
     const consultaAdmin = Promise.all([
         sb.from("extrator_usuarios")
             .select("id,re,nome_completo,unidade,email_funcional,status,created_at,updated_at")
             .order("created_at", { ascending: true }),
         sb.from("extrator_admins")
-            .select("user_id"),
-        sb.from("extrator_historico_aprovados")
-            .select("id,usuario_id,re,nome_completo,unidade,email_funcional,aprovado_em")
-            .order("aprovado_em", { ascending: false })
+            .select("user_id")
     ]);
 
     const timeoutAdmin = new Promise((_, reject) =>
         setTimeout(() => reject(new Error("Tempo limite ao carregar dados administrativos.")), 12000)
     );
 
-    let usuariosResult, adminsResult, historicoResult;
+    let usuariosResult, adminsResult;
     try {
-        [usuariosResult, adminsResult, historicoResult] = await Promise.race([consultaAdmin, timeoutAdmin]);
+        [usuariosResult, adminsResult] = await Promise.race([consultaAdmin, timeoutAdmin]);
     } catch (erro) {
         console.error(erro);
         pendentes.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos. Verifique as permissões do Supabase.</div>';
         listaAprovadosEl.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos. Verifique as permissões do Supabase.</div>';
-        historico.innerHTML = '<div class="empty-admin">Não foi possível carregar o histórico. Verifique as permissões do Supabase.</div>';
         return;
     }
 
@@ -2717,27 +2704,22 @@ async function carregarAdminUsuarios() {
         return;
     }
 
-    if (adminsResult.error || historicoResult.error) {
-        console.error(adminsResult.error || historicoResult.error);
+    if (adminsResult.error) {
+        console.error(adminsResult.error);
         pendentes.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos.</div>';
-        listaAprovadosEl.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos.</div>';
-        historico.innerHTML = '<div class="empty-admin">Não foi possível carregar o histórico de aprovações.</div>';
         listaAprovadosEl.innerHTML = '<div class="empty-admin">Não foi possível carregar os dados administrativos.</div>';
         return;
     }
 
     const todos = usuariosResult.data || [];
-    const historicoData = historicoResult.data || [];
     const adminIds = new Set((adminsResult.data || []).map(item => item.user_id));
     const pendentesData = todos.filter(u => u.status === "pendente");
     const aprovados = todos.filter(u => u.status === "aprovado");
     document.getElementById("contagemPendentes").textContent = pendentesData.length + " pendente(s)";
     document.getElementById("contagemAprovados").textContent = aprovados.length + " aprovado(s)";
-    document.getElementById("contagemHistorico").textContent = historicoData.length + " registro(s)";
 
     renderizarCardsPendentes(pendentes, pendentesData, adminIds);
     renderizarCardsUsuarios(listaAprovadosEl, aprovados, adminIds);
-    renderizarHistoricoAprovados(historico, historicoData);
 }
 
 function montarCardUsuario(usuario, adminIds, pendente) {
@@ -2839,30 +2821,6 @@ function renderizarCardsUsuarios(container, lista, adminIds) {
     }
     lista.forEach(usuario => container.appendChild(montarCardUsuario(usuario, adminIds, false)));
 }
-
-function renderizarHistoricoAprovados(container, lista) {
-    container.innerHTML = "";
-    if (!lista.length) {
-        container.innerHTML = '<div class="empty-admin">Nenhuma aprovação registrada ainda.</div>';
-        return;
-    }
-
-    lista.forEach(function(registro) {
-        const item = document.createElement("div");
-        item.className = "admin-item";
-        const dataTexto = registro.aprovado_em ? new Date(registro.aprovado_em).toLocaleString("pt-BR") : "-";
-        item.innerHTML =
-            '<div class="admin-grid">' +
-                '<div><span>RE:</span> <strong>' + escapeHtml(registro.re) + '</strong></div>' +
-                '<div><span>Aprovado em:</span> ' + escapeHtml(dataTexto) + '</div>' +
-                '<div><span>Nome:</span> ' + escapeHtml(registro.nome_completo) + '</div>' +
-                '<div><span>Unidade:</span> ' + escapeHtml(registro.unidade) + '</div>' +
-                '<div><span>E-mail funcional:</span> ' + escapeHtml(registro.email_funcional) + '</div>' +
-            '</div>';
-        container.appendChild(item);
-    });
-}
-
 
 async function alterarStatusUsuario(id, novoStatus) {
     if (!souAdmin) return;
