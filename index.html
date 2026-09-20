@@ -370,6 +370,7 @@
 <div class="user-bar">
     <div class="user-info" id="usuarioBarraInfo">Acesso autenticado.</div>
     <div class="user-actions">
+        <button id="btnCapturarTelaAdmin" class="btn-secondary" type="button" onclick="capturarTelaAdmin()" style="display:none">🖥️ Capturar tela</button>
         <button id="btnMensagemAdmin" class="btn-secondary" type="button" onclick="alternarMensagemAdmin(event)" style="display:none">💬 Mensagem</button>
         <button id="btnAdmin" class="btn-secondary" type="button" onclick="abrirAdmin()" style="display:none">⚙️ Aprovações</button>
         <button class="btn-secondary" type="button" onclick="sairSistema()">Sair</button>
@@ -2399,6 +2400,109 @@ function pararRealtimeLista() {
 
 
 
+
+/* =========================================================
+   CAPTURA DE TELA PARA ADMINISTRADOR
+   Abre o seletor nativo do navegador para escolher a tela/janela.
+   Após o compartilhamento, captura um quadro e coloca a imagem
+   diretamente na área de imagem, aguardando o usuário clicar em
+   um dos botões de extração.
+========================================================= */
+async function capturarTelaAdmin() {
+    if (!souAdmin) {
+        alert("Somente administradores podem capturar a tela.");
+        return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        alert("Seu navegador não permite captura de tela neste dispositivo.");
+        return;
+    }
+
+    const botao = document.getElementById("btnCapturarTelaAdmin");
+    const status = document.getElementById("status");
+    let stream = null;
+    let video = null;
+
+    try {
+        if (botao) botao.disabled = true;
+        if (status) status.innerText = "Selecione a tela ou janela que deseja capturar...";
+
+        stream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+                displaySurface: "monitor",
+                frameRate: { ideal: 30, max: 30 }
+            },
+            audio: false
+        });
+
+        const track = stream.getVideoTracks()[0];
+        if (!track) throw new Error("Nenhuma fonte de vídeo foi selecionada.");
+
+        video = document.createElement("video");
+        video.muted = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+
+        await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error("Tempo esgotado ao preparar a captura.")), 10000);
+            video.onloadedmetadata = () => {
+                clearTimeout(timeout);
+                resolve();
+            };
+        });
+
+        await video.play();
+        await new Promise(resolve => {
+            if (video.requestVideoFrameCallback) {
+                video.requestVideoFrameCallback(() => resolve());
+            } else {
+                setTimeout(resolve, 250);
+            }
+        });
+
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        if (!canvas.width || !canvas.height) {
+            throw new Error("Não foi possível obter o tamanho da captura.");
+        }
+
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const blob = await new Promise((resolve, reject) => {
+            canvas.toBlob(result => {
+                if (result) resolve(result);
+                else reject(new Error("Não foi possível gerar a imagem da captura."));
+            }, "image/png");
+        });
+
+        const arquivo = new File([blob], "captura-tela.png", { type: "image/png" });
+        carregarImagem(arquivo);
+
+        if (status) status.innerText = "Captura realizada. Agora clique no botão de extração desejado.";
+    } catch (erro) {
+        console.error(erro);
+        if (erro?.name === "NotAllowedError") {
+            if (status) status.innerText = "Captura cancelada.";
+        } else {
+            if (status) status.innerText = "Não foi possível capturar a tela.";
+            alert("Não foi possível capturar a tela. Tente novamente.");
+        }
+    } finally {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+        if (video) {
+            try { video.pause(); } catch (_) {}
+            video.srcObject = null;
+        }
+        if (botao) botao.disabled = false;
+    }
+}
+
 /* =========================================================
    AUTENTICAÇÃO / APROVAÇÃO
 ========================================================= */
@@ -2848,12 +2952,14 @@ async function atualizarIndicadoresAcesso() {
 
     const btnAdmin = document.getElementById("btnAdmin");
     const btnMensagemAdmin = document.getElementById("btnMensagemAdmin");
+    const btnCapturarTelaAdmin = document.getElementById("btnCapturarTelaAdmin");
     const botoesLista = document.getElementById("botoesAdminLista");
     const botoesUsuarioLista = document.getElementById("botoesUsuarioLista");
     const botoesEditor = document.getElementById("botoesEditorLista");
 
     if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
     if (btnMensagemAdmin) btnMensagemAdmin.style.display = souAdmin ? "inline-block" : "none";
+    if (btnCapturarTelaAdmin) btnCapturarTelaAdmin.style.display = souAdmin ? "inline-block" : "none";
     if (!souAdmin) fecharMensagemAdmin();
     if (botoesLista) botoesLista.style.display = souAdmin ? "flex" : "none";
     if (botoesUsuarioLista) botoesUsuarioLista.style.display = souAdmin ? "none" : "flex";
