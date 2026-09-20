@@ -193,6 +193,33 @@
 #appPrincipal.readonly-user #listaSalvos{max-height:calc(100vh - 185px);min-height:calc(100vh - 240px)}
 .reset-warning{margin-top:10px;padding:12px;border-radius:8px;background:#2b1f1f;border:1px solid #6f3a3a;color:#ffd9d9;font-size:13px;line-height:1.5}
 
+
+/* Mensagem programada aos usuários */
+.mensagem-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;
+    align-items:center;justify-content:center;z-index:99999;padding:20px;box-sizing:border-box;
+}
+.mensagem-modal{
+    width:min(720px,100%);background:#202020;border:1px solid #555;border-radius:12px;
+    box-shadow:0 20px 60px rgba(0,0,0,.55);padding:22px;box-sizing:border-box;
+}
+.mensagem-modal h2{margin:0 0 14px}
+.mensagem-conteudo{
+    white-space:pre-wrap;word-break:break-word;line-height:1.55;color:#eee;
+    background:#101010;border:1px solid #444;border-radius:8px;padding:16px;max-height:55vh;overflow:auto;
+}
+.mensagem-fechar{display:flex;justify-content:flex-end;margin-top:16px}
+.admin-message-form textarea{
+    width:100%;min-height:130px;box-sizing:border-box;background:#101010;color:#eee;
+    border:1px solid #555;border-radius:8px;padding:12px;resize:vertical;font-family:inherit;
+}
+.admin-message-dates{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+.admin-message-current{
+    margin-top:12px;padding:12px;background:#101010;border:1px solid #444;border-radius:8px;
+    white-space:pre-wrap;word-break:break-word;color:#ddd;
+}
+@media(max-width:700px){.admin-message-dates{grid-template-columns:1fr}}
+
 </style>
 </head>
 
@@ -289,6 +316,33 @@
 
     <div class="admin-card">
         <div class="admin-section-title">
+            <h3>Mensagem aos usuários</h3>
+            <span class="admin-count">Exibida no próximo login dentro do período definido</span>
+        </div>
+        <div class="admin-message-form">
+            <label for="adminMensagemTexto">Mensagem</label>
+            <textarea id="adminMensagemTexto" placeholder="Escreva aqui a mensagem que será exibida aos usuários..."></textarea>
+            <div class="admin-message-dates">
+                <div>
+                    <label for="adminMensagemInicio">Data de início</label>
+                    <input id="adminMensagemInicio" type="date">
+                </div>
+                <div>
+                    <label for="adminMensagemFim">Data de fim</label>
+                    <input id="adminMensagemFim" type="date">
+                </div>
+            </div>
+            <div class="auth-actions">
+                <button class="btn-primary" type="button" onclick="publicarMensagemUsuarios()">📢 Publicar mensagem</button>
+                <button class="btn-danger" type="button" onclick="desativarMensagemUsuarios()">🗑️ Desativar mensagem atual</button>
+            </div>
+            <div id="adminMensagemMsg" class="auth-msg" style="display:none"></div>
+            <div id="adminMensagemAtual" class="admin-message-current" style="display:none"></div>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-section-title">
             <h3>Solicitações pendentes</h3>
             <span id="contagemPendentes" class="admin-count"></span>
         </div>
@@ -303,6 +357,19 @@
         <div id="listaAprovados" class="admin-list"><div class="empty-admin">Carregando...</div></div>
     </div>
 
+</div>
+
+<!-- =========================================================
+     MENSAGEM PROGRAMADA AOS USUÁRIOS
+========================================================= -->
+<div id="mensagemOverlay" class="mensagem-overlay">
+    <div class="mensagem-modal" role="dialog" aria-modal="true" aria-labelledby="mensagemTitulo">
+        <h2 id="mensagemTitulo">📢 Aviso</h2>
+        <div id="mensagemConteudo" class="mensagem-conteudo"></div>
+        <div class="mensagem-fechar">
+            <button class="btn-primary" type="button" onclick="fecharMensagemProgramada()">Entendi</button>
+        </div>
+    </div>
 </div>
 
 <!-- =========================================================
@@ -2513,6 +2580,147 @@ async function redefinirSenha() {
 }
 
 
+
+function hojeLocalISO() {
+    const d = new Date();
+    const offset = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - offset * 60000);
+    return local.toISOString().slice(0, 10);
+}
+
+function limparMensagemAdminForm() {
+    const texto = document.getElementById("adminMensagemTexto");
+    const inicio = document.getElementById("adminMensagemInicio");
+    const fim = document.getElementById("adminMensagemFim");
+    if (texto) texto.value = "";
+    if (inicio) inicio.value = hojeLocalISO();
+    if (fim) fim.value = hojeLocalISO();
+}
+
+function prepararMensagemAdminForm() {
+    const inicio = document.getElementById("adminMensagemInicio");
+    const fim = document.getElementById("adminMensagemFim");
+    if (inicio && !inicio.value) inicio.value = hojeLocalISO();
+    if (fim && !fim.value) fim.value = hojeLocalISO();
+}
+
+async function carregarMensagemAdmin() {
+    if (!souAdmin) return;
+    prepararMensagemAdminForm();
+
+    const atualEl = document.getElementById("adminMensagemAtual");
+    if (!atualEl) return;
+
+    const { data, error } = await sb.rpc("extrator_admin_mensagem_atual");
+    if (error) {
+        console.error(error);
+        atualEl.style.display = "none";
+        return;
+    }
+
+    if (!data) {
+        atualEl.style.display = "none";
+        return;
+    }
+
+    const inicio = data.inicio ? new Date(data.inicio + "T00:00:00").toLocaleDateString("pt-BR") : "-";
+    const fim = data.fim ? new Date(data.fim + "T00:00:00").toLocaleDateString("pt-BR") : "-";
+    atualEl.innerHTML =
+        "<strong>Mensagem programada:</strong><br>" +
+        escapeHtml(data.mensagem || "") +
+        "<br><br><span class='info'>Período: " + escapeHtml(inicio) + " até " + escapeHtml(fim) + "</span>";
+    atualEl.style.display = "block";
+}
+
+async function publicarMensagemUsuarios() {
+    if (!souAdmin) return;
+
+    const mensagem = (document.getElementById("adminMensagemTexto")?.value || "").trim();
+    const inicio = document.getElementById("adminMensagemInicio")?.value || "";
+    const fim = document.getElementById("adminMensagemFim")?.value || "";
+
+    if (!mensagem) {
+        mostrarMsg("adminMensagemMsg", "Escreva a mensagem antes de publicar.", "err");
+        return;
+    }
+    if (!inicio || !fim) {
+        mostrarMsg("adminMensagemMsg", "Informe a data de início e a data de fim.", "err");
+        return;
+    }
+    if (fim < inicio) {
+        mostrarMsg("adminMensagemMsg", "A data de fim não pode ser anterior à data de início.", "err");
+        return;
+    }
+
+    const confirmado = confirm(
+        "Publicar esta mensagem para todos os usuários aprovados?\n\n" +
+        "Ela aparecerá no próximo login de cada usuário dentro do período informado."
+    );
+    if (!confirmado) return;
+
+    const { error } = await sb.rpc("extrator_publicar_mensagem", {
+        p_mensagem: mensagem,
+        p_inicio: inicio,
+        p_fim: fim
+    });
+
+    if (error) {
+        console.error(error);
+        mostrarMsg("adminMensagemMsg", error.message || "Não foi possível publicar a mensagem.", "err");
+        return;
+    }
+
+    sessionStorage.removeItem("extrator_mensagem_login_exibida");
+    mostrarMsg("adminMensagemMsg", "Mensagem publicada com sucesso.", "ok");
+    await carregarMensagemAdmin();
+}
+
+async function desativarMensagemUsuarios() {
+    if (!souAdmin) return;
+
+    if (!confirm("Desativar a mensagem atualmente programada para os usuários?")) return;
+
+    const { error } = await sb.rpc("extrator_desativar_mensagem");
+    if (error) {
+        console.error(error);
+        mostrarMsg("adminMensagemMsg", error.message || "Não foi possível desativar a mensagem.", "err");
+        return;
+    }
+
+    mostrarMsg("adminMensagemMsg", "Mensagem desativada.", "ok");
+    const atualEl = document.getElementById("adminMensagemAtual");
+    if (atualEl) atualEl.style.display = "none";
+}
+
+async function mostrarMensagemProgramadaNoLogin() {
+    const overlay = document.getElementById("mensagemOverlay");
+    const conteudo = document.getElementById("mensagemConteudo");
+    if (!overlay || !conteudo || !usuarioAtual) return;
+
+    // Uma vez por sessão/login. Refresh não exibe novamente.
+    if (sessionStorage.getItem("extrator_mensagem_login_exibida") === "1") return;
+
+    const { data, error } = await sb.rpc("extrator_mensagem_ativa");
+    if (error) {
+        console.error(error);
+        return;
+    }
+
+    // Marca a consulta desta sessão para que o aviso não reapareça
+    // até o próximo login, mesmo que o usuário feche a janela.
+    sessionStorage.setItem("extrator_mensagem_login_exibida", "1");
+
+    if (!data || !data.mensagem) return;
+
+    conteudo.textContent = data.mensagem;
+    overlay.style.display = "flex";
+}
+
+function fecharMensagemProgramada() {
+    const overlay = document.getElementById("mensagemOverlay");
+    if (overlay) overlay.style.display = "none";
+}
+
 async function consultarPerfilAtual() {
     if (!usuarioAtual) return null;
 
@@ -2608,10 +2816,14 @@ async function entrarSistema() {
             escapeHtml(perfil.nome_completo) + " — " +
             escapeHtml(perfil.unidade);
 
+        // Novo login: o aviso programado pode aparecer novamente.
+        sessionStorage.removeItem("extrator_mensagem_login_exibida");
+
         await atualizarIndicadoresAcesso();
         mostrarAplicacao();
         iniciarRealtimeLista();
         await carregarLista();
+        await mostrarMensagemProgramadaNoLogin();
 
         document.getElementById("loginSenha").value = "";
         mostrarMsg("loginMsg", "", "");
@@ -2635,6 +2847,7 @@ async function sairSistema() {
     usuarioAtual = null;
     perfilAtual = null;
     souAdmin = false;
+    sessionStorage.removeItem("extrator_mensagem_login_exibida");
     document.getElementById("loginRE").value = "";
     document.getElementById("loginSenha").value = "";
     mostrarTelaAcesso();
@@ -2663,6 +2876,7 @@ function escapeHtml(valor) {
 
 async function carregarAdmin() {
     if (!souAdmin) return;
+    await carregarMensagemAdmin();
     await carregarAdminUsuarios();
 }
 
