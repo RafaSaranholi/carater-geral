@@ -1,4 +1,3563 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+<title>Extrator de Texto OCR</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.min.js"></script>
+
+<style>
+    body {
+        margin: 0;
+        padding: 25px;
+        background: #151515;
+        color: #eee;
+        font-family: Arial, sans-serif;
+    }
+
+    h1 {
+        margin-top: 0;
+    }
+
+    .area {
+        border: 2px dashed #555;
+        border-radius: 8px;
+        padding: 25px;
+        text-align: center;
+        margin-bottom: 15px;
+        background: #202020;
+    }
+
+    button {
+        padding: 12px 18px;
+        margin: 5px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 15px;
+    }
+
+    button:hover {
+        opacity: .85;
+    }
+
+    #imagemContainer {
+        position: relative;
+        display: none;
+        margin-top: 20px;
+        max-width: 100%;
+        overflow: auto;
+        border: 1px solid #444;
+        background: #111;
+    }
+
+    #imagem {
+        display: block;
+        max-width: none;
+        cursor: crosshair;
+    }
+
+    #selecao {
+        position: absolute;
+        border: 2px solid red;
+        background: rgba(255,0,0,.12);
+        display: none;
+        pointer-events: none;
+    }
+
+    textarea {
+        width: 100%;
+        min-height: 260px;
+        box-sizing: border-box;
+        background: #101010;
+        color: #ddd;
+        border: 1px solid #555;
+        border-radius: 6px;
+        padding: 12px;
+        font-size: 16px;
+        resize: vertical;
+    }
+
+    #status {
+        margin: 15px 0;
+        color: #bbb;
+    }
+
+    .placa-box {
+        margin-top: 15px;
+        padding: 15px;
+        border: 1px solid #444;
+        border-radius: 6px;
+        background: #202020;
+    }
+
+    .placa {
+        font-size: 28px;
+        font-weight: bold;
+        letter-spacing: 4px;
+        margin-top: 8px;
+    }
+
+    input[type=file] {
+        margin: 10px;
+    }
+
+    .info {
+        color: #aaa;
+        font-size: 13px;
+        margin-top: 8px;
+    }
+
+.conteudo-principal{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:start}
+.painel-lista{background:#202020;border:1px solid #444;border-radius:8px;padding:15px;position:sticky;top:15px}
+.painel-lista h3{margin-top:0}
+#listaSalvos{max-height:600px;overflow-y:auto;margin-bottom:10px}
+.item-salvo{background:#101010;border:1px solid #444;border-radius:6px;padding:10px;margin-bottom:8px;white-space:pre-wrap;word-break:break-word;font-size:14px;cursor:pointer}
+.item-salvo:hover{border-color:#777}
+.item-salvo .item-numero{color:#aaa;font-size:12px;margin-bottom:5px}
+.botoes-lista{display:flex;flex-wrap:wrap;gap:5px}
+.botoes-salvar-abaixo{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;margin-bottom:12px}
+@media(max-width:900px){.conteudo-principal{grid-template-columns:1fr}.painel-lista{position:static}}
+
+
+
+/* =========================================================
+   ACESSO ONLINE / CADASTRO / ADMINISTRAÇÃO
+========================================================= */
+.auth-shell{min-height:calc(100vh - 50px);display:flex;align-items:center;justify-content:center;padding:10px 0}
+.auth-card{width:min(460px,100%);background:#202020;border:1px solid #444;border-radius:12px;padding:26px;box-sizing:border-box;box-shadow:0 15px 45px rgba(0,0,0,.28)}
+.auth-card h2{margin:0 0 8px}
+.auth-card p{color:#aaa;margin:0 0 18px;font-size:14px;line-height:1.45}
+.auth-card label{display:block;margin:12px 0 6px;font-size:14px;color:#ddd}
+.auth-card input{width:100%;box-sizing:border-box;padding:12px 13px;border-radius:7px;border:1px solid #555;background:#101010;color:#eee;font-size:15px}
+.auth-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.auth-actions button{flex:1;min-width:145px}
+.btn-primary{background:#0d6efd;color:#fff}
+.btn-secondary{background:#333;color:#eee;border:1px solid #555}
+.btn-success{background:#198754;color:#fff}
+.btn-danger{background:#b02a37;color:#fff}
+.auth-link{display:inline-block;margin-top:14px;color:#7fb7ff;cursor:pointer;text-decoration:underline}
+.auth-msg{margin-top:14px;padding:11px 12px;border-radius:7px;background:#151515;border:1px solid #444;color:#ccc;font-size:14px;line-height:1.4}
+.auth-msg.ok{border-color:#1f7a4d;color:#ccebdc}
+.auth-msg.err{border-color:#8d2834;color:#ffd5d9}
+.auth-msg.warn{border-color:#8a6d1d;color:#ffe9a8}
+.user-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:15px;padding:10px 12px;background:#1b1b1b;border:1px solid #444;border-radius:8px}
+.user-bar .user-info{color:#bbb;font-size:13px}
+.user-bar .user-info strong{color:#eee}
+.user-bar .user-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;position:relative}
+.user-bar button{margin:0;padding:9px 12px;font-size:13px}
+.admin-message-dropdown{position:absolute;right:0;top:calc(100% + 8px);width:370px;max-width:calc(100vw - 24px);background:#202020;border:1px solid #555;border-radius:10px;box-shadow:0 18px 45px rgba(0,0,0,.5);padding:14px;box-sizing:border-box;z-index:5000;display:none}
+.admin-message-dropdown.open{display:block}
+.admin-message-dropdown h3{margin:0 0 6px;font-size:16px}
+.admin-message-dropdown .dropdown-info{margin:0 0 12px;color:#aaa;font-size:12px;line-height:1.4}
+.admin-message-dropdown label{display:block;margin:9px 0 5px;color:#ccc;font-size:12px}
+.admin-message-dropdown textarea{width:100%;min-height:105px;box-sizing:border-box;background:#101010;color:#eee;border:1px solid #555;border-radius:7px;padding:10px;resize:vertical;font-family:inherit}
+.admin-message-dropdown input[type=date]{width:100%;box-sizing:border-box;background:#101010;color:#eee;border:1px solid #555;border-radius:7px;padding:9px}
+.admin-message-dropdown .admin-message-dates{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:0}
+.admin-message-dropdown .auth-actions{margin-top:12px}
+.admin-message-dropdown .auth-actions button{min-width:0;padding:8px 9px;font-size:12px}
+.admin-message-dropdown .admin-message-current{margin-top:12px;padding:10px;font-size:12px;line-height:1.45;max-height:190px;overflow:auto}
+@media(max-width:700px){.admin-message-dropdown{right:-4px;width:calc(100vw - 24px)}}
+#appPrincipal,#adminArea{display:none}
+.admin-card{background:#202020;border:1px solid #444;border-radius:10px;padding:16px;margin-bottom:18px}
+.admin-card h2{margin-top:0}
+.admin-list{display:grid;gap:10px}
+.admin-item{background:#101010;border:1px solid #444;border-radius:8px;padding:12px}
+.admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 14px;font-size:14px}
+.admin-grid div span:first-child{color:#999}
+.admin-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.admin-actions button{margin:0;padding:9px 13px}
+.empty-admin{color:#aaa;padding:10px 0}
+@media(max-width:700px){.admin-grid{grid-template-columns:1fr}.auth-card{padding:20px}}
+
+
+
+/* =========================================================
+   LISTA ONLINE — PESQUISA / COPIAR / PERMISSÕES
+========================================================= */
+.lista-toolbar{display:flex;gap:8px;align-items:center;margin:8px 0 10px}
+.lista-toolbar input{flex:1;min-width:0;box-sizing:border-box;padding:12px 13px;border-radius:7px;border:1px solid #555;background:#101010;color:#eee;font-size:15px}
+.lista-toolbar button{margin:0;padding:9px 13px;min-width:42px;background:#333;color:#eee;border:1px solid #555}
+.item-salvo{position:relative;padding-bottom:46px;cursor:default}
+.item-salvo:hover{border-color:#666}
+.item-salvo .item-conteudo{line-height:1.28}
+.btn-copiar-registro{position:absolute;right:10px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#333;color:#eee;border:1px solid #555}
+.btn-copiar-registro:hover{background:#454545}
+.btn-excluir-registro{position:absolute;right:82px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#6b2525;color:#fff;border:1px solid #8f4444}
+.btn-excluir-registro:hover{background:#8a3030}
+.admin-status-badge{display:inline-block;padding:3px 7px;border-radius:999px;font-size:11px;border:1px solid #555;color:#bbb}
+.admin-status-badge.ok{border-color:#1f7a4d;color:#bfe8d1}
+.admin-status-badge.pending{border-color:#8a6d1d;color:#ffe9a8}
+.admin-status-badge.admin{border-color:#3466a8;color:#c9dcff}
+.admin-actions .btn-warning{background:#7a5b13;color:#fff}
+.admin-actions .btn-info{background:#245b78;color:#fff}
+.admin-actions .btn-dark{background:#333;color:#eee;border:1px solid #555}
+.admin-section-title{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.admin-count{font-size:12px;color:#aaa}
+.aprovacoes-badge{display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:15px;padding:0 4px;box-sizing:border-box;margin-left:5px;border-radius:999px;background:#dc3545;color:#fff;font-size:10px;font-weight:700;line-height:15px;vertical-align:middle}
+
+
+
+/* Usuário não administrador: somente consulta da lista. */
+#appPrincipal.readonly-user .conteudo-principal{grid-template-columns:1fr !important;display:block !important}
+#appPrincipal.readonly-user .conteudo-esquerdo{display:none !important}
+#appPrincipal.readonly-user .painel-lista{display:block !important;position:relative;top:auto;max-width:none;width:100%;box-sizing:border-box}
+#appPrincipal.readonly-user #listaSalvos{max-height:calc(100vh - 185px);min-height:calc(100vh - 240px)}
+.reset-warning{margin-top:10px;padding:12px;border-radius:8px;background:#2b1f1f;border:1px solid #6f3a3a;color:#ffd9d9;font-size:13px;line-height:1.5}
+
+
+/* Seleção de área após captura de tela */
+.captura-selecao-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;
+    align-items:center;justify-content:center;z-index:100000;padding:14px;box-sizing:border-box;
+}
+.captura-selecao-overlay.open{display:flex}
+.captura-selecao-modal{
+    width:min(1200px,100%);max-height:94vh;background:#202020;border:1px solid #555;
+    border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.65);padding:14px;box-sizing:border-box;
+    display:flex;flex-direction:column;gap:10px;
+}
+.captura-selecao-cabecalho{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.captura-selecao-cabecalho h2{margin:0 0 4px;font-size:18px}
+.captura-selecao-ajuda{color:#aaa;font-size:12px;line-height:1.4}
+.captura-selecao-fechar{margin:0;padding:7px 10px;min-width:auto}
+.captura-selecao-container{
+    position:relative;display:flex;align-items:center;justify-content:center;
+    width:100%;min-height:240px;max-height:72vh;overflow:hidden;background:#101010;
+    border:1px solid #444;border-radius:8px;touch-action:none;user-select:none;
+}
+#capturaSelecaoImagem{display:block;max-width:100%;max-height:72vh;width:auto;height:auto;object-fit:contain;user-select:none;touch-action:none}
+.captura-selecao-retangulo{
+    position:absolute;border:2px solid #00d4ff;background:rgba(0,212,255,.16);
+    display:none;pointer-events:none;box-sizing:border-box;
+}
+.captura-selecao-rodape{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#aaa;font-size:12px}
+.captura-selecao-rodape button{margin:0;padding:8px 12px}
+@media(max-width:700px){
+    .captura-selecao-modal{padding:10px}
+    .captura-selecao-container{min-height:200px}
+    .captura-selecao-rodape{font-size:11px}
+}
+
+/* Mensagem programada aos usuários */
+.mensagem-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;
+    align-items:center;justify-content:center;z-index:99999;padding:20px;box-sizing:border-box;
+}
+.mensagem-modal{
+    width:min(720px,100%);background:#202020;border:1px solid #555;border-radius:12px;
+    box-shadow:0 20px 60px rgba(0,0,0,.55);padding:22px;box-sizing:border-box;
+}
+.mensagem-modal h2{margin:0 0 14px}
+.mensagem-conteudo{
+    white-space:pre-wrap;word-break:break-word;line-height:1.55;color:#eee;
+    background:#101010;border:1px solid #444;border-radius:8px;padding:16px;max-height:55vh;overflow:auto;
+}
+.mensagem-fechar{display:flex;justify-content:flex-end;margin-top:16px}
+.admin-message-form textarea{
+    width:100%;min-height:130px;box-sizing:border-box;background:#101010;color:#eee;
+    border:1px solid #555;border-radius:8px;padding:12px;resize:vertical;font-family:inherit;
+}
+.admin-message-dates{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+.admin-message-current{
+    margin-top:12px;padding:12px;background:#101010;border:1px solid #444;border-radius:8px;
+    white-space:pre-wrap;word-break:break-word;color:#ddd;
+}
+@media(max-width:700px){.admin-message-dates{grid-template-columns:1fr}}
+
+
+/* SELFIE NO CADASTRO */
+.cadastro-selfie-box{margin-top:14px;padding:12px;background:#151515;border:1px solid #444;border-radius:8px}
+.cadastro-selfie-box .selfie-titulo{font-size:14px;color:#ddd;margin-bottom:6px}
+.cadastro-selfie-box .selfie-ajuda{font-size:12px;color:#aaa;line-height:1.4;margin-bottom:9px}
+.selfie-actions{display:flex;gap:7px;flex-wrap:wrap}
+.selfie-actions button{margin:0;padding:9px 12px}
+#cadSelfiePreview{display:none;width:120px;height:160px;object-fit:cover;border-radius:8px;border:1px solid #555;margin-top:10px;background:#101010}
+.cadastro-selfie-status{font-size:12px;color:#aaa;margin-top:7px}
+.cad-selfie-overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:110000;padding:14px;box-sizing:border-box}
+.cad-selfie-overlay.open{display:flex}
+.cad-selfie-modal{width:min(520px,100%);background:#202020;border:1px solid #555;border-radius:12px;padding:14px;box-sizing:border-box;box-shadow:0 20px 60px rgba(0,0,0,.65)}
+.cad-selfie-modal h3{margin:0 0 6px}
+.cad-selfie-modal p{color:#aaa;font-size:12px;line-height:1.4;margin:0 0 10px}
+#cadSelfieVideo{display:block;width:100%;max-height:58vh;object-fit:cover;background:#101010;border:1px solid #444;border-radius:8px}
+#cadSelfieLivenessStatus{margin-top:9px;padding:9px 10px;border-radius:7px;background:#111;border:1px solid #444;color:#ddd;font-size:13px;line-height:1.35}
+#cadSelfieLivenessStatus.ok{border-color:#2f8f52;color:#8ee0a8}
+#cadSelfieLivenessStatus.warn{border-color:#8d6c26;color:#f0cf79}
+#cadSelfieLivenessStatus.err{border-color:#8d3535;color:#ff9b9b}
+#btnCapturarSelfie:disabled{opacity:.45;cursor:not-allowed}
+#cadSelfieVideo.face-mirror{transform:scaleX(-1)}
+.cad-selfie-modal .auth-actions{margin-top:10px}
+@media(max-width:700px){.cad-selfie-modal{padding:10px}}
+
+</style>
+
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<meta name="theme-color" content="#0b0f14">
+</head>
+
+<body>
+
+<!-- =========================================================
+     TELA DE ACESSO
+========================================================= -->
+<div id="telaAcesso" class="auth-shell">
+    <div class="auth-card">
+        <div id="loginBox">
+            <h2>Extrator de Caráter Geral</h2>
+            <p>Acesso restrito. Entre utilizando seu <strong>RE</strong> e sua senha.</p>
+
+            <label for="loginRE">RE</label>
+            <input id="loginRE" type="text" inputmode="numeric" autocomplete="username" placeholder="Ex.: 210493-8" maxlength="20">
+
+            <label for="loginSenha">Senha</label>
+            <input id="loginSenha" type="password" autocomplete="current-password" placeholder="Digite sua senha">
+
+            <div class="auth-actions">
+                <button id="btnEntrar" class="btn-primary" type="button" onclick="entrarSistema()">Entrar</button>
+                <button class="btn-secondary" type="button" onclick="mostrarCadastro()">Solicitar cadastro</button>
+            </div>
+            <button class="auth-link" type="button" onclick="mostrarResetSenha()" style="background:none;border:none;padding:0;margin-left:5px">🔐 Redefinir senha</button>
+
+            <div id="loginMsg" class="auth-msg" style="display:none"></div>
+        </div>
+
+        <div id="resetBox" style="display:none">
+            <h2>Redefinir senha</h2>
+            <p>Para redefinir o acesso, informe seu RE e seu e-mail funcional.</p>
+            <div class="reset-warning">
+                <strong>Atenção:</strong> ao confirmar, sua conta atual será excluída. Você deverá fazer um novo cadastro e aguardar novamente a aprovação do administrador.
+            </div>
+
+            <label for="resetRE">RE</label>
+            <input id="resetRE" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex.: 210493-8" maxlength="20">
+
+            <label for="resetEmail">E-mail funcional</label>
+            <input id="resetEmail" type="email" autocomplete="email" placeholder="seu.email@policiamilitar.sp.gov.br">
+
+            <div class="auth-actions">
+                <button class="btn-danger" type="button" onclick="redefinirSenha()">Excluir conta e refazer cadastro</button>
+                <button class="btn-secondary" type="button" onclick="mostrarLogin()">Voltar para login</button>
+            </div>
+            <div id="resetMsg" class="auth-msg" style="display:none"></div>
+        </div>
+
+        <div id="cadastroBox" style="display:none">
+            <h2>Solicitar cadastro</h2>
+            <p>Preencha seus dados. O acesso só será liberado depois da aprovação do administrador.</p>
+
+            <label for="cadRE">RE</label>
+            <input id="cadRE" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex.: 210493-8" maxlength="20">
+
+            <label for="cadNome">Nome completo</label>
+            <input id="cadNome" type="text" autocomplete="name" placeholder="Nome completo">
+
+            <label for="cadUnidade">Unidade</label>
+            <input id="cadUnidade" type="text" autocomplete="organization" placeholder="Ex.: COPOM, BPM, CIA...">
+
+            <label for="cadEmail">E-mail funcional</label>
+            <input id="cadEmail" type="email" autocomplete="email" placeholder="seu.email@policiamilitar.sp.gov.br">
+
+            <label for="cadSenha">Senha</label>
+            <input id="cadSenha" type="password" autocomplete="new-password" placeholder="Crie uma senha">
+
+            <label for="cadSenha2">Confirmar senha</label>
+            <input id="cadSenha2" type="password" autocomplete="new-password" placeholder="Repita a senha">
+
+            <div class="cadastro-selfie-box">
+                <div class="selfie-titulo">📸 Selfie para identificação <strong>(obrigatória)</strong></div>
+                <div class="selfie-ajuda">Tire uma selfie nítida. A foto ficará registrada junto ao seu cadastro e será visível somente para os administradores responsáveis pela aprovação.</div>
+                <div class="selfie-actions">
+                    <button class="btn-info" type="button" onclick="abrirCameraSelfie()">📸 Tirar selfie</button>
+                </div>
+                <img id="cadSelfiePreview" alt="Prévia da selfie">
+                <div id="cadSelfieStatus" class="cadastro-selfie-status">Nenhuma selfie selecionada.</div>
+            </div>
+
+            <div class="auth-actions">
+                <button class="btn-primary" type="button" onclick="cadastrarUsuario()">Enviar cadastro</button>
+                <button class="btn-secondary" type="button" onclick="mostrarLogin()">Voltar para login</button>
+            </div>
+
+            <div id="cadMsg" class="auth-msg" style="display:none"></div>
+        </div>
+    </div>
+</div>
+
+<!-- SELFIE CAMERA -->
+<div id="cadSelfieOverlay" class="cad-selfie-overlay">
+    <div class="cad-selfie-modal">
+        <h3>📸 Verificação de selfie</h3>
+        <p id="cadSelfieLivenessInstruction">Posicione o rosto no centro e aguarde.</p>
+        <video id="cadSelfieVideo" class="face-mirror" autoplay playsinline muted></video>
+        <div id="cadSelfieLivenessStatus" class="warn">Preparando a verificação...</div>
+        <div class="auth-actions">
+            <button id="btnCapturarSelfie" class="btn-success" type="button" onclick="capturarSelfie()" disabled>📸 Capturar selfie</button>
+            <button class="btn-secondary" type="button" onclick="fecharCameraSelfie()">Cancelar</button>
+        </div>
+        <canvas id="cadSelfieCanvas" style="display:none"></canvas>
+    </div>
+</div>
+
+<!-- =========================================================
+     ÁREA DO ADMINISTRADOR
+========================================================= -->
+<div id="adminArea">
+    <div class="admin-card">
+        <h2>Administração</h2>
+        <p class="info">Apenas administradores podem aprovar, excluir usuários e conceder ou retirar privilégios administrativos.</p>
+        <div class="auth-actions">
+            <button class="btn-secondary" type="button" onclick="voltarDoAdmin()">Voltar ao extrator</button>
+            <button class="btn-secondary" type="button" onclick="carregarAdmin()">Atualizar</button>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-section-title">
+            <h3>Solicitações pendentes</h3>
+            <span id="contagemPendentes" class="admin-count"></span>
+        </div>
+        <div id="listaPendentes" class="admin-list"><div class="empty-admin">Carregando...</div></div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-section-title">
+            <h3>Usuários aprovados</h3>
+            <span id="contagemAprovados" class="admin-count"></span>
+        </div>
+        <div id="listaAprovados" class="admin-list"><div class="empty-admin">Carregando...</div></div>
+    </div>
+
+</div>
+
+<div id="adminSelfieOverlay" class="cad-selfie-overlay">
+    <div class="cad-selfie-modal">
+        <h3 id="adminSelfieTitulo">📸 Selfie</h3>
+        <img id="adminSelfieImagem" alt="Selfie do usuário" style="display:block;max-width:100%;max-height:70vh;margin:0 auto;background:#101010;border:1px solid #444;border-radius:8px;object-fit:contain">
+        <div class="auth-actions">
+            <button class="btn-secondary" type="button" onclick="fecharVisualizadorSelfie()">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     MENSAGEM PROGRAMADA AOS USUÁRIOS
+========================================================= -->
+<div id="mensagemOverlay" class="mensagem-overlay">
+    <div class="mensagem-modal" role="dialog" aria-modal="true" aria-labelledby="mensagemTitulo">
+        <h2 id="mensagemTitulo">📢 Aviso</h2>
+        <div id="mensagemConteudo" class="mensagem-conteudo"></div>
+        <div class="mensagem-fechar">
+            <button class="btn-primary" type="button" onclick="fecharMensagemProgramada()">Entendi</button>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     SELEÇÃO DA ÁREA DA CAPTURA DE TELA
+========================================================= -->
+<div id="capturaSelecaoOverlay" class="captura-selecao-overlay" aria-hidden="true">
+    <div class="captura-selecao-modal" role="dialog" aria-modal="true" aria-labelledby="capturaSelecaoTitulo">
+        <div class="captura-selecao-cabecalho">
+            <div>
+                <h2 id="capturaSelecaoTitulo">Selecione o que deseja extrair</h2>
+                <div class="captura-selecao-ajuda">Arraste sobre a imagem para selecionar a área. Ao soltar, a seleção será aplicada automaticamente.</div>
+            </div>
+            <button type="button" class="btn-secondary captura-selecao-fechar" onclick="cancelarSelecaoCaptura()" title="Cancelar">✕</button>
+        </div>
+        <div id="capturaSelecaoContainer" class="captura-selecao-container">
+            <img id="capturaSelecaoImagem" alt="Captura de tela para seleção">
+            <div id="capturaSelecaoRetangulo" class="captura-selecao-retangulo"></div>
+        </div>
+        <div class="captura-selecao-rodape">
+            <span>Escolha somente a parte que contém o caráter geral.</span>
+            <button type="button" class="btn-secondary" onclick="cancelarSelecaoCaptura()">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     APLICAÇÃO ORIGINAL
+========================================================= -->
+<div id="appPrincipal">
+<div class="user-bar">
+    <div class="user-info" id="usuarioBarraInfo">Acesso autenticado.</div>
+    <div class="user-actions">
+        <button id="btnCapturarTelaAdmin" class="btn-secondary" type="button" onclick="capturarTelaAdmin()" style="display:none">🖥️ Capturar tela</button>
+        <button id="btnMensagemAdmin" class="btn-secondary" type="button" onclick="alternarMensagemAdmin(event)" style="display:none">💬 Mensagem</button>
+        <button id="btnAdmin" class="btn-secondary" type="button" onclick="abrirAdmin()" style="display:none">⚙️ Aprovações<span id="badgeAprovacoes" class="aprovacoes-badge" style="display:none">0</span></button>
+        <button class="btn-secondary" type="button" onclick="sairSistema()">Sair</button>
+
+        <div id="adminMensagemDropdown" class="admin-message-dropdown" aria-hidden="true">
+            <h3>Mensagem aos usuários</h3>
+            <p class="dropdown-info">A mensagem será exibida somente para usuários aprovados que não são administradores, no próximo login dentro do período definido.</p>
+
+            <label for="adminMensagemTexto">Mensagem</label>
+            <textarea id="adminMensagemTexto" placeholder="Escreva aqui a mensagem que será exibida aos usuários..."></textarea>
+
+            <div class="admin-message-dates">
+                <div>
+                    <label for="adminMensagemInicio">Data de início</label>
+                    <input id="adminMensagemInicio" type="date">
+                </div>
+                <div>
+                    <label for="adminMensagemFim">Data de fim</label>
+                    <input id="adminMensagemFim" type="date">
+                </div>
+            </div>
+
+            <div class="auth-actions">
+                <button class="btn-primary" type="button" onclick="publicarMensagemUsuarios()">📢 Publicar</button>
+                <button class="btn-danger" type="button" onclick="desativarMensagemUsuarios()">🗑️ Desativar</button>
+            </div>
+
+            <div id="adminMensagemMsg" class="auth-msg" style="display:none"></div>
+            <div id="adminMensagemAtual" class="admin-message-current" style="display:none"></div>
+        </div>
+    </div>
+</div>
+
+<div class="conteudo-principal"><div class="conteudo-esquerdo">
+
+<h1>Extrator de Caráter Geral</h1>
+
+<div class="area" id="areaColar">
+
+    <strong>Cole uma imagem aqui usando Ctrl+V</strong>
+
+    <div class="info">
+        Você também pode selecionar uma imagem pelo botão abaixo.
+    </div>
+
+    <input type="file" id="arquivo" accept="image/*">
+
+</div>
+
+<div>
+
+    <button onclick="extrairInteira()">
+        📄 Extrair imagem inteira
+    </button>
+
+    <button onclick="extrairSomenteCarater()">
+        🔎 Extrair somente o caráter
+    </button>
+
+</div>
+
+<div id="status">
+    Aguardando imagem...
+</div>
+
+<div id="imagemContainer">
+
+    <img id="imagem">
+
+    <div id="selecao"></div>
+
+</div>
+
+<div class="placa-box">
+
+    <strong>Placa identificada:</strong>
+
+    <div id="placa" class="placa">
+        ---
+    </div>
+
+</div>
+
+<h3>Texto extraído</h3>
+
+<textarea
+    id="resultado"
+    placeholder="O texto reconhecido aparecerá aqui..."
+></textarea>
+
+<div class="botoes-salvar-abaixo" id="botoesEditorLista">
+<button onclick="salvarTextoLista()">💾 Salvar texto na lista</button>
+<button onclick="baixarListaTxt()">📥 Salvar lista TXT</button>
+</div>
+
+<script>
+
+let imagemOriginal = null;
+
+let selecionando = false;
+
+let inicioX = 0;
+let inicioY = 0;
+
+let selecaoX = 0;
+let selecaoY = 0;
+let selecaoW = 0;
+let selecaoH = 0;
+
+
+/* =========================================================
+   CARREGAR ARQUIVO
+========================================================= */
+
+document.getElementById("arquivo").addEventListener(
+    "change",
+    function(e) {
+
+        const arquivo = e.target.files[0];
+
+        if (!arquivo) return;
+
+        carregarImagem(arquivo);
+    }
+);
+
+
+/* =========================================================
+   CTRL + V
+========================================================= */
+
+document.addEventListener("paste", function(e) {
+
+    const itens = e.clipboardData.items;
+
+    if (!itens) return;
+
+    for (const item of itens) {
+
+        if (item.type.startsWith("image/")) {
+
+            const arquivo = item.getAsFile();
+
+            if (arquivo) {
+
+                carregarImagem(arquivo);
+
+            }
+
+            e.preventDefault();
+
+            return;
+        }
+    }
+});
+
+
+/* =========================================================
+   CARREGAR IMAGEM
+========================================================= */
+
+function carregarImagem(arquivo) {
+
+    const leitor = new FileReader();
+
+    leitor.onload = function(e) {
+
+        imagemOriginal = new Image();
+
+        imagemOriginal.onload = function() {
+
+            const img =
+                document.getElementById("imagem");
+
+            img.src = e.target.result;
+
+            document
+                .getElementById("imagemContainer")
+                .style.display = "block";
+
+            document
+                .getElementById("status")
+                .innerText =
+                "Imagem carregada. Se quiser, selecione uma região.";
+
+            limparSelecao();
+
+            document
+                .getElementById("placa")
+                .innerText = "---";
+        };
+
+        imagemOriginal.src = e.target.result;
+    };
+
+    leitor.readAsDataURL(arquivo);
+}
+
+
+/* =========================================================
+   SELEÇÃO
+========================================================= */
+
+const imgTela = document.getElementById("imagem");
+const selecao = document.getElementById("selecao");
+
+function obterPontoImagem(e) {
+    const rect = imgTela.getBoundingClientRect();
+    return {
+        x: Math.max(0, Math.min(rect.width, e.clientX - rect.left)),
+        y: Math.max(0, Math.min(rect.height, e.clientY - rect.top))
+    };
+}
+
+function atualizarSelecao(e) {
+    if (!selecionando) return;
+
+    const p = obterPontoImagem(e);
+    const esquerda = Math.min(inicioX, p.x);
+    const topo = Math.min(inicioY, p.y);
+    const largura = Math.abs(p.x - inicioX);
+    const altura = Math.abs(p.y - inicioY);
+
+    selecao.style.left = esquerda + "px";
+    selecao.style.top = topo + "px";
+    selecao.style.width = largura + "px";
+    selecao.style.height = altura + "px";
+
+    selecaoX = esquerda;
+    selecaoY = topo;
+    selecaoW = largura;
+    selecaoH = altura;
+}
+
+function finalizarSelecao(e) {
+    if (!selecionando) return;
+    atualizarSelecao(e);
+    selecionando = false;
+    selecao.style.display = "block";
+
+    if (imgTela.hasPointerCapture && imgTela.hasPointerCapture(e.pointerId)) {
+        imgTela.releasePointerCapture(e.pointerId);
+    }
+}
+
+imgTela.addEventListener("pointerdown", function(e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+
+    const p = obterPontoImagem(e);
+    inicioX = p.x;
+    inicioY = p.y;
+    selecaoX = p.x;
+    selecaoY = p.y;
+    selecaoW = 0;
+    selecaoH = 0;
+    selecionando = true;
+
+    selecao.style.display = "block";
+    selecao.style.left = p.x + "px";
+    selecao.style.top = p.y + "px";
+    selecao.style.width = "0px";
+    selecao.style.height = "0px";
+
+    if (imgTela.setPointerCapture) imgTela.setPointerCapture(e.pointerId);
+});
+
+imgTela.addEventListener("pointermove", function(e) {
+    if (!selecionando) return;
+    e.preventDefault();
+    atualizarSelecao(e);
+});
+
+imgTela.addEventListener("pointerup", function(e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    finalizarSelecao(e);
+});
+
+imgTela.addEventListener("pointercancel", function(e) {
+    if (!selecionando) return;
+    finalizarSelecao(e);
+});
+
+/* =========================================================
+   PREPARAÇÃO DA IMAGEM
+========================================================= */
+
+function prepararImagem(canvas, modo) {
+
+    /*
+     * Aumentamos bastante a imagem.
+     *
+     * Não usamos binarização pesada.
+     * Isso evita transformar letras pequenas
+     * em ruído.
+     */
+
+    const escala = 4;
+
+    const novo =
+        document.createElement("canvas");
+
+    novo.width =
+        canvas.width * escala;
+
+    novo.height =
+        canvas.height * escala;
+
+    const ctx =
+        novo.getContext("2d");
+
+    ctx.imageSmoothingEnabled = true;
+
+    ctx.imageSmoothingQuality = "high";
+
+    ctx.drawImage(
+        canvas,
+        0,
+        0,
+        novo.width,
+        novo.height
+    );
+
+
+    /*
+     * Modo 0:
+     * imagem aumentada normal.
+     */
+
+    if (modo === 0) {
+
+        return novo;
+    }
+
+
+    /*
+     * Modo 1:
+     * escala de cinza + contraste moderado.
+     */
+
+    const dados =
+        ctx.getImageData(
+            0,
+            0,
+            novo.width,
+            novo.height
+        );
+
+    const p = dados.data;
+
+
+    for (let i = 0; i < p.length; i += 4) {
+
+        let r = p[i];
+        let g = p[i + 1];
+        let b = p[i + 2];
+
+        let cinza =
+            0.299 * r +
+            0.587 * g +
+            0.114 * b;
+
+        /*
+         * Contraste moderado.
+         */
+
+        cinza =
+            ((cinza - 128) * 1.20) + 128;
+
+        cinza =
+            Math.max(
+                0,
+                Math.min(255, cinza)
+            );
+
+        p[i] = cinza;
+        p[i + 1] = cinza;
+        p[i + 2] = cinza;
+    }
+
+    ctx.putImageData(dados, 0, 0);
+
+    return novo;
+}
+
+
+/* =========================================================
+   CANVAS DA ÁREA
+========================================================= */
+
+function obterCanvasSelecionado() {
+
+    if (!imagemOriginal)
+        return null;
+
+
+    const canvas =
+        document.createElement("canvas");
+
+
+    /*
+     * Sem seleção:
+     * imagem inteira.
+     */
+
+    if (
+        selecaoW < 10 ||
+        selecaoH < 10
+    ) {
+
+        canvas.width =
+            imagemOriginal.naturalWidth;
+
+        canvas.height =
+            imagemOriginal.naturalHeight;
+
+        const ctx =
+            canvas.getContext("2d");
+
+        ctx.drawImage(
+            imagemOriginal,
+            0,
+            0
+        );
+
+        return canvas;
+    }
+
+
+    /*
+     * Converter coordenadas
+     * da tela para a imagem original.
+     */
+
+    const escalaX =
+        imagemOriginal.naturalWidth /
+        imgTela.clientWidth;
+
+    const escalaY =
+        imagemOriginal.naturalHeight /
+        imgTela.clientHeight;
+
+
+    const x =
+        selecaoX * escalaX;
+
+    const y =
+        selecaoY * escalaY;
+
+    const largura =
+        selecaoW * escalaX;
+
+    const altura =
+        selecaoH * escalaY;
+
+
+    canvas.width =
+        Math.max(
+            1,
+            Math.round(largura)
+        );
+
+    canvas.height =
+        Math.max(
+            1,
+            Math.round(altura)
+        );
+
+
+    const ctx =
+        canvas.getContext("2d");
+
+    ctx.drawImage(
+        imagemOriginal,
+        x,
+        y,
+        largura,
+        altura,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+
+    return canvas;
+}
+
+
+/* =========================================================
+   OCR
+========================================================= */
+
+async function fazerOCR(canvas, modo, psm) {
+
+    const imagem =
+        prepararImagem(canvas, modo);
+
+
+    const resultado =
+        await Tesseract.recognize(
+            imagem,
+            "por",
+            {
+
+                logger: function(info) {
+
+                    if (
+                        info.status ===
+                        "recognizing text"
+                    ) {
+
+                        const porcentagem =
+                            Math.round(
+                                info.progress * 100
+                            );
+
+                        document
+                            .getElementById("status")
+                            .innerText =
+                            "Reconhecendo texto... " +
+                            porcentagem +
+                            "%";
+                    }
+                },
+
+                config: {
+
+                    /*
+                     * PSM 6:
+                     * bloco de texto.
+                     */
+
+                    tessedit_pageseg_mode:
+                        String(psm),
+
+                    /*
+                     * Mantém os espaços.
+                     */
+
+                    preserve_interword_spaces:
+                        "1"
+                }
+            }
+        );
+
+
+    return resultado;
+}
+
+
+/* =========================================================
+   ESCOLHER MELHOR LEITURA
+========================================================= */
+
+function pontuarTexto(texto, confianca) {
+
+    if (!texto)
+        return -9999;
+
+
+    let pontos =
+        Number(confianca || 0);
+
+
+    /*
+     * Texto muito curto provavelmente
+     * perdeu informação.
+     */
+
+    if (texto.length < 15)
+        pontos -= 30;
+
+
+    /*
+     * Penaliza excesso de caracteres estranhos.
+     */
+
+    const estranhos =
+        (
+            texto.match(
+                /[^A-Za-zÀ-ÿ0-9\s:;,.\/()\-]/g
+            ) || []
+        ).length;
+
+
+    pontos -= estranhos * 2;
+
+
+    /*
+     * Premia palavras esperadas.
+     */
+
+    const palavras = [
+
+        "FURTO",
+        "CADASTRO",
+        "VEÍCULO",
+        "VEICULO",
+        "TIPO",
+        "AUTOMÓVEL",
+        "AUTOMOVEL",
+        "MARCA",
+        "COR",
+        "ANO",
+        "MUNICÍPIO",
+        "MUNICIPIO",
+        "SITUAÇÃO",
+        "SITUACAO"
+    ];
+
+
+    for (const palavra of palavras) {
+
+        if (
+            texto
+                .toUpperCase()
+                .includes(palavra)
+        ) {
+
+            pontos += 8;
+        }
+    }
+
+
+    return pontos;
+}
+
+
+/* =========================================================
+   OCR PRINCIPAL
+========================================================= */
+
+async function executarOCRSelecionado(canvas) {
+
+    // Mantida por compatibilidade. A seleção agora é filtrada
+    // diretamente a partir do OCR da imagem inteira.
+    const dados = await executarOCR(canvas, true);
+    return dados?.text?.trim() || "";
+}
+
+
+async function executarOCR(canvas, retornarDados = false) {
+
+    document
+        .getElementById("status")
+        .innerText =
+        "Preparando reconhecimento...";
+
+
+    /*
+     * Primeira leitura:
+     * imagem normal.
+     */
+
+    const r1 =
+        await fazerOCR(
+            canvas,
+            0,
+            6
+        );
+
+
+    /*
+     * Segunda leitura:
+     * cinza + contraste moderado.
+     */
+
+    const r2 =
+        await fazerOCR(
+            canvas,
+            1,
+            6
+        );
+
+
+    /*
+     * Terceira leitura:
+     * modo automático de segmentação.
+     */
+
+    const r3 =
+        await fazerOCR(
+            canvas,
+            0,
+            11
+        );
+
+
+    const candidatos = [
+
+        {
+            texto: r1.data.text.trim(),
+            confianca: r1.data.confidence,
+            dados: r1.data
+        },
+
+        {
+            texto: r2.data.text.trim(),
+            confianca: r2.data.confidence,
+            dados: r2.data
+        },
+
+        {
+            texto: r3.data.text.trim(),
+            confianca: r3.data.confidence,
+            dados: r3.data
+        }
+    ];
+
+
+    let melhor = "";
+
+    let maiorPontuacao = -Infinity;
+
+
+    for (const item of candidatos) {
+
+        const pontuacao =
+            pontuarTexto(
+                item.texto,
+                item.confianca
+            );
+
+
+        if (
+            pontuacao >
+            maiorPontuacao
+        ) {
+
+            maiorPontuacao =
+                pontuacao;
+
+            melhor =
+                item.texto;
+        }
+    }
+
+    if (retornarDados) {
+        const escolhido = candidatos.find(c => c.texto === melhor);
+        if (!escolhido || !escolhido.dados) return null;
+
+        // Retorna o texto e os dados geométricos da MESMA leitura
+        // escolhida pelo OCR completo.
+        return {
+            text: escolhido.texto,
+            confidence: escolhido.confianca,
+            lines: escolhido.dados.lines || [],
+            words: escolhido.dados.words || [],
+            data: escolhido.dados
+        };
+    }
+
+    return melhor;
+}
+
+
+/* =========================================================
+   LIMPEZA
+========================================================= */
+
+function limparTexto(texto) {
+
+    return texto
+        .replace(/\r/g, "")
+        .replace(/[ \t]+/g, " ")
+        .replace(/\n[ \t]+/g, "\n")
+        .trim();
+}
+
+
+/* =========================================================
+   CORREÇÃO SOMENTE DE CAMPOS
+========================================================= */
+
+function corrigirCampos(texto) {
+
+    /*
+     * IMPORTANTE:
+     *
+     * Não fazemos substituições globais.
+     *
+     * Isso evita transformar:
+     *
+     * SITUAÇÃO
+     * FURTO
+     * MARCA
+     *
+     * em números ou caracteres errados.
+     */
+
+
+    texto =
+        texto.replace(
+            /\bCADASTRO\s+VE[ÍI1]CULO\b/gi,
+            "CADASTRO VEÍCULO"
+        );
+
+
+    texto =
+        texto.replace(
+            /\bCADASTRO\s+VEICULO\b/gi,
+            "CADASTRO VEÍCULO"
+        );
+
+
+    texto =
+        texto.replace(
+            /\bTIEO\b/gi,
+            "TIPO"
+        );
+
+
+    texto =
+        texto.replace(
+            /\bMARCAR\b/gi,
+            "MARCA"
+        );
+
+
+    texto =
+        texto.replace(
+            /\bFUR[ÍI1]O\b/gi,
+            "FURTO"
+        );
+
+
+    texto =
+        texto.replace(
+            /\bDOR\s*:\s*BRANCA\b/gi,
+            "COR: BRANCA"
+        );
+
+
+    texto =
+        texto.replace(
+            /\bMUNIC[ÍI1]P[ÍI1]O\b/gi,
+            "MUNICÍPIO"
+        );
+
+
+    texto =
+        texto.replace(
+            /\bSITUA[ÇC]AO\b/gi,
+            "SITUAÇÃO"
+        );
+
+
+    return texto;
+}
+
+
+/* =========================================================
+   NORMALIZAR CANDIDATO
+========================================================= */
+
+function normalizarCandidato(valor) {
+
+    if (!valor)
+        return "";
+
+
+    return valor
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "");
+}
+
+
+/* =========================================================
+   PLACA ANTIGA
+   LLLNNNN
+========================================================= */
+
+function corrigirPlacaAntiga(valor) {
+
+    if (!valor)
+        return null;
+
+
+    valor =
+        normalizarCandidato(valor);
+
+
+    if (valor.length !== 7)
+        return null;
+
+
+    const saida = [];
+
+
+    /*
+     * 3 primeiras posições = letras
+     */
+
+    for (let i = 0; i < 3; i++) {
+
+        let c = valor[i];
+
+
+        const mapa = {
+
+            "0": "O",
+            "1": "I",
+            "2": "Z",
+            "5": "S",
+            "6": "G",
+            "8": "B"
+        };
+
+
+        if (mapa[c])
+            c = mapa[c];
+
+
+        saida.push(c);
+    }
+
+
+    /*
+     * Últimas 4 = números
+     */
+
+    for (let i = 3; i < 7; i++) {
+
+        let c = valor[i];
+
+
+        const mapa = {
+
+            "O": "0",
+            "Q": "0",
+            "D": "0",
+
+            "I": "1",
+            "L": "1",
+
+            "S": "5",
+
+            "B": "8",
+
+            "G": "6"
+        };
+
+
+        if (mapa[c])
+            c = mapa[c];
+
+
+        saida.push(c);
+    }
+
+
+    const placa =
+        saida.join("");
+
+
+    if (
+        /^[A-Z]{3}[0-9]{4}$/.test(placa)
+    ) {
+
+        return placa;
+    }
+
+
+    return null;
+}
+
+
+/* =========================================================
+   PLACA MERCOSUL
+   LLLNLNN
+========================================================= */
+
+function corrigirPlacaMercosul(valor) {
+
+    if (!valor)
+        return null;
+
+
+    valor =
+        normalizarCandidato(valor);
+
+
+    if (valor.length !== 7)
+        return null;
+
+
+    const saida = [];
+
+
+    /*
+     * LETRAS
+     */
+
+    for (let i = 0; i < 3; i++) {
+
+        let c = valor[i];
+
+
+        const mapa = {
+
+            "0": "O",
+            "1": "I",
+            "2": "Z",
+            "5": "S",
+            "6": "G",
+            "8": "B"
+        };
+
+
+        if (mapa[c])
+            c = mapa[c];
+
+
+        saida.push(c);
+    }
+
+
+    /*
+     * NÚMERO
+     */
+
+    let c3 = valor[3];
+
+
+    const mapaNumero = {
+
+        "O": "0",
+        "Q": "0",
+        "D": "0",
+
+        "I": "1",
+        "L": "1",
+
+        "S": "5",
+
+        "B": "8",
+
+        "G": "6"
+    };
+
+
+    if (mapaNumero[c3])
+        c3 = mapaNumero[c3];
+
+
+    saida.push(c3);
+
+
+    /*
+     * LETRA
+     */
+
+    let c4 = valor[4];
+
+
+    const mapaLetra = {
+
+        "0": "O",
+        "1": "I",
+        "2": "Z",
+        "5": "S",
+        "6": "G",
+        "8": "B"
+    };
+
+
+    if (mapaLetra[c4])
+        c4 = mapaLetra[c4];
+
+
+    saida.push(c4);
+
+
+    /*
+     * DOIS ÚLTIMOS NÚMEROS
+     */
+
+    for (let i = 5; i < 7; i++) {
+
+        let c = valor[i];
+
+
+        if (mapaNumero[c])
+            c = mapaNumero[c];
+
+
+        saida.push(c);
+    }
+
+
+    const placa =
+        saida.join("");
+
+
+    if (
+        /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(placa)
+    ) {
+
+        return placa;
+    }
+
+
+    return null;
+}
+
+
+/* =========================================================
+   DETECTAR PLACA
+========================================================= */
+
+function encontrarPlaca(texto) {
+
+    if (!texto)
+        return null;
+
+
+    const textoMaiusculo =
+        texto.toUpperCase();
+
+
+    /*
+     * Primeiro procura especificamente
+     * depois de CADASTRO VEÍCULO.
+     */
+
+    const campo =
+        textoMaiusculo.match(
+            /CADASTRO\s+VE[ÍI1]CULO\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s\-]{5,14})/
+        );
+
+
+    if (campo) {
+
+        const trecho =
+            campo[1];
+
+
+        const limpo =
+            trecho.replace(
+                /[^A-Z0-9]/g,
+                ""
+            );
+
+
+        /*
+         * Testa sequências de 7.
+         */
+
+        for (
+            let i = 0;
+            i <= limpo.length - 7;
+            i++
+        ) {
+
+            const candidato =
+                limpo.substring(
+                    i,
+                    i + 7
+                );
+
+
+            /*
+             * Primeiro Mercosul.
+             */
+
+            const mercosul =
+                corrigirPlacaMercosul(
+                    candidato
+                );
+
+
+            if (mercosul)
+                return mercosul;
+
+
+            /*
+             * Depois placa antiga.
+             */
+
+            const antiga =
+                corrigirPlacaAntiga(
+                    candidato
+                );
+
+
+            if (antiga)
+                return antiga;
+        }
+    }
+
+
+    /*
+     * Procura no texto inteiro.
+     */
+
+    const geral =
+        textoMaiusculo.replace(
+            /[^A-Z0-9]/g,
+            " "
+        );
+
+
+    const candidatos =
+        geral.match(
+            /[A-Z0-9]{7}/g
+        ) || [];
+
+
+    for (const candidato of candidatos) {
+
+        const mercosul =
+            corrigirPlacaMercosul(
+                candidato
+            );
+
+
+        if (mercosul)
+            return mercosul;
+
+
+        const antiga =
+            corrigirPlacaAntiga(
+                candidato
+            );
+
+
+        if (antiga)
+            return antiga;
+    }
+
+
+    return null;
+}
+
+
+/* =========================================================
+   CORRIGIR ANO
+========================================================= */
+
+function corrigirAno(texto) {
+
+    /*
+     * Só mexe no campo ANO.
+     */
+
+    const regex =
+        /(ANO\s*[:\-]?\s*)([0-9A-ZIOBS]{4})\s*[\/\-]\s*([0-9A-ZIOBS]{4})/i;
+
+
+    const encontrado =
+        texto.match(regex);
+
+
+    if (!encontrado)
+        return texto;
+
+
+    function converter(valor) {
+
+        const mapa = {
+
+            "O": "0",
+            "Q": "0",
+
+            "I": "1",
+            "L": "1",
+
+            "S": "5",
+
+            "B": "8",
+
+            "G": "6"
+        };
+
+
+        return valor
+            .toUpperCase()
+            .split("")
+            .map(c => mapa[c] || c)
+            .join("");
+    }
+
+
+    const ano1 =
+        converter(encontrado[2]);
+
+
+    const ano2 =
+        converter(encontrado[3]);
+
+
+    const n1 =
+        parseInt(ano1);
+
+
+    const n2 =
+        parseInt(ano2);
+
+
+    /*
+     * Só altera se forem anos plausíveis.
+     */
+
+    if (
+        n1 >= 1900 &&
+        n1 <= 2100 &&
+        n2 >= 1900 &&
+        n2 <= 2100
+    ) {
+
+        texto =
+            texto.replace(
+                regex,
+                "$1" +
+                ano1 +
+                "/" +
+                ano2
+            );
+    }
+
+
+    return texto;
+}
+
+
+/* =========================================================
+   PROCESSAR RESULTADO
+========================================================= */
+
+function processarTexto(texto) {
+
+    texto =
+        limparTexto(texto);
+
+
+    texto =
+        corrigirCampos(texto);
+
+
+    texto =
+        corrigirAno(texto);
+
+
+    /*
+     * Detecta placa separadamente.
+     *
+     * NÃO altera o texto original.
+     */
+
+    const placa =
+        encontrarPlaca(texto);
+
+
+    if (placa) {
+
+        document
+            .getElementById("placa")
+            .innerText = placa;
+
+    } else {
+
+        document
+            .getElementById("placa")
+            .innerText = "---";
+    }
+
+
+    return texto;
+}
+
+
+/* =========================================================
+   EXTRAIR SELECIONADO
+========================================================= */
+
+async function extrairSelecionado() {
+
+    if (!imagemOriginal) {
+        alert("Cole ou carregue uma imagem primeiro.");
+        return;
+    }
+
+    if (selecaoW < 10 || selecaoH < 10) {
+        alert("Selecione uma área da imagem primeiro.");
+        return;
+    }
+
+    try {
+        document.getElementById("status").innerText =
+            "Preparando área selecionada...";
+
+        /*
+         * IMPORTANTE:
+         * O OCR é feito na IMAGEM INTEIRA usando exatamente a mesma
+         * rotina do botão "Extrair imagem inteira". Depois filtramos
+         * somente as linhas cujo centro está dentro da área vermelha.
+         *
+         * Assim a seleção não perde qualidade por reduzir/cortar a
+         * resolução da imagem antes do Tesseract.
+         */
+        const canvasCompleto = document.createElement("canvas");
+        canvasCompleto.width = imagemOriginal.naturalWidth;
+        canvasCompleto.height = imagemOriginal.naturalHeight;
+        const ctxCompleto = canvasCompleto.getContext("2d");
+        ctxCompleto.drawImage(imagemOriginal, 0, 0);
+
+        const dados = await executarOCR(canvasCompleto, true);
+
+        if (!dados) {
+            throw new Error("Não foi possível obter os dados do OCR.");
+        }
+
+        const escalaX = imagemOriginal.naturalWidth / imgTela.clientWidth;
+        const escalaY = imagemOriginal.naturalHeight / imgTela.clientHeight;
+
+        const x1 = selecaoX * escalaX;
+        const y1 = selecaoY * escalaY;
+        const x2 = (selecaoX + selecaoW) * escalaX;
+        const y2 = (selecaoY + selecaoH) * escalaY;
+
+        /*
+         * ATENÇÃO: prepararImagem() aumenta a imagem 4x antes do Tesseract.
+         * Portanto, os bbox retornados pelo OCR estão em coordenadas 4x.
+         * A seleção, porém, está em coordenadas da imagem original.
+         * A V9 comparava essas duas escalas diferentes, causando exatamente
+         * o sintoma de aparecer só a primeira palavra ou não aparecer nada.
+         */
+        const ESCALA_OCR = 4;
+
+        function bboxOriginal(b) {
+            return {
+                x0: b.x0 / ESCALA_OCR,
+                y0: b.y0 / ESCALA_OCR,
+                x1: b.x1 / ESCALA_OCR,
+                y1: b.y1 / ESCALA_OCR
+            };
+        }
+
+        function cruzaSelecao(b) {
+            return b.x1 >= x1 && b.x0 <= x2 &&
+                   b.y1 >= y1 && b.y0 <= y2;
+        }
+
+        const linhas = (dados.lines || [])
+            .map(linha => {
+                if (!linha.bbox) return null;
+                return { ...linha, bboxOriginal: bboxOriginal(linha.bbox) };
+            })
+            .filter(linha => linha && cruzaSelecao(linha.bboxOriginal))
+            .sort((a, b) => a.bboxOriginal.y0 - b.bboxOriginal.y0);
+
+        let texto = linhas
+            .map(l => (l.text || "").trim())
+            .filter(Boolean)
+            .join("\n");
+
+        /*
+         * Para seleções menores ou que cortem uma linha, usa as palavras
+         * individualmente. Também corrige a escala dos bbox.
+         */
+        if (!texto || linhas.length === 0) {
+            const palavras = (dados.words || [])
+                .map(palavra => {
+                    if (!palavra.bbox) return null;
+                    return { ...palavra, bboxOriginal: bboxOriginal(palavra.bbox) };
+                })
+                .filter(palavra => palavra && cruzaSelecao(palavra.bboxOriginal))
+                .sort((a, b) => {
+                    const ya = a.bboxOriginal.y0;
+                    const yb = b.bboxOriginal.y0;
+                    if (Math.abs(ya - yb) > 8) return ya - yb;
+                    return a.bboxOriginal.x0 - b.bboxOriginal.x0;
+                });
+
+            const grupos = [];
+            for (const palavra of palavras) {
+                const centroY = (palavra.bboxOriginal.y0 + palavra.bboxOriginal.y1) / 2;
+                let grupo = grupos.find(g => Math.abs(g.y - centroY) <= 8);
+                if (!grupo) {
+                    grupo = { y: centroY, palavras: [] };
+                    grupos.push(grupo);
+                }
+                grupo.palavras.push(palavra);
+            }
+
+            grupos.sort((a, b) => a.y - b.y);
+            texto = grupos.map(g =>
+                g.palavras
+                    .sort((a, b) => a.bboxOriginal.x0 - b.bboxOriginal.x0)
+                    .map(p => (p.text || "").trim())
+                    .filter(Boolean)
+                    .join(" ")
+            ).filter(Boolean).join("\n");
+        }
+
+        const final = processarTexto(texto);
+
+        document.getElementById("resultado").value = final;
+        document.getElementById("status").innerText =
+            "Texto selecionado extraído com sucesso.";
+
+    } catch (erro) {
+        console.error(erro);
+        document.getElementById("status").innerText =
+            "Erro durante o OCR.";
+        alert("Não foi possível reconhecer o texto.");
+    }
+}
+
+
+/* =========================================================
+   EXTRAIR IMAGEM INTEIRA
+========================================================= */
+
+async function extrairInteira() {
+
+    if (!imagemOriginal) {
+
+        alert(
+            "Cole ou carregue uma imagem primeiro."
+        );
+
+        return;
+    }
+
+
+    try {
+
+        document
+            .getElementById("status")
+            .innerText =
+            "Preparando imagem inteira...";
+
+
+        /*
+         * Força imagem inteira,
+         * mesmo que exista seleção.
+         */
+
+        const canvas =
+            document.createElement("canvas");
+
+
+        canvas.width =
+            imagemOriginal.naturalWidth;
+
+        canvas.height =
+            imagemOriginal.naturalHeight;
+
+
+        const ctx =
+            canvas.getContext("2d");
+
+
+        ctx.drawImage(
+            imagemOriginal,
+            0,
+            0
+        );
+
+
+        const texto =
+            await executarOCR(canvas);
+
+
+        const final =
+            processarTexto(texto);
+
+
+        document
+            .getElementById("resultado")
+            .value = final;
+
+
+        document
+            .getElementById("status")
+            .innerText =
+            "Texto completo extraído com sucesso.";
+
+    }
+
+    catch (erro) {
+
+        console.error(erro);
+
+        document
+            .getElementById("status")
+            .innerText =
+            "Erro durante o OCR.";
+
+        alert(
+            "Não foi possível reconhecer o texto."
+        );
+    }
+}
+
+
+/* =========================================================
+   COPIAR
+========================================================= */
+
+function copiarTexto() {
+
+    const campo =
+        document.getElementById("resultado");
+
+
+    navigator.clipboard.writeText(
+        campo.value
+    )
+    .then(function() {
+
+        document
+            .getElementById("status")
+            .innerText =
+            "Texto copiado.";
+
+    })
+    .catch(function() {
+
+        campo.select();
+
+        document.execCommand("copy");
+
+        document
+            .getElementById("status")
+            .innerText =
+            "Texto copiado.";
+    });
+}
+
+
+/* =========================================================
+   EXTRAIR SOMENTE O CARÁTER
+   Retira o conteúdo depois de "CADASTRO VEÍCULO:" até
+   o final do campo "SITUAÇÃO".
+========================================================= */
+
+async function extrairSomenteCarater() {
+
+    if (!imagemOriginal) {
+        alert("Cole ou carregue uma imagem primeiro.");
+        return;
+    }
+
+    try {
+        document.getElementById("status").innerText =
+            "Lendo imagem e extraindo caráter...";
+
+        // Faz a leitura diretamente da imagem inteira, sem exigir
+        // qualquer seleção da área vermelha e sem mostrar o OCR completo.
+        const canvas = document.createElement("canvas");
+        canvas.width = imagemOriginal.naturalWidth;
+        canvas.height = imagemOriginal.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(imagemOriginal, 0, 0);
+
+        const dados = await executarOCR(canvas, true);
+        const texto = processarTexto((dados && dados.text) ? dados.text : "");
+
+        if (!texto.trim()) {
+            throw new Error("OCR não retornou texto.");
+        }
+
+        // Procura CADASTRO VEÍCULO: e extrai até o final do valor de SITUAÇÃO.
+        const inicioRegex = /CADASTRO\s+VE[ÍIÌÎÏI]?CULO\s*:/i;
+        const inicioMatch = inicioRegex.exec(texto);
+
+        if (!inicioMatch) {
+            alert('Não foi encontrado "CADASTRO VEÍCULO:" no texto lido.');
+            return;
+        }
+
+        const inicio = inicioMatch.index + inicioMatch[0].length;
+        const restante = texto.slice(inicio);
+
+        const situacaoRegex = /SITUA[CÇC]?[AÃA]?O\s*:/i;
+        const situacaoMatch = situacaoRegex.exec(restante);
+
+        if (!situacaoMatch) {
+            alert('Não foi encontrado "SITUAÇÃO:" no texto lido.');
+            return;
+        }
+
+        const fimMarcador = situacaoMatch.index + situacaoMatch[0].length;
+        const depoisSituacao = restante.slice(fimMarcador);
+
+        // Mantém somente o valor da situação, encerrando no próximo ; ou quebra de linha.
+        const fimValor = depoisSituacao.search(/[;\n\r]/);
+        const fim = fimValor >= 0
+            ? fimMarcador + fimValor
+            : restante.length;
+
+        const resultado = restante.slice(0, fim).trim();
+
+        if (!resultado) {
+            alert("Não foi possível extrair o caráter.");
+            return;
+        }
+
+        // Mostra somente o resultado final, sem exigir seleção e sem
+        // substituir a imagem ou alterar a lista de textos salvos.
+        document.getElementById("resultado").value = resultado;
+        document.getElementById("placa").innerText = encontrarPlaca(resultado) || "---";
+        document.getElementById("status").innerText =
+            "Caráter extraído com sucesso.";
+
+    } catch (erro) {
+        console.error(erro);
+        document.getElementById("status").innerText =
+            "Erro durante a leitura do caráter.";
+        alert("Não foi possível reconhecer o caráter.");
+    }
+}
+
+/* =========================================================
+   LISTA DE CARÁTER GERAL — ONLINE / SUPABASE
+========================================================= */
+
+let listaTextos = [];
+let canalLista = null;
+
+async function carregarLista() {
+    const container = document.getElementById("listaSalvos");
+    if (!container) return;
+
+    container.innerHTML = '<div class="info">Carregando lista online...</div>';
+
+    const { data, error } = await sb
+        .from("extrator_lista_carater")
+        .select("id,texto,created_at")
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        console.error(error);
+        container.innerHTML = '<div class="info">Não foi possível carregar a lista online.</div>';
+        return;
+    }
+
+    listaTextos = Array.isArray(data) ? data : [];
+    renderizarLista();
+}
+
+function textoNormalizadoPesquisa(valor) {
+    return String(valor || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function obterTextoPesquisaLista() {
+    return textoNormalizadoPesquisa(document.getElementById("buscaLista")?.value || "");
+}
+
+function renderizarLista() {
+    const container = document.getElementById("listaSalvos");
+    const contador = document.getElementById("contadorCarater");
+    if (!container) return;
+
+    if (contador) contador.textContent = "Total: " + listaTextos.length;
+
+    const termo = obterTextoPesquisaLista();
+    const filtrados = !termo
+        ? listaTextos
+        : listaTextos.filter(registro => textoNormalizadoPesquisa(registro.texto).includes(termo));
+
+    if (!filtrados.length) {
+        container.innerHTML = termo
+            ? '<div class="info">Nenhum registro encontrado para a pesquisa.</div>'
+            : '<div class="info">Nenhum texto salvo.</div>';
+        return;
+    }
+
+    container.innerHTML = "";
+
+    filtrados.forEach(function(registro) {
+        const indiceOriginal = listaTextos.findIndex(item => item.id === registro.id);
+        const numeroRegistro = listaTextos.length - indiceOriginal;
+
+        const item = document.createElement("div");
+        item.className = "item-salvo";
+
+        const numero = document.createElement("div");
+        numero.className = "item-numero";
+        numero.textContent = "Registro " + numeroRegistro;
+
+        const conteudo = document.createElement("div");
+        conteudo.className = "item-conteudo";
+        conteudo.textContent = registro.texto || "";
+
+        const botaoCopiar = document.createElement("button");
+        botaoCopiar.type = "button";
+        botaoCopiar.className = "btn-copiar-registro";
+        botaoCopiar.textContent = "📋 Copiar";
+        botaoCopiar.addEventListener("click", function(e) {
+            e.stopPropagation();
+            copiarRegistroLista(registro.texto || "", numeroRegistro);
+        });
+
+        item.appendChild(numero);
+        item.appendChild(conteudo);
+        item.appendChild(botaoCopiar);
+
+        // Administradores podem excluir individualmente qualquer registro.
+        if (souAdmin) {
+            const botaoExcluir = document.createElement("button");
+            botaoExcluir.type = "button";
+            botaoExcluir.className = "btn-excluir-registro";
+            botaoExcluir.textContent = "🗑️ Excluir";
+            botaoExcluir.title = "Excluir este registro";
+            botaoExcluir.addEventListener("click", function(e) {
+                e.stopPropagation();
+                excluirRegistroOnline(registro.id, numeroRegistro);
+            });
+            item.appendChild(botaoExcluir);
+        }
+
+        item.addEventListener("click", function() {
+            copiarRegistroLista(registro.texto || "", numeroRegistro);
+        });
+
+        container.appendChild(item);
+    });
+}
+
+async function copiarRegistroLista(texto, numeroRegistro) {
+    try {
+        await navigator.clipboard.writeText(texto);
+    } catch (e) {
+        const area = document.createElement("textarea");
+        area.value = texto;
+        area.style.position = "fixed";
+        area.style.opacity = "0";
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand("copy");
+        area.remove();
+    }
+    document.getElementById("status").innerText = "Registro " + numeroRegistro + " copiado.";
+}
+
+function limparBuscaLista() {
+    const campo = document.getElementById("buscaLista");
+    if (campo) campo.value = "";
+    renderizarLista();
+    campo?.focus();
+}
+
+
+async function salvarTextoLista() {
+    if (!souAdmin) {
+        alert("Somente administradores podem adicionar registros à lista online.");
+        return;
+    }
+
+    const texto = document.getElementById("resultado").value.trim();
+
+    if (!texto) {
+        alert("Não há texto para salvar.");
+        return;
+    }
+
+    const { error } = await sb
+        .from("extrator_lista_carater")
+        .insert({
+            texto: texto,
+            criado_por: usuarioAtual.id
+        });
+
+    if (error) {
+        console.error(error);
+        alert("Não foi possível salvar o caráter na lista online.");
+        return;
+    }
+
+    document.getElementById("status").innerText = "Texto salvo na lista online.";
+
+    imagemOriginal = null;
+
+    const img = document.getElementById("imagem");
+    img.removeAttribute("src");
+
+    document.getElementById("imagemContainer").style.display = "none";
+    document.getElementById("resultado").value = "";
+    document.getElementById("placa").innerText = "---";
+
+    limparSelecao();
+    document.getElementById("arquivo").value = "";
+
+    await carregarLista();
+}
+
+function baixarListaTxt() {
+    if (!listaTextos.length) {
+        alert("A lista está vazia.");
+        return;
+    }
+
+    const conteudo = listaTextos.map(function(registro, indice) {
+        return "===== REGISTRO " + (indice + 1) + " =====\n\n" + (registro.texto || "");
+    }).join("\n\n");
+
+    const blob = new Blob([conteudo], {type:"text/plain;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "lista_carater_geral.txt";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+
+    document.getElementById("status").innerText = "Lista salva em arquivo TXT.";
+}
+
+async function excluirRegistroOnline(id, numeroRegistro) {
+    if (!souAdmin) {
+        alert("Somente administradores podem excluir registros.");
+        return;
+    }
+
+    const registro = listaTextos.find(item => item.id === id);
+    if (!registro) return;
+
+    if (!confirm("Tem certeza que deseja excluir o Registro " + numeroRegistro + "?\n\n" + (registro.texto || ""))) {
+        return;
+    }
+
+    const { error } = await sb
+        .from("extrator_lista_carater")
+        .delete()
+        .eq("id", id);
+
+    if (error) {
+        console.error(error);
+        alert("Não foi possível excluir o registro.");
+        return;
+    }
+
+    await carregarLista();
+    document.getElementById("status").innerText = "Registro " + numeroRegistro + " excluído.";
+}
+
+async function excluirUltimoOnline() {
+    if (!listaTextos.length) {
+        alert("A lista está vazia.");
+        return;
+    }
+
+    const ultimo = listaTextos[listaTextos.length - 1];
+    if (!confirm("Tem certeza que deseja excluir o último registro da lista online?")) return;
+
+    const { error } = await sb
+        .from("extrator_lista_carater")
+        .delete()
+        .eq("id", ultimo.id);
+
+    if (error) {
+        console.error(error);
+        alert("Não foi possível excluir o registro.");
+        return;
+    }
+
+    await carregarLista();
+    document.getElementById("status").innerText = "Último registro excluído.";
+}
+
+async function limparListaOnline() {
+    if (!listaTextos.length) return;
+
+    if (!confirm("Tem certeza que deseja apagar toda a lista online?")) return;
+
+    const { error } = await sb
+        .from("extrator_lista_carater")
+        .delete()
+        .not("id", "is", null);
+
+    if (error) {
+        console.error(error);
+        alert("Não foi possível limpar a lista.");
+        return;
+    }
+
+    await carregarLista();
+    document.getElementById("status").innerText = "Lista online apagada.";
+}
+
+function iniciarRealtimeLista() {
+    if (canalLista) return;
+
+    canalLista = sb
+        .channel("extrator-lista-carater-realtime")
+        .on(
+            "postgres_changes",
+            {
+                event: "*",
+                schema: "public",
+                table: "extrator_lista_carater"
+            },
+            function() {
+                carregarLista();
+            }
+        )
+        .subscribe();
+}
+
+function pararRealtimeLista() {
+    if (!canalLista) return;
+    sb.removeChannel(canalLista);
+    canalLista = null;
+}
+
+
+
+
+
+
+/* =========================================================
+   CAPTURA DE TELA PARA ADMINISTRADOR
+   Abre o seletor nativo do navegador para escolher a tela/janela.
+   Após o compartilhamento, captura um quadro e coloca a imagem
+   diretamente na área de imagem, aguardando o usuário clicar em
+   um dos botões de extração.
+========================================================= */
+async function capturarTelaAdmin() {
+    if (!souAdmin) {
+        alert("Somente administradores podem capturar a tela.");
+        return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        alert("Seu navegador não permite captura de tela neste dispositivo.");
+        return;
+    }
+
+    const botao = document.getElementById("btnCapturarTelaAdmin");
+    const status = document.getElementById("status");
+    let stream = null;
+    let video = null;
+
+    try {
+        if (botao) botao.disabled = true;
+        if (status) status.innerText = "Selecione a tela ou janela que deseja capturar...";
+
+        stream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+                displaySurface: "monitor",
+                frameRate: { ideal: 30, max: 30 }
+            },
+            audio: false
+        });
+
+        const track = stream.getVideoTracks()[0];
+        if (!track) throw new Error("Nenhuma fonte de vídeo foi selecionada.");
+
+        video = document.createElement("video");
+        video.muted = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+
+        await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error("Tempo esgotado ao preparar a captura.")), 10000);
+            video.onloadedmetadata = () => {
+                clearTimeout(timeout);
+                resolve();
+            };
+        });
+
+        await video.play();
+        await new Promise(resolve => {
+            if (video.requestVideoFrameCallback) {
+                video.requestVideoFrameCallback(() => resolve());
+            } else {
+                setTimeout(resolve, 250);
+            }
+        });
+
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        if (!canvas.width || !canvas.height) {
+            throw new Error("Não foi possível obter o tamanho da captura.");
+        }
+
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const blob = await new Promise((resolve, reject) => {
+            canvas.toBlob(result => {
+                if (result) resolve(result);
+                else reject(new Error("Não foi possível gerar a imagem da captura."));
+            }, "image/png");
+        });
+
+        // A janela nativa de compartilhamento já terminou.
+        // Agora abrimos imediatamente a janela interna para recortar somente o que interessa.
+        abrirSeletorCaptura(blob);
+        if (status) status.innerText = "Selecione a área desejada na captura.";
+    } catch (erro) {
+        console.error(erro);
+        if (erro?.name === "NotAllowedError") {
+            if (status) status.innerText = "Captura cancelada.";
+        } else {
+            if (status) status.innerText = "Não foi possível capturar a tela.";
+            alert("Não foi possível capturar a tela. Tente novamente.");
+        }
+    } finally {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+        if (video) {
+            try { video.pause(); } catch (_) {}
+            video.srcObject = null;
+        }
+        if (botao) botao.disabled = false;
+    }
+}
+
+let capturaSelecaoAtiva = false;
+let capturaSelecaoInicioX = 0;
+let capturaSelecaoInicioY = 0;
+let capturaSelecaoX = 0;
+let capturaSelecaoY = 0;
+let capturaSelecaoW = 0;
+let capturaSelecaoH = 0;
+let capturaSelecaoArquivo = null;
+
+function abrirSeletorCaptura(blob) {
+    const overlay = document.getElementById("capturaSelecaoOverlay");
+    const img = document.getElementById("capturaSelecaoImagem");
+    const ret = document.getElementById("capturaSelecaoRetangulo");
+    if (!overlay || !img || !ret) return;
+
+    capturaSelecaoArquivo = blob;
+    capturaSelecaoAtiva = false;
+    capturaSelecaoX = 0;
+    capturaSelecaoY = 0;
+    capturaSelecaoW = 0;
+    capturaSelecaoH = 0;
+    ret.style.display = "none";
+
+    const url = URL.createObjectURL(blob);
+    img.onload = function() {
+        try { URL.revokeObjectURL(url); } catch (_) {}
+    };
+    img.src = url;
+
+    overlay.classList.add("open");
+    overlay.setAttribute("aria-hidden", "false");
+}
+
+function cancelarSelecaoCaptura() {
+    const overlay = document.getElementById("capturaSelecaoOverlay");
+    const img = document.getElementById("capturaSelecaoImagem");
+    const ret = document.getElementById("capturaSelecaoRetangulo");
+    capturaSelecaoAtiva = false;
+    capturaSelecaoArquivo = null;
+    if (ret) ret.style.display = "none";
+    if (img) img.removeAttribute("src");
+    if (overlay) {
+        overlay.classList.remove("open");
+        overlay.setAttribute("aria-hidden", "true");
+    }
+    const status = document.getElementById("status");
+    if (status) status.innerText = "Captura cancelada. Aguardando nova ação.";
+}
+
+function obterPontoSelecaoCaptura(e) {
+    const img = document.getElementById("capturaSelecaoImagem");
+    const rect = img.getBoundingClientRect();
+    return {
+        x: Math.max(0, Math.min(rect.width, e.clientX - rect.left)),
+        y: Math.max(0, Math.min(rect.height, e.clientY - rect.top))
+    };
+}
+
+function atualizarSelecaoCaptura(e) {
+    if (!capturaSelecaoAtiva) return;
+    const ret = document.getElementById("capturaSelecaoRetangulo");
+    const p = obterPontoSelecaoCaptura(e);
+    const esquerda = Math.min(capturaSelecaoInicioX, p.x);
+    const topo = Math.min(capturaSelecaoInicioY, p.y);
+    const largura = Math.abs(p.x - capturaSelecaoInicioX);
+    const altura = Math.abs(p.y - capturaSelecaoInicioY);
+
+    capturaSelecaoX = esquerda;
+    capturaSelecaoY = topo;
+    capturaSelecaoW = largura;
+    capturaSelecaoH = altura;
+
+    if (ret) {
+        ret.style.display = "block";
+        ret.style.left = esquerda + "px";
+        ret.style.top = topo + "px";
+        ret.style.width = largura + "px";
+        ret.style.height = altura + "px";
+    }
+}
+
+async function finalizarSelecaoCaptura(e) {
+    if (!capturaSelecaoAtiva) return;
+    atualizarSelecaoCaptura(e);
+    capturaSelecaoAtiva = false;
+
+    const img = document.getElementById("capturaSelecaoImagem");
+    const rect = img.getBoundingClientRect();
+
+    if (capturaSelecaoW < 10 || capturaSelecaoH < 10 || !img.naturalWidth || !img.naturalHeight) {
+        const status = document.getElementById("status");
+        if (status) status.innerText = "Selecione uma área maior da captura.";
+        return;
+    }
+
+    try {
+        const escalaX = img.naturalWidth / rect.width;
+        const escalaY = img.naturalHeight / rect.height;
+        const sx = Math.round(capturaSelecaoX * escalaX);
+        const sy = Math.round(capturaSelecaoY * escalaY);
+        const sw = Math.max(1, Math.round(capturaSelecaoW * escalaX));
+        const sh = Math.max(1, Math.round(capturaSelecaoH * escalaY));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = sw;
+        canvas.height = sh;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+
+        const blob = await new Promise((resolve, reject) => {
+            canvas.toBlob(result => {
+                if (result) resolve(result);
+                else reject(new Error("Não foi possível recortar a seleção."));
+            }, "image/png");
+        });
+
+        const arquivo = new File([blob], "captura-selecionada.png", {type:"image/png"});
+
+        cancelarSelecaoCaptura();
+        carregarImagem(arquivo);
+
+        const status = document.getElementById("status");
+        if (status) status.innerText = "Área selecionada. Escolha uma opção de extração.";
+
+        // Volta para a área de pesquisa/extrator.
+        setTimeout(() => {
+            const alvo = document.getElementById("imagemContainer") || document.getElementById("areaColar");
+            if (alvo) alvo.scrollIntoView({behavior:"smooth", block:"center"});
+        }, 120);
+    } catch (erro) {
+        console.error(erro);
+        const status = document.getElementById("status");
+        if (status) status.innerText = "Não foi possível aplicar a seleção.";
+        alert("Não foi possível recortar a área selecionada.");
+    }
+}
+
+const capturaSelecaoImagemEl = document.getElementById("capturaSelecaoImagem");
+if (capturaSelecaoImagemEl) {
+    capturaSelecaoImagemEl.addEventListener("pointerdown", function(e) {
+        if (e.button !== 0 && e.pointerType === "mouse") return;
+        e.preventDefault();
+        const p = obterPontoSelecaoCaptura(e);
+        capturaSelecaoInicioX = p.x;
+        capturaSelecaoInicioY = p.y;
+        capturaSelecaoX = p.x;
+        capturaSelecaoY = p.y;
+        capturaSelecaoW = 0;
+        capturaSelecaoH = 0;
+        capturaSelecaoAtiva = true;
+        const ret = document.getElementById("capturaSelecaoRetangulo");
+        if (ret) {
+            ret.style.display = "block";
+            ret.style.left = p.x + "px";
+            ret.style.top = p.y + "px";
+            ret.style.width = "0px";
+            ret.style.height = "0px";
+        }
+        if (capturaSelecaoImagemEl.setPointerCapture) capturaSelecaoImagemEl.setPointerCapture(e.pointerId);
+    });
+    capturaSelecaoImagemEl.addEventListener("pointermove", function(e) {
+        if (!capturaSelecaoAtiva) return;
+        e.preventDefault();
+        atualizarSelecaoCaptura(e);
+    });
+    capturaSelecaoImagemEl.addEventListener("pointerup", function(e) {
+        if (!capturaSelecaoAtiva) return;
+        e.preventDefault();
+        finalizarSelecaoCaptura(e);
+    });
+    capturaSelecaoImagemEl.addEventListener("pointercancel", function(e) {
+        if (!capturaSelecaoAtiva) return;
+        finalizarSelecaoCaptura(e);
+    });
+}
+
+
+/* =========================================================
+   AUTENTICAÇÃO / APROVAÇÃO
+========================================================= */
+
+const SUPABASE_URL = "https://jbecezbglolnfsqkiaad.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_IZERnXQn9IXcXNXoxfdkJg_nwif_DIr";
+const sb = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY,
+    {
+        auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: false
+        }
+    }
+);
+
+let usuarioAtual = null;
+let perfilAtual = null;
+let souAdmin = false;
+
+function normalizarRE(valor) {
+    return String(valor || "")
+        .trim()
+        .toUpperCase();
+}
+
+function somenteDigitosRE(valor) {
+    return normalizarRE(valor).replace(/[^0-9]/g, "");
+}
+
+function formatarRE(valor) {
+    const digitos = somenteDigitosRE(valor);
+    if (digitos.length <= 1) return digitos;
+    return digitos.slice(0, -1) + "-" + digitos.slice(-1);
+}
+
+function reValido(valor) {
+    return /^[0-9]+-[0-9]+$/.test(normalizarRE(valor));
+}
+
+function emailFuncionalValido(valor) {
+    return /^[^@\s]+@policiamilitar\.sp\.gov\.br$/i.test(String(valor || "").trim());
+}
+
+function reEmailAuth(re) {
+    return "re." + somenteDigitosRE(re).toLowerCase() + "@jbecezbglolnfsqkiaad.supabase.co";
+}
+
+function mostrarMsg(id, texto, tipo) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = texto || "";
+    el.className = "auth-msg" + (tipo ? " " + tipo : "");
+    el.style.display = texto ? "block" : "none";
+}
+
+function mostrarLogin() {
+    document.getElementById("loginBox").style.display = "block";
+    document.getElementById("cadastroBox").style.display = "none";
+    document.getElementById("resetBox").style.display = "none";
+    mostrarMsg("cadMsg", "", "");
+    mostrarMsg("resetMsg", "", "");
+}
+
+function mostrarCadastro() {
+    document.getElementById("loginBox").style.display = "none";
+    document.getElementById("cadastroBox").style.display = "block";
+    document.getElementById("resetBox").style.display = "none";
+    mostrarMsg("loginMsg", "", "");
+}
+
+function mostrarResetSenha() {
+    document.getElementById("loginBox").style.display = "none";
+    document.getElementById("cadastroBox").style.display = "none";
+    document.getElementById("resetBox").style.display = "block";
+    mostrarMsg("loginMsg", "", "");
+    mostrarMsg("resetMsg", "", "");
+}
+
+function mostrarTelaAcesso() {
+    document.getElementById("telaAcesso").style.display = "flex";
+    document.getElementById("appPrincipal").style.display = "none";
+    document.getElementById("adminArea").style.display = "none";
+    mostrarLogin();
+}
+
+function mostrarAplicacao() {
+    document.getElementById("telaAcesso").style.display = "none";
+    document.getElementById("adminArea").style.display = "none";
+    document.getElementById("appPrincipal").style.display = "block";
+}
+
+let selfieCadastroBase64 = "";
+let cadSelfieStream = null;
+let cadFaceMesh = null;
+let cadLivenessTimer = null;
+let cadLivenessProcessing = false;
+let cadLivenessStage = "center";
+let cadLivenessBaseline = null;
+let cadLivenessSamples = [];
+let cadLivenessFirstSide = null;
+let selfieLivenessAprovada = false;
+let selfieLivenessVerifiedAt = null;
+
+function limparFormularioCadastro() {
+    ["cadRE","cadNome","cadUnidade","cadEmail","cadSenha","cadSenha2"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+    });
+    selfieCadastroBase64 = "";
+    selfieLivenessAprovada = false;
+    selfieLivenessVerifiedAt = null;
+    resetLivenessState();
+    const preview = document.getElementById("cadSelfiePreview");
+    if (preview) { preview.removeAttribute("src"); preview.style.display = "none"; }
+    const status = document.getElementById("cadSelfieStatus");
+    if (status) status.textContent = "Nenhuma selfie selecionada.";
+    fecharCameraSelfie();
+}
+
+function redimensionarSelfieParaBase64(source, maxW=640, maxH=840) {
+    return new Promise((resolve,reject)=>{
+        const img=new Image();
+        img.onload=()=>{
+            let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+            if(!w||!h){reject(new Error("Imagem inválida."));return;}
+            const escala=Math.min(1,maxW/w,maxH/h);
+            w=Math.max(1,Math.round(w*escala)); h=Math.max(1,Math.round(h*escala));
+            const c=document.createElement("canvas"); c.width=w; c.height=h;
+            const ctx=c.getContext("2d",{alpha:false}); ctx.drawImage(img,0,0,w,h);
+            resolve(c.toDataURL("image/jpeg",0.78));
+        };
+        img.onerror=()=>reject(new Error("Não foi possível ler a imagem."));
+        img.src=typeof source==="string"?source:URL.createObjectURL(source);
+    });
+}
+
+async function definirSelfieCadastro(dataUrl){
+    try{
+        selfieCadastroBase64=await redimensionarSelfieParaBase64(dataUrl);
+        const preview=document.getElementById("cadSelfiePreview");
+        const status=document.getElementById("cadSelfieStatus");
+        if(preview){preview.src=selfieCadastroBase64;preview.style.display="block";}
+        if(status) status.textContent="Selfie selecionada e pronta para o cadastro.";
+    }catch(e){console.error(e);selfieCadastroBase64="";mostrarMsg("cadMsg","Não foi possível preparar a selfie. Tente novamente.","err");}
+}
+
+function atualizarLivenessUI(texto, classe="warn"){
+    const box=document.getElementById("cadSelfieLivenessStatus");
+    const inst=document.getElementById("cadSelfieLivenessInstruction");
+    if(box){box.textContent=texto;box.className=classe;}
+    if(inst){inst.textContent=texto;}
+}
+
+function resetLivenessState(){
+    if(cadLivenessTimer){clearInterval(cadLivenessTimer);cadLivenessTimer=null;}
+    cadLivenessProcessing=false;
+    cadLivenessStage="center";
+    cadLivenessBaseline=null;
+    cadLivenessSamples=[];
+    cadLivenessFirstSide=null;
+    selfieLivenessAprovada=false;
+    selfieLivenessVerifiedAt=null;
+    const btn=document.getElementById("btnCapturarSelfie");
+    if(btn) btn.disabled=true;
+}
+
+function calcularIndicadorGiro(face){
+    // Mede o deslocamento horizontal do nariz em relação ao centro entre os olhos,
+    // normalizado pela largura aproximada da face. Isso serve como uma verificação
+    // simples de movimento ativo para os dois lados; não é um detector biométrico.
+    const olhoEsq=face[33], olhoDir=face[263], nariz=face[1], bochechaEsq=face[234], bochechaDir=face[454];
+    if(!olhoEsq||!olhoDir||!nariz) return null;
+    const centroOlhos=(olhoEsq.x+olhoDir.x)/2;
+    const larguraFace=(bochechaDir&&bochechaEsq)?Math.abs(bochechaDir.x-bochechaEsq.x):Math.abs(olhoDir.x-olhoEsq.x)*2.2;
+    if(!larguraFace||larguraFace<0.05) return null;
+    return (nariz.x-centroOlhos)/larguraFace;
+}
+
+async function inicializarFaceMesh(){
+    if(cadFaceMesh) return cadFaceMesh;
+    if(typeof FaceMesh === "undefined") throw new Error("Módulo de verificação facial indisponível.");
+    cadFaceMesh=new FaceMesh({locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
+    cadFaceMesh.setOptions({
+        maxNumFaces:2,
+        refineLandmarks:true,
+        minDetectionConfidence:0.65,
+        minTrackingConfidence:0.65
+    });
+    cadFaceMesh.onResults((results)=>{
+        const faces=results.multiFaceLandmarks||[];
+        if(faces.length===0){
+            atualizarLivenessUI("Não detectei um rosto. Posicione o rosto no centro da câmera.","warn");
+            return;
+        }
+        if(faces.length>1){
+            atualizarLivenessUI("Detectei mais de um rosto. Deixe somente uma pessoa diante da câmera.","err");
+            return;
+        }
+        const valor=calcularIndicadorGiro(faces[0]);
+        if(valor===null) return;
+
+        if(cadLivenessStage==="center"){
+            cadLivenessSamples.push(valor);
+            if(cadLivenessSamples.length>12){cadLivenessSamples.shift();}
+            if(cadLivenessSamples.length>=8){
+                cadLivenessBaseline=cadLivenessSamples.reduce((a,b)=>a+b,0)/cadLivenessSamples.length;
+                cadLivenessStage="side1";
+                atualizarLivenessUI("Agora vire o rosto levemente para um lado.","warn");
+            }else{
+                atualizarLivenessUI("Posicione o rosto no centro...", "warn");
+            }
+            return;
+        }
+
+        if(cadLivenessStage==="side1"){
+            const delta=valor-cadLivenessBaseline;
+            if(Math.abs(delta)>=0.055){
+                cadLivenessFirstSide=delta>0?1:-1;
+                cadLivenessStage="side2";
+                atualizarLivenessUI("Movimento detectado. Agora vire o rosto levemente para o outro lado.","warn");
+            }
+            return;
+        }
+
+        if(cadLivenessStage==="side2"){
+            const delta=valor-cadLivenessBaseline;
+            const lado=delta>0?1:-1;
+            if(Math.abs(delta)>=0.055 && lado===-cadLivenessFirstSide){
+                cadLivenessStage="done";
+                selfieLivenessAprovada=true;
+                selfieLivenessVerifiedAt=new Date().toISOString();
+                const btn=document.getElementById("btnCapturarSelfie");
+                if(btn) btn.disabled=false;
+                atualizarLivenessUI("✅ Verificação concluída. Agora você pode capturar a selfie.","ok");
+            }
+        }
+    });
+    return cadFaceMesh;
+}
+
+async function iniciarMonitoramentoLiveness(){
+    const video=document.getElementById("cadSelfieVideo");
+    if(!video) return;
+    resetLivenessState();
+    atualizarLivenessUI("Carregando verificação facial...","warn");
+    await inicializarFaceMesh();
+    if(cadLivenessTimer) clearInterval(cadLivenessTimer);
+    cadLivenessTimer=setInterval(async()=>{
+        if(!cadSelfieStream || !video.videoWidth || cadLivenessProcessing || cadLivenessStage==="done") return;
+        cadLivenessProcessing=true;
+        try{ await cadFaceMesh.send({image:video}); }
+        catch(e){ console.error(e); atualizarLivenessUI("Não foi possível verificar o rosto. Tente novamente.","err"); }
+        finally{ cadLivenessProcessing=false; }
+    },120);
+}
+
+async function abrirCameraSelfie(){
+    const overlay=document.getElementById("cadSelfieOverlay"), video=document.getElementById("cadSelfieVideo");
+    if(!overlay||!video)return;
+    try{
+        if(!navigator.mediaDevices?.getUserMedia){mostrarMsg("cadMsg","Este dispositivo/navegador não disponibilizou a câmera para o cadastro.","warn");return;}
+        resetLivenessState();
+        cadSelfieStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:720},height:{ideal:960}},audio:false});
+        video.srcObject=cadSelfieStream; overlay.classList.add("open");
+        await video.play().catch(()=>{});
+        await iniciarMonitoramentoLiveness();
+    }catch(e){console.error(e);fecharCameraSelfie();mostrarMsg("cadMsg","Não foi possível acessar a câmera. Permita o uso da câmera para tirar a selfie.","warn");}
+}
+
+function fecharCameraSelfie(){
+    const overlay=document.getElementById("cadSelfieOverlay"), video=document.getElementById("cadSelfieVideo");
+    if(cadLivenessTimer){clearInterval(cadLivenessTimer);cadLivenessTimer=null;}
+    if(cadSelfieStream){cadSelfieStream.getTracks().forEach(t=>t.stop());cadSelfieStream=null;}
+    cadLivenessProcessing=false;
+    if(video)video.srcObject=null; if(overlay)overlay.classList.remove("open");
+}
+
+async function capturarSelfie(){
+    const video=document.getElementById("cadSelfieVideo"), canvas=document.getElementById("cadSelfieCanvas");
+    if(!selfieLivenessAprovada){mostrarMsg("cadMsg","Conclua a verificação: vire o rosto levemente para os dois lados.","warn");return;}
+    if(!video||!canvas||!video.videoWidth||!video.videoHeight){mostrarMsg("cadMsg","A câmera ainda não está pronta. Aguarde um instante.","warn");return;}
+    const escala=Math.min(1,640/video.videoWidth); canvas.width=Math.max(1,Math.round(video.videoWidth*escala)); canvas.height=Math.max(1,Math.round(video.videoHeight*escala));
+    const ctx=canvas.getContext("2d",{alpha:false}); ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    await definirSelfieCadastro(canvas.toDataURL("image/jpeg",0.78)); fecharCameraSelfie();
+    const status=document.getElementById("cadSelfieStatus"); if(status) status.textContent="Selfie capturada após verificação de movimento do rosto.";
+}
+
+async function cadastrarUsuario() {
+    const re = formatarRE(document.getElementById("cadRE").value);
+    const nome = document.getElementById("cadNome").value.trim();
+    const unidade = document.getElementById("cadUnidade").value.trim();
+    const email = document.getElementById("cadEmail").value.trim().toLowerCase();
+    const senha = document.getElementById("cadSenha").value;
+    const senha2 = document.getElementById("cadSenha2").value;
+
+    if (!reValido(re)) {
+        mostrarMsg("cadMsg", "Informe o RE no formato com hífen, por exemplo: 210493-8.", "err");
+        return;
+    }
+    if (!nome || !unidade || !email) {
+        mostrarMsg("cadMsg", "Preencha todos os campos do cadastro.", "err");
+        return;
+    }
+    if (!emailFuncionalValido(email)) {
+        mostrarMsg("cadMsg", "O e-mail funcional deve obrigatoriamente terminar com @policiamilitar.sp.gov.br.", "err");
+        return;
+    }
+    if (senha.length < 6) {
+        mostrarMsg("cadMsg", "A senha deve ter pelo menos 6 caracteres.", "err");
+        return;
+    }
+    if (senha !== senha2) {
+        mostrarMsg("cadMsg", "A confirmação da senha não confere.", "err");
+        return;
+    }
+
+    if (!selfieCadastroBase64) {
+        mostrarMsg("cadMsg", "A selfie é obrigatória para enviar a solicitação de cadastro.", "err");
+        return;
+    }
+
+    const btn = document.querySelector("#cadastroBox .btn-primary");
+    if (btn) btn.disabled = true;
+    mostrarMsg("cadMsg", "Enviando solicitação...", "warn");
+
+    try {
+        const authEmail = reEmailAuth(re);
+
+        const { data: signData, error: signError } = await sb.auth.signUp({
+            email: authEmail,
+            password: senha,
+            options: {
+                data: {
+                    re: re,
+                    nome_completo: nome,
+                    unidade: unidade,
+                    email_funcional: email
+                }
+            }
+        });
+
+        if (signError) throw signError;
+        if (!signData.user) throw new Error("Não foi possível criar a conta.");
+
+        const { error: perfilError } = await sb
+            .from("extrator_usuarios")
+            .insert({
+                id: signData.user.id,
+                re: re,
+                nome_completo: nome,
+                unidade: unidade,
+                email_funcional: email,
+                selfie_base64: selfieCadastroBase64,
+                selfie_liveness_status: selfieLivenessAprovada ? "aprovado" : "reprovado",
+                selfie_liveness_verified_at: selfieLivenessVerifiedAt,
+                status: "pendente"
+            });
+
+        if (perfilError) {
+            console.error(perfilError);
+            await sb.auth.signOut();
+            throw perfilError;
+        }
+
+        await sb.auth.signOut();
+        limparFormularioCadastro();
+        mostrarMsg(
+            "cadMsg",
+            "Cadastro enviado com sucesso. Aguarde a aprovação do administrador para acessar o sistema.",
+            "ok"
+        );
+
+    } catch (erro) {
+        console.error(erro);
+        const msg = String(erro?.message || "");
+        if (/already registered|already exists|duplicate/i.test(msg)) {
+            mostrarMsg("cadMsg", "Este RE já possui um cadastro ou uma solicitação.", "err");
+        } else {
+            mostrarMsg("cadMsg", "Não foi possível concluir o cadastro. Verifique os dados e tente novamente.", "err");
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function redefinirSenha() {
+    const re = formatarRE(document.getElementById("resetRE").value);
+    const email = document.getElementById("resetEmail").value.trim().toLowerCase();
+
+    if (!reValido(re)) {
+        mostrarMsg("resetMsg", "Informe o RE no formato com hífen, por exemplo: 210493-8.", "err");
+        return;
+    }
+    if (!emailFuncionalValido(email)) {
+        mostrarMsg("resetMsg", "O e-mail funcional deve obrigatoriamente terminar com @policiamilitar.sp.gov.br.", "err");
+        return;
+    }
+
+    const confirmado = confirm(
+        "ATENÇÃO\n\n" +
+        "Sua conta será EXCLUÍDA e você perderá o acesso atual.\n\n" +
+        "Depois disso, será necessário fazer um novo cadastro e aguardar nova aprovação do administrador.\n\n" +
+        "Deseja realmente continuar?"
+    );
+
+    if (!confirmado) return;
+
+    mostrarMsg("resetMsg", "Processando exclusão da conta...", "warn");
+
+    try {
+        const { data, error } = await sb.rpc("extrator_redefinir_cadastro", {
+            p_re: re,
+            p_email: email
+        });
+
+        if (error) throw error;
+
+        if (data !== true) {
+            mostrarMsg("resetMsg", "Não foi possível localizar uma conta com esse RE e e-mail funcional.", "err");
+            return;
+        }
+
+        document.getElementById("resetRE").value = "";
+        document.getElementById("resetEmail").value = "";
+        mostrarLogin();
+        mostrarMsg(
+            "loginMsg",
+            "Sua conta foi excluída. Agora faça um novo cadastro e aguarde novamente a aprovação do administrador.",
+            "ok"
+        );
+
+    } catch (erro) {
+        console.error(erro);
+        mostrarMsg("resetMsg", "Não foi possível excluir a conta. Tente novamente ou procure o administrador.", "err");
+    }
+}
+
+
+
+function hojeLocalISO() {
+    const d = new Date();
+    const offset = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - offset * 60000);
+    return local.toISOString().slice(0, 10);
+}
+
+function limparMensagemAdminForm() {
+    const texto = document.getElementById("adminMensagemTexto");
+    const inicio = document.getElementById("adminMensagemInicio");
+    const fim = document.getElementById("adminMensagemFim");
+    if (texto) texto.value = "";
+    if (inicio) inicio.value = hojeLocalISO();
+    if (fim) fim.value = hojeLocalISO();
+}
+
+function prepararMensagemAdminForm() {
+    const inicio = document.getElementById("adminMensagemInicio");
+    const fim = document.getElementById("adminMensagemFim");
+    if (inicio && !inicio.value) inicio.value = hojeLocalISO();
+    if (fim && !fim.value) fim.value = hojeLocalISO();
+}
+
+async function carregarMensagemAdmin() {
+    if (!souAdmin) return;
+    prepararMensagemAdminForm();
+
+    const atualEl = document.getElementById("adminMensagemAtual");
+    if (!atualEl) return;
+
+    const { data, error } = await sb.rpc("extrator_admin_mensagem_atual");
+    if (error) {
+        console.error(error);
+        atualEl.style.display = "none";
+        return;
+    }
+
+    const mensagemAtual = Array.isArray(data) ? data[0] : data;
+
+    if (!mensagemAtual) {
+        atualEl.innerHTML = "<strong>Nenhuma mensagem publicada.</strong>";
+        atualEl.style.display = "block";
+        return;
+    }
+
+    const inicio = mensagemAtual.inicio ? new Date(mensagemAtual.inicio + "T00:00:00").toLocaleDateString("pt-BR") : "-";
+    const fim = mensagemAtual.fim ? new Date(mensagemAtual.fim + "T00:00:00").toLocaleDateString("pt-BR") : "-";
+    atualEl.innerHTML =
+        "<strong>Mensagem publicada:</strong><br>" +
+        escapeHtml(mensagemAtual.mensagem || "") +
+        "<br><br><span class='info'>Período: " + escapeHtml(inicio) + " até " + escapeHtml(fim) + "</span>";
+    atualEl.style.display = "block";
+}
+
+async function publicarMensagemUsuarios() {
+    if (!souAdmin) return;
+
+    const mensagem = (document.getElementById("adminMensagemTexto")?.value || "").trim();
+    const inicio = document.getElementById("adminMensagemInicio")?.value || "";
+    const fim = document.getElementById("adminMensagemFim")?.value || "";
+
+    if (!mensagem) {
+        mostrarMsg("adminMensagemMsg", "Escreva a mensagem antes de publicar.", "err");
+        return;
+    }
+    if (!inicio || !fim) {
+        mostrarMsg("adminMensagemMsg", "Informe a data de início e a data de fim.", "err");
+        return;
+    }
+    if (fim < inicio) {
+        mostrarMsg("adminMensagemMsg", "A data de fim não pode ser anterior à data de início.", "err");
+        return;
+    }
+
+    const confirmado = confirm(
+        "Publicar esta mensagem para todos os usuários aprovados?\n\n" +
+        "Ela aparecerá no próximo login de cada usuário dentro do período informado."
+    );
+    if (!confirmado) return;
+
+    const { error } = await sb.rpc("extrator_publicar_mensagem", {
+        p_mensagem: mensagem,
+        p_inicio: inicio,
+        p_fim: fim
+    });
+
+    if (error) {
+        console.error(error);
+        mostrarMsg("adminMensagemMsg", error.message || "Não foi possível publicar a mensagem.", "err");
+        return;
+    }
+
+    sessionStorage.removeItem("extrator_mensagem_login_exibida");
+    mostrarMsg("adminMensagemMsg", "Mensagem publicada com sucesso.", "ok");
+    await carregarMensagemAdmin();
+}
+
+async function desativarMensagemUsuarios() {
+    if (!souAdmin) return;
+
+    if (!confirm("Desativar a mensagem atualmente programada para os usuários?")) return;
+
+    const { error } = await sb.rpc("extrator_desativar_mensagem");
+    if (error) {
+        console.error(error);
+        mostrarMsg("adminMensagemMsg", error.message || "Não foi possível desativar a mensagem.", "err");
+        return;
+    }
+
+    mostrarMsg("adminMensagemMsg", "Mensagem desativada.", "ok");
+    const atualEl = document.getElementById("adminMensagemAtual");
+    if (atualEl) atualEl.style.display = "none";
+}
+
+async function mostrarMensagemProgramadaNoLogin() {
+    // Administradores não recebem o aviso; ele é destinado somente aos usuários comuns.
+    if (souAdmin) return;
+
+    const overlay = document.getElementById("mensagemOverlay");
+    const conteudo = document.getElementById("mensagemConteudo");
+    if (!overlay || !conteudo || !usuarioAtual) return;
+
+    // Uma vez por sessão/login. Refresh não exibe novamente.
+    if (sessionStorage.getItem("extrator_mensagem_login_exibida") === "1") return;
+
+    const { data, error } = await sb.rpc("extrator_mensagem_ativa");
+    if (error) {
+        console.error(error);
+        return;
+    }
+
+    // A função SQL retorna TABLE, portanto o Supabase entrega um array.
+    const mensagem = Array.isArray(data) ? data[0] : data;
+
+    // Só marca como exibida quando existe uma mensagem válida.
+    // Assim, se não houver mensagem hoje, um próximo login poderá consultá-la novamente.
+    if (!mensagem || !mensagem.mensagem) return;
+
+    sessionStorage.setItem("extrator_mensagem_login_exibida", "1");
+
+    conteudo.textContent = mensagem.mensagem;
+    overlay.style.display = "flex";
+}
+
+function fecharMensagemProgramada() {
+    const overlay = document.getElementById("mensagemOverlay");
+    if (overlay) overlay.style.display = "none";
+}
+
+function alternarMensagemAdmin(event) {
+    if (event) event.stopPropagation();
+    if (!souAdmin) return;
+
+    const dropdown = document.getElementById("adminMensagemDropdown");
+    if (!dropdown) return;
+
+    const abrir = !dropdown.classList.contains("open");
+    dropdown.classList.toggle("open", abrir);
+    dropdown.setAttribute("aria-hidden", abrir ? "false" : "true");
+
+    if (abrir) carregarMensagemAdmin();
+}
+
+function fecharMensagemAdmin() {
+    const dropdown = document.getElementById("adminMensagemDropdown");
+    if (!dropdown) return;
+    dropdown.classList.remove("open");
+    dropdown.setAttribute("aria-hidden", "true");
+}
+
+document.addEventListener("click", function(event) {
+    const dropdown = document.getElementById("adminMensagemDropdown");
+    const botao = document.getElementById("btnMensagemAdmin");
+    if (!dropdown || !dropdown.classList.contains("open")) return;
+    if (dropdown.contains(event.target) || botao?.contains(event.target)) return;
+    fecharMensagemAdmin();
+});
+
+async function consultarPerfilAtual() {
+    if (!usuarioAtual) return null;
+
+    const { data, error } = await sb
+        .from("extrator_usuarios")
+        .select("id,re,nome_completo,unidade,email_funcional,status,created_at")
+        .eq("id", usuarioAtual.id)
+        .single();
+
+    if (error) {
+        console.error(error);
+        return null;
+    }
+
+    perfilAtual = data;
+    return data;
+}
+
+async function atualizarIndicadoresAcesso() {
+    if (!usuarioAtual) return;
+
+    const { data: adminData, error: adminError } = await sb.rpc("extrator_sou_admin");
+    souAdmin = !adminError && adminData === true;
+
+    const btnAdmin = document.getElementById("btnAdmin");
+    const badgeAprovacoes = document.getElementById("badgeAprovacoes");
+    const btnMensagemAdmin = document.getElementById("btnMensagemAdmin");
+    const btnCapturarTelaAdmin = document.getElementById("btnCapturarTelaAdmin");
+    const botoesLista = document.getElementById("botoesAdminLista");
+    const botoesUsuarioLista = document.getElementById("botoesUsuarioLista");
+    const botoesEditor = document.getElementById("botoesEditorLista");
+
+    if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
+    if (badgeAprovacoes) {
+        badgeAprovacoes.style.display = souAdmin ? "inline-flex" : "none";
+        badgeAprovacoes.textContent = "0";
+    }
+    if (btnMensagemAdmin) btnMensagemAdmin.style.display = souAdmin ? "inline-block" : "none";
+
+    if (souAdmin && badgeAprovacoes) {
+        try {
+            const { count, error: pendentesError } = await sb
+                .from("extrator_usuarios")
+                .select("id", { count: "exact", head: true })
+                .eq("status", "pendente");
+
+            if (!pendentesError) {
+                const quantidadePendentes = Number(count || 0);
+                badgeAprovacoes.textContent = String(quantidadePendentes);
+                badgeAprovacoes.style.display = quantidadePendentes > 0 ? "inline-flex" : "none";
+            } else {
+                console.error(pendentesError);
+                badgeAprovacoes.style.display = "none";
+            }
+        } catch (erroPendentes) {
+            console.error(erroPendentes);
+            badgeAprovacoes.style.display = "none";
+        }
+    }
+    if (btnCapturarTelaAdmin) btnCapturarTelaAdmin.style.display = souAdmin ? "inline-block" : "none";
+    if (!souAdmin) fecharMensagemAdmin();
+    if (botoesLista) botoesLista.style.display = souAdmin ? "flex" : "none";
+    if (botoesUsuarioLista) botoesUsuarioLista.style.display = souAdmin ? "none" : "flex";
+    if (botoesEditor) botoesEditor.style.display = souAdmin ? "flex" : "none";
+
+    const app = document.getElementById("appPrincipal");
+    if (app) {
+        app.classList.toggle("readonly-user", !souAdmin);
+        const editor = app.querySelector(".conteudo-esquerdo");
+        if (editor) editor.style.display = souAdmin ? "block" : "none";
+    }
+}
+
+async function entrarSistema() {
+    const re = formatarRE(document.getElementById("loginRE").value);
+    const senha = document.getElementById("loginSenha").value;
+
+    if (!re || !senha) {
+        mostrarMsg("loginMsg", "Informe o RE e a senha.", "err");
+        return;
+    }
+    if (!reValido(re)) {
+        mostrarMsg("loginMsg", "Informe o RE no formato com hífen, por exemplo: 210493-8.", "err");
+        return;
+    }
+
+    const btn = document.getElementById("btnEntrar");
+    if (btn) btn.disabled = true;
+    mostrarMsg("loginMsg", "Entrando...", "warn");
+
+    try {
+        const { data, error } = await sb.auth.signInWithPassword({
+            email: reEmailAuth(re),
+            password: senha
+        });
+
+        if (error) throw error;
+        usuarioAtual = data.user;
+
+        const perfil = await consultarPerfilAtual();
+
+        if (!perfil) {
+            await sb.auth.signOut();
+            usuarioAtual = null;
+            perfilAtual = null;
+            throw new Error("Perfil não encontrado.");
+        }
+
+        if (perfil.status !== "aprovado") {
+            await sb.auth.signOut();
+            usuarioAtual = null;
+            perfilAtual = null;
+
+            if (perfil.status === "pendente") {
+                mostrarMsg("loginMsg", "Seu cadastro ainda está aguardando aprovação do administrador.", "warn");
+            } else {
+                mostrarMsg("loginMsg", "Seu cadastro não está autorizado a acessar o sistema.", "err");
+            }
+            return;
+        }
+
+        document.getElementById("usuarioBarraInfo").innerHTML =
+            "Usuário: <strong>RE " + perfil.re + "</strong> — " +
+            escapeHtml(perfil.nome_completo) + " — " +
+            escapeHtml(perfil.unidade);
+
+        // Novo login: o aviso programado pode aparecer novamente.
+        sessionStorage.removeItem("extrator_mensagem_login_exibida");
+
+        await atualizarIndicadoresAcesso();
+        mostrarAplicacao();
+        iniciarRealtimeLista();
+        await carregarLista();
+        await mostrarMensagemProgramadaNoLogin();
+
+        document.getElementById("loginSenha").value = "";
+        mostrarMsg("loginMsg", "", "");
+
+    } catch (erro) {
+        console.error(erro);
+        const msg = String(erro?.message || "");
+        if (/invalid login credentials/i.test(msg)) {
+            mostrarMsg("loginMsg", "RE ou senha incorretos.", "err");
+        } else {
+            mostrarMsg("loginMsg", "Não foi possível entrar. Tente novamente.", "err");
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
 }
 
 async function sairSistema() {
@@ -69,7 +3628,7 @@ async function carregarAdminUsuarios() {
 
     const consultaAdmin = Promise.all([
         sb.from("extrator_usuarios")
-            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,status,created_at,updated_at")
+            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at")
             .order("created_at", { ascending: true }),
         sb.rpc("extrator_lista_admins")
     ]);
@@ -143,6 +3702,7 @@ function montarCardUsuario(usuario, adminIds, pendente) {
             '<div><span>Unidade:</span> ' + escapeHtml(usuario.unidade) + '</div>' +
             '<div><span>E-mail funcional:</span> ' + escapeHtml(usuario.email_funcional) + '</div>' +
             '<div><span>Selfie:</span> <button type="button" class="btn-secondary btn-ver-selfie" style="margin:0;padding:6px 9px;font-size:12px" ' + (usuario.selfie_base64 ? '' : 'disabled') + '>📸 ' + (usuario.selfie_base64 ? 'Ver selfie' : 'Não enviada') + '</button></div>' +
+            '<div><span>Verificação de movimento:</span> ' + (usuario.selfie_liveness_status === 'aprovado' ? '<span class="admin-status-badge ok">APROVADA</span>' : '<span class="admin-status-badge">NÃO VERIFICADA</span>') + '</div>' +
             '<div><span>Cadastrado em:</span> ' + escapeHtml(dataTexto) + '</div>' +
         '</div>' +
         '<div class="admin-actions" id="acoes-' + escapeHtml(usuario.id) + '"></div>';
