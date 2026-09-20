@@ -268,6 +268,24 @@
 }
 @media(max-width:700px){.admin-message-dates{grid-template-columns:1fr}}
 
+
+/* SELFIE NO CADASTRO */
+.cadastro-selfie-box{margin-top:14px;padding:12px;background:#151515;border:1px solid #444;border-radius:8px}
+.cadastro-selfie-box .selfie-titulo{font-size:14px;color:#ddd;margin-bottom:6px}
+.cadastro-selfie-box .selfie-ajuda{font-size:12px;color:#aaa;line-height:1.4;margin-bottom:9px}
+.selfie-actions{display:flex;gap:7px;flex-wrap:wrap}
+.selfie-actions button{margin:0;padding:9px 12px}
+#cadSelfiePreview{display:none;width:120px;height:160px;object-fit:cover;border-radius:8px;border:1px solid #555;margin-top:10px;background:#101010}
+.cadastro-selfie-status{font-size:12px;color:#aaa;margin-top:7px}
+.cad-selfie-overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:110000;padding:14px;box-sizing:border-box}
+.cad-selfie-overlay.open{display:flex}
+.cad-selfie-modal{width:min(520px,100%);background:#202020;border:1px solid #555;border-radius:12px;padding:14px;box-sizing:border-box;box-shadow:0 20px 60px rgba(0,0,0,.65)}
+.cad-selfie-modal h3{margin:0 0 6px}
+.cad-selfie-modal p{color:#aaa;font-size:12px;line-height:1.4;margin:0 0 10px}
+#cadSelfieVideo{display:block;width:100%;max-height:58vh;object-fit:cover;background:#101010;border:1px solid #444;border-radius:8px}
+.cad-selfie-modal .auth-actions{margin-top:10px}
+@media(max-width:700px){.cad-selfie-modal{padding:10px}}
+
 </style>
 
 <link rel="manifest" href="./manifest.json">
@@ -343,6 +361,18 @@
             <label for="cadSenha2">Confirmar senha</label>
             <input id="cadSenha2" type="password" autocomplete="new-password" placeholder="Repita a senha">
 
+            <div class="cadastro-selfie-box">
+                <div class="selfie-titulo">📸 Selfie para identificação <strong>(obrigatória)</strong></div>
+                <div class="selfie-ajuda">Tire uma selfie nítida. A foto ficará registrada junto ao seu cadastro e será visível somente para os administradores responsáveis pela aprovação.</div>
+                <div class="selfie-actions">
+                    <button class="btn-info" type="button" onclick="abrirCameraSelfie()">📸 Tirar selfie</button>
+                    <button class="btn-secondary" type="button" onclick="document.getElementById('cadSelfieArquivo').click()">🖼️ Usar foto</button>
+                </div>
+                <input id="cadSelfieArquivo" type="file" accept="image/*" capture="user" style="display:none" onchange="carregarSelfieArquivo(event)">
+                <img id="cadSelfiePreview" alt="Prévia da selfie">
+                <div id="cadSelfieStatus" class="cadastro-selfie-status">Nenhuma selfie selecionada.</div>
+            </div>
+
             <div class="auth-actions">
                 <button class="btn-primary" type="button" onclick="cadastrarUsuario()">Enviar cadastro</button>
                 <button class="btn-secondary" type="button" onclick="mostrarLogin()">Voltar para login</button>
@@ -350,6 +380,20 @@
 
             <div id="cadMsg" class="auth-msg" style="display:none"></div>
         </div>
+    </div>
+</div>
+
+<!-- SELFIE CAMERA -->
+<div id="cadSelfieOverlay" class="cad-selfie-overlay">
+    <div class="cad-selfie-modal">
+        <h3>📸 Tirar selfie</h3>
+        <p>Posicione o rosto no enquadramento e toque em <strong>Capturar selfie</strong>.</p>
+        <video id="cadSelfieVideo" autoplay playsinline muted></video>
+        <div class="auth-actions">
+            <button class="btn-success" type="button" onclick="capturarSelfie()">📸 Capturar selfie</button>
+            <button class="btn-secondary" type="button" onclick="fecharCameraSelfie()">Cancelar</button>
+        </div>
+        <canvas id="cadSelfieCanvas" style="display:none"></canvas>
     </div>
 </div>
 
@@ -382,6 +426,16 @@
         <div id="listaAprovados" class="admin-list"><div class="empty-admin">Carregando...</div></div>
     </div>
 
+</div>
+
+<div id="adminSelfieOverlay" class="cad-selfie-overlay">
+    <div class="cad-selfie-modal">
+        <h3 id="adminSelfieTitulo">📸 Selfie</h3>
+        <img id="adminSelfieImagem" alt="Selfie do usuário" style="display:block;max-width:100%;max-height:70vh;margin:0 auto;background:#101010;border:1px solid #444;border-radius:8px;object-fit:contain">
+        <div class="auth-actions">
+            <button class="btn-secondary" type="button" onclick="fecharVisualizadorSelfie()">Fechar</button>
+        </div>
+    </div>
 </div>
 
 <!-- =========================================================
@@ -2823,12 +2877,81 @@ function mostrarAplicacao() {
     document.getElementById("appPrincipal").style.display = "block";
 }
 
+let selfieCadastroBase64 = "";
+let cadSelfieStream = null;
+
 function limparFormularioCadastro() {
-    ["cadRE","cadNome","cadUnidade","cadEmail","cadSenha","cadSenha2"].forEach(id => {
+    ["cadRE","cadNome","cadUnidade","cadEmail","cadSenha","cadSenha2","cadSelfieArquivo"].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = "";
     });
+    selfieCadastroBase64 = "";
+    const preview = document.getElementById("cadSelfiePreview");
+    if (preview) { preview.removeAttribute("src"); preview.style.display = "none"; }
+    const status = document.getElementById("cadSelfieStatus");
+    if (status) status.textContent = "Nenhuma selfie selecionada.";
+    fecharCameraSelfie();
 }
+
+function redimensionarSelfieParaBase64(source, maxW=640, maxH=840) {
+    return new Promise((resolve,reject)=>{
+        const img=new Image();
+        img.onload=()=>{
+            let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+            if(!w||!h){reject(new Error("Imagem inválida."));return;}
+            const escala=Math.min(1,maxW/w,maxH/h);
+            w=Math.max(1,Math.round(w*escala)); h=Math.max(1,Math.round(h*escala));
+            const c=document.createElement("canvas"); c.width=w; c.height=h;
+            const ctx=c.getContext("2d",{alpha:false}); ctx.drawImage(img,0,0,w,h);
+            resolve(c.toDataURL("image/jpeg",0.78));
+        };
+        img.onerror=()=>reject(new Error("Não foi possível ler a imagem."));
+        img.src=typeof source==="string"?source:URL.createObjectURL(source);
+    });
+}
+
+async function definirSelfieCadastro(dataUrl){
+    try{
+        selfieCadastroBase64=await redimensionarSelfieParaBase64(dataUrl);
+        const preview=document.getElementById("cadSelfiePreview");
+        const status=document.getElementById("cadSelfieStatus");
+        if(preview){preview.src=selfieCadastroBase64;preview.style.display="block";}
+        if(status) status.textContent="Selfie selecionada e pronta para o cadastro.";
+    }catch(e){console.error(e);selfieCadastroBase64="";mostrarMsg("cadMsg","Não foi possível preparar a selfie. Tente novamente.","err");}
+}
+
+async function carregarSelfieArquivo(event){
+    const arquivo=event?.target?.files?.[0]; if(!arquivo)return;
+    if(!arquivo.type.startsWith("image/")){mostrarMsg("cadMsg","Selecione uma imagem válida para a selfie.","err");return;}
+    try{
+        const dataUrl=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error("Falha ao ler arquivo."));r.readAsDataURL(arquivo);});
+        await definirSelfieCadastro(dataUrl);
+    }catch(e){console.error(e);mostrarMsg("cadMsg","Não foi possível ler a selfie.","err");}
+}
+
+async function abrirCameraSelfie(){
+    const overlay=document.getElementById("cadSelfieOverlay"), video=document.getElementById("cadSelfieVideo"); if(!overlay||!video)return;
+    try{
+        if(!navigator.mediaDevices?.getUserMedia){document.getElementById("cadSelfieArquivo")?.click();return;}
+        cadSelfieStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:720},height:{ideal:960}},audio:false});
+        video.srcObject=cadSelfieStream; overlay.classList.add("open");
+    }catch(e){console.error(e);fecharCameraSelfie();mostrarMsg("cadMsg","Não foi possível acessar a câmera. Você pode escolher uma foto do dispositivo.","warn");document.getElementById("cadSelfieArquivo")?.click();}
+}
+
+function fecharCameraSelfie(){
+    const overlay=document.getElementById("cadSelfieOverlay"), video=document.getElementById("cadSelfieVideo");
+    if(cadSelfieStream){cadSelfieStream.getTracks().forEach(t=>t.stop());cadSelfieStream=null;}
+    if(video)video.srcObject=null; if(overlay)overlay.classList.remove("open");
+}
+
+async function capturarSelfie(){
+    const video=document.getElementById("cadSelfieVideo"), canvas=document.getElementById("cadSelfieCanvas");
+    if(!video||!canvas||!video.videoWidth||!video.videoHeight){mostrarMsg("cadMsg","A câmera ainda não está pronta. Aguarde um instante.","warn");return;}
+    const escala=Math.min(1,640/video.videoWidth); canvas.width=Math.max(1,Math.round(video.videoWidth*escala)); canvas.height=Math.max(1,Math.round(video.videoHeight*escala));
+    const ctx=canvas.getContext("2d",{alpha:false}); ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    await definirSelfieCadastro(canvas.toDataURL("image/jpeg",0.78)); fecharCameraSelfie();
+}
+
 
 async function cadastrarUsuario() {
     const re = formatarRE(document.getElementById("cadRE").value);
@@ -2856,6 +2979,11 @@ async function cadastrarUsuario() {
     }
     if (senha !== senha2) {
         mostrarMsg("cadMsg", "A confirmação da senha não confere.", "err");
+        return;
+    }
+
+    if (!selfieCadastroBase64) {
+        mostrarMsg("cadMsg", "A selfie é obrigatória para enviar a solicitação de cadastro.", "err");
         return;
     }
 
@@ -2890,6 +3018,7 @@ async function cadastrarUsuario() {
                 nome_completo: nome,
                 unidade: unidade,
                 email_funcional: email,
+                selfie_base64: selfieCadastroBase64,
                 status: "pendente"
             });
 
@@ -3329,6 +3458,23 @@ function voltarDoAdmin() {
     document.getElementById("appPrincipal").style.display = "block";
 }
 
+function abrirVisualizadorSelfie(base64, nome) {
+    const overlay = document.getElementById("adminSelfieOverlay");
+    const img = document.getElementById("adminSelfieImagem");
+    const titulo = document.getElementById("adminSelfieTitulo");
+    if (!overlay || !img) return;
+    img.src = base64;
+    if (titulo) titulo.textContent = "📸 Selfie — " + (nome || "Usuário");
+    overlay.classList.add("open");
+}
+
+function fecharVisualizadorSelfie() {
+    const overlay = document.getElementById("adminSelfieOverlay");
+    const img = document.getElementById("adminSelfieImagem");
+    if (img) img.removeAttribute("src");
+    if (overlay) overlay.classList.remove("open");
+}
+
 function escapeHtml(valor) {
     return String(valor || "")
         .replace(/&/g, "&amp;")
@@ -3354,7 +3500,7 @@ async function carregarAdminUsuarios() {
 
     const consultaAdmin = Promise.all([
         sb.from("extrator_usuarios")
-            .select("id,re,nome_completo,unidade,email_funcional,status,created_at,updated_at")
+            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,status,created_at,updated_at")
             .order("created_at", { ascending: true }),
         sb.rpc("extrator_lista_admins")
     ]);
@@ -3427,11 +3573,18 @@ function montarCardUsuario(usuario, adminIds, pendente) {
             '<div><span>Nome:</span> ' + escapeHtml(usuario.nome_completo) + '</div>' +
             '<div><span>Unidade:</span> ' + escapeHtml(usuario.unidade) + '</div>' +
             '<div><span>E-mail funcional:</span> ' + escapeHtml(usuario.email_funcional) + '</div>' +
+            '<div><span>Selfie:</span> <button type="button" class="btn-secondary btn-ver-selfie" style="margin:0;padding:6px 9px;font-size:12px" ' + (usuario.selfie_base64 ? '' : 'disabled') + '>📸 ' + (usuario.selfie_base64 ? 'Ver selfie' : 'Não enviada') + '</button></div>' +
             '<div><span>Cadastrado em:</span> ' + escapeHtml(dataTexto) + '</div>' +
         '</div>' +
         '<div class="admin-actions" id="acoes-' + escapeHtml(usuario.id) + '"></div>';
 
     const actions = item.querySelector(".admin-actions");
+    const btnSelfie = item.querySelector(".btn-ver-selfie");
+    if (btnSelfie && usuario.selfie_base64) {
+        btnSelfie.addEventListener("click", function() {
+            abrirVisualizadorSelfie(usuario.selfie_base64, usuario.nome_completo);
+        });
+    }
 
     if (pendente) {
         const aprovar = document.createElement("button");

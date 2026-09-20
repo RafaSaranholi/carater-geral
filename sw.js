@@ -1,4 +1,4 @@
-const CACHE_NAME = 'carater-geral-runtime-v1';
+const CACHE_NAME = 'carater-geral-runtime-v24';
 const APP_SHELL = './';
 
 self.addEventListener('install', event => {
