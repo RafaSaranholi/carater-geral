@@ -167,6 +167,7 @@
 .admin-card h2{margin-top:0}
 .admin-list{display:grid;gap:10px}
 .admin-item{background:#101010;border:1px solid #444;border-radius:8px;padding:12px}
+.presenca-bolinha{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;vertical-align:middle;box-shadow:0 0 5px rgba(255,255,255,.18)}.presenca-online{background:#20c45a}.presenca-recente{background:#2587ff}.presenca-offline{background:#e53935}.presenca-legenda{font-size:12px;color:#aaa;margin-top:5px}
 .admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 14px;font-size:14px}
 .admin-grid div span:first-child{color:#999}
 .admin-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
@@ -2306,7 +2307,7 @@ function classeCorCarater(texto) {
     const normalizado = String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
     if (/\bROUBO\b/.test(normalizado)) return "carater-roubo";
     if (/\bFURTO\b/.test(normalizado)) return "carater-furto";
-    if (/ACAO\s+CRIMINOSA/.test(normalizado) || /\bOUTROS\b/.test(normalizado) || /\bSUSPEITO\b/.test(normalizado)) return "carater-outros";
+    if (/ACAO\s+CRIMINOSA/.test(normalizado) || /\bOUTROS\b/.test(normalizado)) return "carater-outros";
     return "";
 }
 
@@ -2952,6 +2953,28 @@ function mostrarTelaAcesso() {
     document.getElementById("appPrincipal").style.display = "none";
     document.getElementById("adminArea").style.display = "none";
     mostrarLogin();
+}
+
+let intervaloPresenca = null;
+
+async function registrarPresenca() {
+    if (!usuarioAtual || !perfilAtual || perfilAtual.status !== "aprovado") return;
+    try { await sb.rpc("extrator_registrar_presenca"); } catch (e) { console.warn("Não foi possível atualizar presença:", e); }
+}
+
+function iniciarPresenca() {
+    if (intervaloPresenca) clearInterval(intervaloPresenca);
+    registrarPresenca();
+    intervaloPresenca = setInterval(function(){ registrarPresenca(); atualizarBolinhasPresenca(); }, 60000);
+}
+
+function pararPresenca() {
+    if (intervaloPresenca) clearInterval(intervaloPresenca);
+    intervaloPresenca = null;
+}
+
+function atualizarBolinhasPresenca() {
+    if (souAdmin) carregarAdminUsuarios();
 }
 
 function mostrarAplicacao() {
@@ -3773,7 +3796,7 @@ async function carregarAdminUsuarios() {
 
     const consultaAdmin = Promise.all([
         sb.from("extrator_usuarios")
-            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at,aprovacao_em,aprovacao_latitude,aprovacao_longitude,aprovacao_localizacao_precisao")
+            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at,aprovacao_em,aprovacao_latitude,aprovacao_longitude,aprovacao_localizacao_precisao,last_seen_at")
             .order("created_at", { ascending: true }),
         sb.rpc("extrator_lista_admins")
     ]);
@@ -3842,11 +3865,16 @@ function montarCardUsuario(usuario, adminIds, pendente) {
             ? '<span class="admin-status-badge">REJEITADO</span>'
             : '<span class="admin-status-badge pending">PENDENTE</span>';
     const badgeAdmin = ehAdmin ? ' <span class="admin-status-badge admin">ADMINISTRADOR</span>' : '';
+    const ultimaAtividade = usuario.last_seen_at ? new Date(usuario.last_seen_at).getTime() : 0;
+    const minutosInativo = ultimaAtividade ? (Date.now() - ultimaAtividade) / 60000 : Infinity;
+    const classePresenca = minutosInativo <= 2 ? "presenca-online" : (minutosInativo <= 15 ? "presenca-recente" : "presenca-offline");
+    const tituloPresenca = minutosInativo <= 2 ? "Online" : (minutosInativo <= 15 ? "Ativo nos últimos 15 minutos" : "Offline");
+    const badgePresenca = usuario.status === "aprovado" ? '<span class="presenca-bolinha ' + classePresenca + '" title="' + tituloPresenca + '"></span>' : '';
 
     item.innerHTML =
         '<div class="admin-grid">' +
             '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
-            '<div><span>Status:</span> ' + badgeStatus + badgeAdmin + '</div>' +
+            '<div><span>Status:</span> ' + badgePresenca + badgeStatus + badgeAdmin + '<div class="presenca-legenda">' + escapeHtml(tituloPresenca) + '</div></div>' +
             '<div><span>Nome:</span> ' + escapeHtml(usuario.nome_completo) + '</div>' +
             '<div><span>Unidade:</span> ' + escapeHtml(usuario.unidade) + '</div>' +
             '<div><span>E-mail funcional:</span> ' + escapeHtml(usuario.email_funcional) + '</div>' +
@@ -4090,6 +4118,7 @@ async function restaurarSessao() {
 
     await atualizarIndicadoresAcesso();
     mostrarAplicacao();
+    iniciarPresenca();
     iniciarRealtimeLista();
     await carregarLista();
 }
@@ -4124,6 +4153,7 @@ sb.auth.onAuthStateChange(function(event, session) {
         perfilAtual = null;
         souAdmin = false;
         pararRealtimeLista();
+        pararPresenca();
         mostrarTelaAcesso();
     }
 });
