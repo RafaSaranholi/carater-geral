@@ -196,14 +196,6 @@
 .admin-actions .btn-warning{background:#7a5b13;color:#fff}
 .admin-actions .btn-info{background:#245b78;color:#fff}
 .admin-actions .btn-dark{background:#333;color:#eee;border:1px solid #555}
-.backup-box{margin-top:14px;padding:14px;background:#151515;border:1px solid #444;border-radius:8px}
-.backup-box h3{margin:0 0 7px}
-.backup-box p{margin:0 0 10px;color:#aaa;font-size:12px;line-height:1.45}
-.backup-actions{display:flex;gap:7px;flex-wrap:wrap}
-.backup-actions button{margin:0}
-.backup-status{margin-top:9px;font-size:12px;color:#aaa;line-height:1.4}
-.presenca-indicador{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#ccc}.presenca-bolinha{width:10px;height:10px;border-radius:50%;display:inline-block;box-shadow:0 0 0 1px rgba(255,255,255,.15)}.presenca-verde{background:#20c56a}.presenca-azul{background:#2d8cff}.presenca-vermelha{background:#e04b4b}
-
 .admin-section-title{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .admin-count{font-size:12px;color:#aaa}
 .aprovacoes-badge{display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:15px;padding:0 4px;box-sizing:border-box;margin-left:5px;border-radius:999px;background:#dc3545;color:#fff;font-size:10px;font-weight:700;line-height:15px;vertical-align:middle}
@@ -308,6 +300,23 @@
 .cad-selfie-modal .auth-actions{margin-top:10px}
 @media(max-width:700px){.cad-selfie-modal{padding:10px}}
 
+/* E-MAIL FUNCIONAL COM DOMÍNIO FIXO NO CADASTRO */
+.email-funcional-input{
+    display:flex;align-items:center;width:100%;box-sizing:border-box;
+    border:1px solid #555;border-radius:7px;background:#101010;
+    overflow:hidden;
+}
+.email-funcional-input:focus-within{border-color:#777;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+.email-funcional-input input{
+    flex:1;min-width:0;width:auto!important;border:0!important;
+    border-radius:0!important;background:transparent!important;
+    box-shadow:none!important;padding:12px 4px 12px 13px!important;
+}
+.email-funcional-input span{
+    flex:0 0 auto;color:#aaa;font-size:15px;padding:12px 13px 12px 2px;
+    white-space:nowrap;pointer-events:none;
+}
+
 </style>
 
 <link rel="manifest" href="./manifest.json">
@@ -366,7 +375,7 @@
             <p>Preencha seus dados. O acesso só será liberado depois da aprovação do administrador.</p>
 
             <label for="cadRE">RE</label>
-            <input id="cadRE" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex.: 123456-7" maxlength="20">
+            <input id="cadRE" type="text" inputmode="text" autocomplete="off" placeholder="Ex.: 123456-7 ou 123456-A" maxlength="20">
 
             <label for="cadNome">Nome completo</label>
             <input id="cadNome" type="text" autocomplete="name" placeholder="Nome completo">
@@ -375,7 +384,10 @@
             <input id="cadUnidade" type="text" autocomplete="organization" placeholder="Ex.: COPOM, BPM, CIA...">
 
             <label for="cadEmail">E-mail funcional</label>
-            <input id="cadEmail" type="email" autocomplete="email" placeholder="seu.email@policiamilitar.sp.gov.br">
+            <div class="email-funcional-input">
+                <input id="cadEmail" type="text" inputmode="email" autocomplete="username" placeholder="seunome" maxlength="80">
+                <span>@policiamilitar.sp.gov.br</span>
+            </div>
 
             <label for="cadSenha">Senha</label>
             <input id="cadSenha" type="password" autocomplete="new-password" placeholder="Crie uma senha">
@@ -454,17 +466,6 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
         <div class="auth-actions">
             <button class="btn-secondary" type="button" onclick="voltarDoAdmin()">Voltar ao extrator</button>
             <button class="btn-secondary" type="button" onclick="carregarAdmin()">Atualizar</button>
-        </div>
-
-        <div class="backup-box">
-            <h3>💾 Backup dos usuários</h3>
-            <p>Gera um arquivo JSON com os cadastros, dados de aprovação, selfie e quais usuários são administradores. As senhas não são exportadas, pois o Supabase não permite recuperar senhas.</p>
-            <div class="backup-actions">
-                <button class="btn-success" type="button" onclick="baixarBackupUsuarios()">💾 Fazer backup agora</button>
-                <button class="btn-info" type="button" onclick="document.getElementById('arquivoBackupUsuarios').click()">♻️ Restaurar backup</button>
-                <input id="arquivoBackupUsuarios" type="file" accept="application/json,.json" style="display:none" onchange="restaurarBackupUsuarios(event)">
-            </div>
-            <div id="backupUsuariosStatus" class="backup-status">Recomendação: faça um backup sempre que alterar cadastros ou administradores e guarde o arquivo fora do site.</div>
         </div>
     </div>
 
@@ -2874,13 +2875,17 @@ function somenteDigitosRE(valor) {
 }
 
 function formatarRE(valor) {
-    const digitos = somenteDigitosRE(valor);
-    if (digitos.length <= 1) return digitos;
-    return digitos.slice(0, -1) + "-" + digitos.slice(-1);
+    const bruto = normalizarRE(valor);
+    // O corpo do RE aceita somente números e o último caractere (dígito verificador)
+    // pode ser número ou letra. O hífen é inserido antes do último caractere.
+    const limpo = bruto.replace(/[^0-9A-Z]/g, "");
+    if (limpo.length <= 1) return limpo;
+    return limpo.slice(0, -1) + "-" + limpo.slice(-1);
 }
 
 function reValido(valor) {
-    return /^[0-9]+-[0-9]+$/.test(normalizarRE(valor));
+    // Ex.: 123456-7 ou 123456-A
+    return /^[0-9]+-[0-9A-Z]$/.test(normalizarRE(valor));
 }
 
 function emailFuncionalValido(valor) {
@@ -2888,7 +2893,16 @@ function emailFuncionalValido(valor) {
 }
 
 function reEmailAuth(re) {
-    return "re." + somenteDigitosRE(re).toLowerCase() + "@jbecezbglolnfsqkiaad.supabase.co";
+    // O e-mail interno de autenticação continua sendo baseado no RE.
+    return "re." + normalizarRE(re).replace(/[^0-9A-Z]/g, "").toLowerCase() + "@jbecezbglolnfsqkiaad.supabase.co";
+}
+
+const DOMINIO_EMAIL_FUNCIONAL = "@policiamilitar.sp.gov.br";
+
+function montarEmailFuncional(parteInicial) {
+    const inicio = String(parteInicial || "").trim().toLowerCase();
+    if (!inicio || /[@\s]/.test(inicio)) return "";
+    return inicio + DOMINIO_EMAIL_FUNCIONAL;
 }
 
 function mostrarMsg(id, texto, tipo) {
@@ -3173,20 +3187,25 @@ async function cadastrarUsuario() {
     const re = formatarRE(document.getElementById("cadRE").value);
     const nome = document.getElementById("cadNome").value.trim();
     const unidade = document.getElementById("cadUnidade").value.trim();
-    const email = document.getElementById("cadEmail").value.trim().toLowerCase();
+    const emailInicio = document.getElementById("cadEmail").value.trim().toLowerCase();
+    const email = montarEmailFuncional(emailInicio);
     const senha = document.getElementById("cadSenha").value;
     const senha2 = document.getElementById("cadSenha2").value;
 
     if (!reValido(re)) {
-        mostrarMsg("cadMsg", "Informe o RE no formato com hífen, por exemplo: 123456-7.", "err");
+        mostrarMsg("cadMsg", "Informe o RE no formato com hífen, por exemplo: 123456-7 ou 123456-A.", "err");
         return;
     }
     if (!nome || !unidade || !email) {
         mostrarMsg("cadMsg", "Preencha todos os campos do cadastro.", "err");
         return;
     }
+    if (!email) {
+        mostrarMsg("cadMsg", "Informe somente a parte inicial do e-mail funcional, por exemplo: seu.nome.", "err");
+        return;
+    }
     if (!emailFuncionalValido(email)) {
-        mostrarMsg("cadMsg", "O e-mail funcional deve obrigatoriamente terminar com @policiamilitar.sp.gov.br.", "err");
+        mostrarMsg("cadMsg", "Informe somente a parte inicial do e-mail funcional, sem @ ou espaços.", "err");
         return;
     }
     if (senha.length < 6) {
@@ -3297,7 +3316,7 @@ async function redefinirSenha() {
     const email = document.getElementById("resetEmail").value.trim().toLowerCase();
 
     if (!reValido(re)) {
-        mostrarMsg("resetMsg", "Informe o RE no formato com hífen, por exemplo: 123456-7.", "err");
+        mostrarMsg("resetMsg", "Informe o RE no formato com hífen, por exemplo: 123456-7 ou 123456-A.", "err");
         return;
     }
     if (!emailFuncionalValido(email)) {
@@ -3606,7 +3625,7 @@ async function entrarSistema() {
         return;
     }
     if (!reValido(re)) {
-        mostrarMsg("loginMsg", "Informe o RE no formato com hífen, por exemplo: 123456-7.", "err");
+        mostrarMsg("loginMsg", "Informe o RE no formato com hífen, por exemplo: 123456-7 ou 123456-A.", "err");
         return;
     }
 
@@ -3654,7 +3673,6 @@ async function entrarSistema() {
         sessionStorage.removeItem("extrator_mensagem_login_exibida");
 
         await atualizarIndicadoresAcesso();
-        iniciarPresenca();
         mostrarAplicacao();
         iniciarRealtimeLista();
         await carregarLista();
@@ -3678,8 +3696,6 @@ async function entrarSistema() {
 
 async function sairSistema() {
     fecharMensagemAdmin();
-    pararPresenca();
-    pararAtualizacaoPresencaAdmin();
     pararRealtimeLista();
     await sb.auth.signOut();
     usuarioAtual = null;
@@ -3746,7 +3762,7 @@ async function carregarAdminUsuarios() {
 
     const consultaAdmin = Promise.all([
         sb.from("extrator_usuarios")
-            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at,aprovacao_em,aprovacao_latitude,aprovacao_longitude,aprovacao_localizacao_precisao,last_seen_at")
+            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at,aprovacao_em,aprovacao_latitude,aprovacao_longitude,aprovacao_localizacao_precisao")
             .order("created_at", { ascending: true }),
         sb.rpc("extrator_lista_admins")
     ]);
@@ -3796,7 +3812,6 @@ async function carregarAdminUsuarios() {
 
     renderizarCardsPendentes(pendentes, pendentesData, adminIds);
     renderizarCardsUsuarios(listaAprovadosEl, aprovados, adminIds);
-    iniciarAtualizacaoPresencaAdmin();
 }
 
 function montarCardUsuario(usuario, adminIds, pendente) {
@@ -3821,7 +3836,6 @@ function montarCardUsuario(usuario, adminIds, pendente) {
         '<div class="admin-grid">' +
             '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
             '<div><span>Status:</span> ' + badgeStatus + badgeAdmin + '</div>' +
-            (usuario.status === "aprovado" ? '<div><span>Presença:</span> <span class="presenca-indicador" data-presenca-usuario="' + escapeHtml(usuario.id) + '"><span class="presenca-bolinha ' + classificarPresenca(usuario.last_seen_at).classe + '"></span><span class="presenca-texto">' + classificarPresenca(usuario.last_seen_at).texto + '</span></span></div>' : '') +
             '<div><span>Nome:</span> ' + escapeHtml(usuario.nome_completo) + '</div>' +
             '<div><span>Unidade:</span> ' + escapeHtml(usuario.unidade) + '</div>' +
             '<div><span>E-mail funcional:</span> ' + escapeHtml(usuario.email_funcional) + '</div>' +
@@ -3912,171 +3926,6 @@ function renderizarCardsUsuarios(container, lista, adminIds) {
         return;
     }
     lista.forEach(usuario => container.appendChild(montarCardUsuario(usuario, adminIds, false)));
-}
-
-let presencaIntervalo = null;
-let presencaAtualizando = false;
-
-function classificarPresenca(lastSeenAt) {
-    if (!lastSeenAt) return { classe: "presenca-vermelha", texto: "Offline" };
-    const minutos = (Date.now() - new Date(lastSeenAt).getTime()) / 60000;
-    if (minutos <= 2) return { classe: "presenca-verde", texto: "Online" };
-    if (minutos <= 15) return { classe: "presenca-azul", texto: "Ativo nos últimos 15 min" };
-    return { classe: "presenca-vermelha", texto: "Offline" };
-}
-
-function iniciarPresenca() {
-    pararPresenca();
-    registrarPresenca();
-    presencaIntervalo = setInterval(registrarPresenca, 60 * 1000);
-}
-function pararPresenca() {
-    if (presencaIntervalo) clearInterval(presencaIntervalo);
-    presencaIntervalo = null;
-}
-async function registrarPresenca() {
-    if (!usuarioAtual) return;
-    try {
-        const { error } = await sb.rpc("extrator_registrar_presenca");
-        if (error) console.warn("Presença não registrada:", error.message);
-    } catch (e) { console.warn("Presença não registrada:", e); }
-}
-async function atualizarPresencaUsuarios() {
-    if (!souAdmin || presencaAtualizando) return;
-    presencaAtualizando = true;
-    try {
-        const { data, error } = await sb.from("extrator_usuarios").select("id,last_seen_at").eq("status", "aprovado");
-        if (error) throw error;
-        const mapa = new Map((data || []).map(u => [u.id, u.last_seen_at]));
-        document.querySelectorAll("[data-presenca-usuario]").forEach(el => {
-            const info = classificarPresenca(mapa.get(el.dataset.presencaUsuario));
-            const bolinha = el.querySelector(".presenca-bolinha");
-            const texto = el.querySelector(".presenca-texto");
-            if (bolinha) bolinha.className = "presenca-bolinha " + info.classe;
-            if (texto) texto.textContent = info.texto;
-        });
-    } catch (e) { console.warn("Não foi possível atualizar a presença:", e); }
-    finally { presencaAtualizando = false; }
-}
-let presencaListaIntervalo = null;
-function iniciarAtualizacaoPresencaAdmin() {
-    if (presencaListaIntervalo) clearInterval(presencaListaIntervalo);
-    atualizarPresencaUsuarios();
-    presencaListaIntervalo = setInterval(atualizarPresencaUsuarios, 60 * 1000);
-}
-function pararAtualizacaoPresencaAdmin() {
-    if (presencaListaIntervalo) clearInterval(presencaListaIntervalo);
-    presencaListaIntervalo = null;
-}
-
-async function baixarBackupUsuarios() {
-    if (!souAdmin) return;
-    const statusEl = document.getElementById("backupUsuariosStatus");
-    try {
-        statusEl.textContent = "Gerando backup...";
-
-        const [{ data: usuarios, error: usuariosError }, { data: admins, error: adminsError }, { data: historico, error: historicoError }] = await Promise.all([
-            sb.from("extrator_usuarios").select("*").order("created_at", { ascending: true }),
-            sb.from("extrator_admins").select("user_id,created_at").order("created_at", { ascending: true }),
-            sb.from("extrator_historico_aprovados").select("*").order("aprovado_em", { ascending: true })
-        ]);
-
-        if (usuariosError) throw usuariosError;
-        if (adminsError) throw adminsError;
-        // O histórico pode não existir em instalações antigas; nesse caso o backup continua normalmente.
-        const historicoSeguro = historicoError ? [] : (historico || []);
-
-        const backup = {
-            formato: "extrator-carater-geral-backup",
-            versao: 1,
-            gerado_em: new Date().toISOString(),
-            observacao: "Backup dos perfis do Extrator de Caráter Geral. Senhas do Supabase Auth não podem ser exportadas.",
-            usuarios: usuarios || [],
-            administradores: admins || [],
-            historico_aprovados: historicoSeguro
-        };
-
-        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        const data = new Date().toISOString().slice(0, 10);
-        a.href = url;
-        a.download = `backup-extrator-usuarios-${data}.json`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-
-        statusEl.textContent = `Backup concluído: ${usuarios?.length || 0} usuário(s) e ${admins?.length || 0} administrador(es).`;
-    } catch (error) {
-        console.error(error);
-        statusEl.textContent = "Erro ao gerar o backup: " + (error.message || error);
-    }
-}
-
-async function restaurarBackupUsuarios(event) {
-    if (!souAdmin) return;
-    const arquivo = event.target.files?.[0];
-    const statusEl = document.getElementById("backupUsuariosStatus");
-    event.target.value = "";
-    if (!arquivo) return;
-
-    if (!confirm("ATENÇÃO: a restauração vai atualizar/reintegrar os cadastros existentes no backup. Ela não apaga usuários que não estejam no arquivo. Deseja continuar?")) return;
-
-    try {
-        statusEl.textContent = "Lendo backup...";
-        const texto = await arquivo.text();
-        const backup = JSON.parse(texto);
-
-        if (backup?.formato !== "extrator-carater-geral-backup" || !Array.isArray(backup.usuarios)) {
-            throw new Error("Arquivo de backup inválido ou incompatível.");
-        }
-
-        const camposPermitidos = [
-            "id","re","nome_completo","unidade","email_funcional","status",
-            "created_at","updated_at","selfie_base64","selfie_liveness_status",
-            "selfie_liveness_verified_at","termo_aceito","termo_aceito_em","termo_versao",
-            "termo_latitude","termo_longitude","termo_localizacao_precisao","aprovacao_em",
-            "aprovacao_latitude","aprovacao_longitude","aprovacao_localizacao_precisao","last_seen_at"
-        ];
-
-        const registros = backup.usuarios.map(u => {
-            const r = {};
-            camposPermitidos.forEach(c => { if (Object.prototype.hasOwnProperty.call(u, c)) r[c] = u[c]; });
-            return r;
-        }).filter(u => u.id && u.re && u.nome_completo && u.unidade && u.email_funcional);
-
-        if (!registros.length) throw new Error("O backup não contém cadastros válidos.");
-
-        // Upsert dos perfis. Se a conta correspondente ainda existir em auth.users,
-        // o cadastro volta a aparecer no sistema com os dados do backup.
-        const { error: upsertError } = await sb
-            .from("extrator_usuarios")
-            .upsert(registros, { onConflict: "id" });
-
-        if (upsertError) {
-            throw new Error("Não foi possível reintegrar os perfis. Verifique se as contas de autenticação (Supabase Auth) correspondentes ainda existem. Detalhe: " + upsertError.message);
-        }
-
-        let adminsRestaurados = 0;
-        const admins = Array.isArray(backup.administradores) ? backup.administradores : [];
-        if (admins.length) {
-            const adminRows = admins.filter(a => a?.user_id).map(a => ({ user_id: a.user_id, ...(a.created_at ? { created_at: a.created_at } : {}) }));
-            if (adminRows.length) {
-                const { error: adminError } = await sb.from("extrator_admins").upsert(adminRows, { onConflict: "user_id" });
-                if (adminError) throw new Error("Perfis restaurados, mas não foi possível restaurar os administradores: " + adminError.message);
-                adminsRestaurados = adminRows.length;
-            }
-        }
-
-        statusEl.textContent = `Restauração concluída: ${registros.length} perfil(is) reintegrado(s) e ${adminsRestaurados} administrador(es) restaurado(s).`;
-        await carregarAdminUsuarios();
-        alert("Backup restaurado com sucesso. Os usuários precisam ter suas contas de autenticação existentes para conseguir entrar.");
-    } catch (error) {
-        console.error(error);
-        statusEl.textContent = "Erro na restauração: " + (error.message || error);
-        alert("Não foi possível restaurar o backup. " + (error.message || error));
-    }
 }
 
 async function alterarStatusUsuario(id, novoStatus) {
@@ -4263,8 +4112,6 @@ sb.auth.onAuthStateChange(function(event, session) {
         usuarioAtual = null;
         perfilAtual = null;
         souAdmin = false;
-        pararPresenca();
-        pararAtualizacaoPresencaAdmin();
         pararRealtimeLista();
         mostrarTelaAcesso();
     }
