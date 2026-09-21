@@ -171,6 +171,8 @@
 .presenca-bolinha{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;vertical-align:middle;box-shadow:0 0 5px rgba(255,255,255,.18)}.presenca-online{background:#20c45a}.presenca-recente{background:#2587ff}.presenca-offline{background:#e53935}.presenca-legenda{font-size:12px;color:#aaa;margin-top:5px}
 .admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 14px;font-size:14px}
 .admin-grid div span:first-child{color:#999}
+.admin-item-clicavel{cursor:pointer;transition:background .15s,border-color .15s}.admin-item-clicavel:hover{background:#1b1b1b;border-color:#777}.admin-resumo-aprovado{grid-template-columns:repeat(3,minmax(0,1fr))}.admin-detalhes-modal{max-width:760px;width:calc(100% - 30px)}
+@media(max-width:700px){.admin-resumo-aprovado{grid-template-columns:1fr}}
 .admin-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
 .admin-actions button{margin:0;padding:9px 13px}
 .empty-admin{color:#aaa;padding:10px 0}
@@ -490,7 +492,6 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
             <h3>Usuários aprovados</h3>
             <span id="contagemAprovados" class="admin-count"></span><small id="contagemAdministradores" class="admin-count admin-count-secundario"></small>
         </div>
-        <div style="margin:10px 0 12px"><input id="buscaUsuariosAprovados" type="search" placeholder="🔎 Buscar por RE, nome, unidade, e-mail ou status..." autocomplete="off" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:6px;border:1px solid #555;background:#101010;color:#eee;font-size:14px"></div>
         <div id="listaAprovados" class="admin-list"><div class="empty-admin">Carregando...</div></div>
     </div>
 
@@ -3791,6 +3792,7 @@ async function carregarGerenciadorAdministradores() {
     const admins = Array.isArray(adminsResult.data) ? adminsResult.data : [];
     const adminIds = new Set(admins.map(item => item.user_id || item.id));
     const administradores = usuarios.filter(u => adminIds.has(u.id));
+    const disponiveis = usuarios.filter(u => !adminIds.has(u.id));
 
     let html = '<div class="info"><strong>' + administradores.length + '</strong> administrador(es) ativo(s)</div>';
     if (!administradores.length) {
@@ -3802,6 +3804,15 @@ async function carregarGerenciadorAdministradores() {
         });
     }
 
+    html += '<hr style="border:0;border-top:1px solid #444;margin:16px 0">';
+    html += '<div><strong>Ativar administrador</strong></div>';
+    if (!disponiveis.length) {
+        html += '<div class="admin-gerenciar-vazio">Todos os usuários aprovados já são administradores.</div>';
+    } else {
+        disponiveis.forEach(u => {
+            html += '<div class="admin-gerenciar-item"><div class="info-admin"><strong>' + escapeHtml(u.nome_completo || '-') + '</strong><small>RE: ' + escapeHtml(u.re || '-') + ' · ' + escapeHtml(u.email_funcional || '-') + '</small></div><button type="button" class="btn-info" onclick="alterarAdministrador(\'' + escapeHtml(u.id) + '\', true); setTimeout(carregarGerenciadorAdministradores, 400)">👑 Ativar ADM</button></div>';
+        });
+    }
     listaEl.innerHTML = html;
 }
 
@@ -3851,17 +3862,6 @@ async function carregarAdmin() {
     await carregarAdminUsuarios();
 }
 
-let usuariosAprovadosAdmin = [];
-
-function filtrarUsuariosAprovados() {
-    const campo = document.getElementById("buscaUsuariosAprovados");
-    const termo = (campo?.value || "").trim().toUpperCase();
-    const lista = termo ? usuariosAprovadosAdmin.filter(u => [u.re,u.nome_completo,u.unidade,u.email_funcional,u.status].some(v => String(v || "").toUpperCase().includes(termo))) : usuariosAprovadosAdmin;
-    const admins = new Set(usuariosAprovadosAdmin.filter(u => u.__ehAdmin).map(u => u.id));
-    const container = document.getElementById("listaAprovados");
-    if (container) renderizarCardsUsuarios(container, lista, admins);
-}
-
 async function carregarAdminUsuarios() {
     const pendentes = document.getElementById("listaPendentes");
     const listaAprovadosEl = document.getElementById("listaAprovados");
@@ -3869,8 +3869,6 @@ async function carregarAdminUsuarios() {
 
     pendentes.innerHTML = '<div class="empty-admin">Carregando...</div>';
     listaAprovadosEl.innerHTML = '<div class="empty-admin">Carregando...</div>';
-    const campoBuscaUsuarios = document.getElementById("buscaUsuariosAprovados");
-    if (campoBuscaUsuarios && !campoBuscaUsuarios.dataset.listener) { campoBuscaUsuarios.addEventListener("input", filtrarUsuariosAprovados); campoBuscaUsuarios.dataset.listener = "1"; }
 
     const consultaAdmin = Promise.all([
         sb.from("extrator_usuarios")
@@ -3913,7 +3911,6 @@ async function carregarAdminUsuarios() {
     const adminIds = new Set(listaAdmins.map(item => item.user_id || item.id));
     const pendentesData = todos.filter(u => u.status === "pendente");
     const aprovados = todos.filter(u => u.status === "aprovado");
-    usuariosAprovadosAdmin = aprovados.map(u => Object.assign({}, u, { __ehAdmin: adminIds.has(u.id) }));
     document.getElementById("contagemPendentes").textContent = pendentesData.length + " pendente(s)";
     document.getElementById("contagemAprovados").textContent = aprovados.length + " aprovado(s)";
     const administradoresAtivos = aprovados.filter(u => adminIds.has(u.id)).length;
@@ -3927,7 +3924,7 @@ async function carregarAdminUsuarios() {
     }
 
     renderizarCardsPendentes(pendentes, pendentesData, adminIds);
-    filtrarUsuariosAprovados();
+    renderizarCardsUsuarios(listaAprovadosEl, aprovados, adminIds);
 }
 
 function montarCardUsuario(usuario, adminIds, pendente) {
@@ -3953,30 +3950,47 @@ function montarCardUsuario(usuario, adminIds, pendente) {
     const tituloPresenca = minutosInativo <= 2 ? "Online" : (minutosInativo <= 15 ? "Ativo nos últimos 15 minutos" : "Offline");
     const badgePresenca = usuario.status === "aprovado" ? '<span class="presenca-bolinha ' + classePresenca + '" title="' + tituloPresenca + '"></span>' : '';
 
-    item.innerHTML =
-        '<div class="admin-grid">' +
-            '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
-            '<div><span>Status do usuário:</span> ' + badgeStatus + badgeAdmin + '</div>' +
-            '<div><span>Status:</span> ' + badgePresenca + '<strong>' + escapeHtml(tituloPresenca) + '</strong></div>' +
-            '<div><span>Nome:</span> ' + escapeHtml(usuario.nome_completo) + '</div>' +
-            '<div><span>Unidade:</span> ' + escapeHtml(usuario.unidade) + '</div>' +
-            '<div><span>E-mail funcional:</span> ' + escapeHtml(usuario.email_funcional) + '</div>' +
-            '<div><span>Selfie:</span> <button type="button" class="btn-secondary btn-ver-selfie" style="margin:0;padding:6px 9px;font-size:12px" ' + (usuario.selfie_base64 ? '' : 'disabled') + '>📸 ' + (usuario.selfie_base64 ? 'Ver selfie' : 'Não enviada') + '</button></div>' +
-            '<div><span>Verificação de movimento:</span> ' + (usuario.selfie_liveness_status === 'aprovado' ? '<span class="admin-status-badge ok">APROVADA</span>' : '<span class="admin-status-badge">NÃO VERIFICADA</span>') + '</div>' +
-            '<div><span>Cadastrado em:</span> ' + escapeHtml(dataTexto) + '</div>' +
-            (usuario.status === "aprovado" ? '<div><span>Aprovado em:</span> ' + escapeHtml(aprovacaoDataTexto) + '</div>' +
-            '<div><span>Local da aprovação:</span> ' + escapeHtml(aprovacaoLocalTexto) + '</div>' : '') +
-        '</div>' +
-        '<div class="admin-actions" id="acoes-' + escapeHtml(usuario.id) + '"></div>';
+    if (!pendente && usuario.status === "aprovado") {
+        item.classList.add("admin-item-clicavel");
+        item.title = "Clique para ver os detalhes da aprovação";
+        item.innerHTML =
+            '<div class="admin-grid admin-resumo-aprovado">' +
+                '<div><span>Nome:</span> <strong>' + escapeHtml(usuario.nome_completo) + '</strong></div>' +
+                '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
+                '<div><span>Status:</span> ' + badgePresenca + '<strong>' + escapeHtml(tituloPresenca) + '</strong> ' + badgeStatus + badgeAdmin + '</div>' +
+            '</div>' +
+            '<div class="admin-actions" id="acoes-' + escapeHtml(usuario.id) + '"></div>';
 
-    const actions = item.querySelector(".admin-actions");
-    const btnSelfie = item.querySelector(".btn-ver-selfie");
-    if (btnSelfie && usuario.selfie_base64) {
-        btnSelfie.addEventListener("click", function() {
-            abrirVisualizadorSelfie(usuario.selfie_base64, usuario.nome_completo);
+        item.addEventListener("click", function(event) {
+            if (event.target.closest("button")) return;
+            abrirDetalhesUsuario(usuario);
         });
+    } else {
+        item.innerHTML =
+            '<div class="admin-grid">' +
+                '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
+                '<div><span>Status do usuário:</span> ' + badgeStatus + badgeAdmin + '</div>' +
+                '<div><span>Status:</span> ' + badgePresenca + '<strong>' + escapeHtml(tituloPresenca) + '</strong></div>' +
+                '<div><span>Nome:</span> ' + escapeHtml(usuario.nome_completo) + '</div>' +
+                '<div><span>Unidade:</span> ' + escapeHtml(usuario.unidade) + '</div>' +
+                '<div><span>E-mail funcional:</span> ' + escapeHtml(usuario.email_funcional) + '</div>' +
+                '<div><span>Selfie:</span> <button type="button" class="btn-secondary btn-ver-selfie" style="margin:0;padding:6px 9px;font-size:12px" ' + (usuario.selfie_base64 ? '' : 'disabled') + '>📸 ' + (usuario.selfie_base64 ? 'Ver selfie' : 'Não enviada') + '</button></div>' +
+                '<div><span>Verificação de movimento:</span> ' + (usuario.selfie_liveness_status === 'aprovado' ? '<span class="admin-status-badge ok">APROVADA</span>' : '<span class="admin-status-badge">NÃO VERIFICADA</span>') + '</div>' +
+                '<div><span>Cadastrado em:</span> ' + escapeHtml(dataTexto) + '</div>' +
+                (usuario.status === "aprovado" ? '<div><span>Aprovado em:</span> ' + escapeHtml(aprovacaoDataTexto) + '</div>' +
+                '<div><span>Local da aprovação:</span> ' + escapeHtml(aprovacaoLocalTexto) + '</div>' : '') +
+            '</div>' +
+            '<div class="admin-actions" id="acoes-' + escapeHtml(usuario.id) + '"></div>';
+
+        const btnSelfie = item.querySelector(".btn-ver-selfie");
+        if (btnSelfie && usuario.selfie_base64) {
+            btnSelfie.addEventListener("click", function() {
+                abrirVisualizadorSelfie(usuario.selfie_base64, usuario.nome_completo);
+            });
+        }
     }
 
+    const actions = item.querySelector(".admin-actions");
     if (pendente) {
         const aprovar = document.createElement("button");
         aprovar.className = "btn-success";
@@ -3989,7 +4003,6 @@ function montarCardUsuario(usuario, adminIds, pendente) {
         rejeitar.type = "button";
         rejeitar.textContent = "❌ Rejeitar";
         rejeitar.onclick = () => alterarStatusUsuario(usuario.id, "rejeitado");
-
         actions.append(aprovar, rejeitar);
     } else {
         if (usuario.status === "rejeitado") {
@@ -4030,6 +4043,51 @@ function montarCardUsuario(usuario, adminIds, pendente) {
     }
 
     return item;
+}
+
+function abrirDetalhesUsuario(usuario) {
+    const antigo = document.getElementById("detalhesUsuarioOverlay");
+    if (antigo) antigo.remove();
+
+    const overlay = document.createElement("div");
+    overlay.id = "detalhesUsuarioOverlay";
+    overlay.className = "admin-gerenciar-overlay";
+    overlay.style.display = "flex";
+    overlay.onclick = function(event) {
+        if (event.target === overlay) fecharDetalhesUsuario();
+    };
+
+    const aprovacaoDataTexto = usuario.aprovacao_em ? new Date(usuario.aprovacao_em).toLocaleString("pt-BR") : "-";
+    const localTexto = (Number.isFinite(Number(usuario.aprovacao_latitude)) && Number.isFinite(Number(usuario.aprovacao_longitude)))
+        ? Number(usuario.aprovacao_latitude).toFixed(6) + ", " + Number(usuario.aprovacao_longitude).toFixed(6) + (Number.isFinite(Number(usuario.aprovacao_localizacao_precisao)) ? " (±" + Math.round(Number(usuario.aprovacao_localizacao_precisao)) + " m)" : "")
+        : "-";
+    const cadastroTexto = usuario.created_at ? new Date(usuario.created_at).toLocaleString("pt-BR") : "-";
+
+    overlay.innerHTML = '<div class="admin-gerenciar-modal admin-detalhes-modal">' +
+        '<h3>👤 Detalhes do usuário</h3>' +
+        '<div class="admin-grid">' +
+            '<div><span>Nome:</span> <strong>' + escapeHtml(usuario.nome_completo) + '</strong></div>' +
+            '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
+            '<div><span>Unidade:</span> ' + escapeHtml(usuario.unidade || "-") + '</div>' +
+            '<div><span>E-mail funcional:</span> ' + escapeHtml(usuario.email_funcional || "-") + '</div>' +
+            '<div><span>Status:</span> <span class="admin-status-badge ok">APROVADO</span></div>' +
+            '<div><span>Cadastrado em:</span> ' + escapeHtml(cadastroTexto) + '</div>' +
+            '<div><span>Aprovado em:</span> ' + escapeHtml(aprovacaoDataTexto) + '</div>' +
+            '<div><span>Local da aprovação:</span> ' + escapeHtml(localTexto) + '</div>' +
+            '<div><span>Verificação de movimento:</span> ' + (usuario.selfie_liveness_status === "aprovado" ? '<span class="admin-status-badge ok">APROVADA</span>' : '<span class="admin-status-badge">NÃO VERIFICADA</span>') + '</div>' +
+            '<div><span>Selfie:</span> <button type="button" id="btnDetalhesSelfie" class="btn-secondary" style="margin:0;padding:6px 9px;font-size:12px" ' + (usuario.selfie_base64 ? '' : 'disabled') + '>📸 ' + (usuario.selfie_base64 ? 'Ver selfie' : 'Não enviada') + '</button></div>' +
+        '</div>' +
+        '<div class="auth-actions"><button class="btn-secondary" type="button" onclick="fecharDetalhesUsuario()">Fechar</button></div>' +
+        '</div>';
+
+    document.body.appendChild(overlay);
+    const btn = document.getElementById("btnDetalhesSelfie");
+    if (btn && usuario.selfie_base64) btn.onclick = () => abrirVisualizadorSelfie(usuario.selfie_base64, usuario.nome_completo);
+}
+
+function fecharDetalhesUsuario() {
+    const overlay = document.getElementById("detalhesUsuarioOverlay");
+    if (overlay) overlay.remove();
 }
 
 function renderizarCardsPendentes(container, lista, adminIds) {
