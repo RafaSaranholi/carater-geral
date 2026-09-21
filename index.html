@@ -183,6 +183,9 @@
 .lista-toolbar input{flex:1;min-width:0;box-sizing:border-box;padding:12px 13px;border-radius:7px;border:1px solid #555;background:#101010;color:#eee;font-size:15px}
 .lista-toolbar button{margin:0;padding:9px 13px;min-width:42px;background:#333;color:#eee;border:1px solid #555}
 .item-salvo{position:relative;padding-bottom:46px;cursor:default}
+.item-salvo.carater-roubo{border:2px solid #e53935}
+.item-salvo.carater-furto{border:2px solid #2e7d32}
+.item-salvo.carater-outros{border:2px solid #f57c00}
 .item-salvo:hover{border-color:#666}
 .item-salvo .item-conteudo{line-height:1.28}
 .btn-copiar-registro{position:absolute;right:10px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#333;color:#eee;border:1px solid #555}
@@ -2040,7 +2043,7 @@ async function extrairSelecionado() {
 
         const final = processarTexto(texto);
 
-        document.getElementById("resultado").value = final;
+        document.getElementById("resultado").value = final.toUpperCase();
         document.getElementById("status").innerText =
             "Texto selecionado extraído com sucesso.";
 
@@ -2245,7 +2248,7 @@ async function extrairSomenteCarater() {
 
         // Mostra somente o resultado final, sem exigir seleção e sem
         // substituir a imagem ou alterar a lista de textos salvos.
-        document.getElementById("resultado").value = resultado;
+        document.getElementById("resultado").value = resultado.toUpperCase();
         document.getElementById("placa").innerText = encontrarPlaca(resultado) || "---";
         document.getElementById("status").innerText =
             "Caráter extraído com sucesso.";
@@ -2299,6 +2302,14 @@ function obterTextoPesquisaLista() {
     return textoNormalizadoPesquisa(document.getElementById("buscaLista")?.value || "");
 }
 
+function classeCorCarater(texto) {
+    const normalizado = String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    if (/\bROUBO\b/.test(normalizado)) return "carater-roubo";
+    if (/\bFURTO\b/.test(normalizado)) return "carater-furto";
+    if (/ACAO\s+CRIMINOSA/.test(normalizado) || /\bOUTROS\b/.test(normalizado)) return "carater-outros";
+    return "";
+}
+
 function renderizarLista() {
     const container = document.getElementById("listaSalvos");
     const contador = document.getElementById("contadorCarater");
@@ -2325,7 +2336,7 @@ function renderizarLista() {
         const numeroRegistro = listaTextos.length - indiceOriginal;
 
         const item = document.createElement("div");
-        item.className = "item-salvo";
+        item.className = "item-salvo" + (classeCorCarater(registro.texto) ? " " + classeCorCarater(registro.texto) : "");
 
         const numero = document.createElement("div");
         numero.className = "item-numero";
@@ -2400,7 +2411,7 @@ async function salvarTextoLista() {
         return;
     }
 
-    const texto = document.getElementById("resultado").value.trim();
+    const texto = document.getElementById("resultado").value.trim().toUpperCase();
 
     if (!texto) {
         alert("Não há texto para salvar.");
