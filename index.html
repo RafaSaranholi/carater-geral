@@ -192,7 +192,13 @@
 .admin-status-badge{display:inline-block;padding:3px 7px;border-radius:999px;font-size:11px;border:1px solid #555;color:#bbb}
 .admin-status-badge.ok{border-color:#1f7a4d;color:#bfe8d1}
 .admin-status-badge.pending{border-color:#8a6d1d;color:#ffe9a8}
-.admin-status-badge.admin{border-color:#3466a8;color:#c9dcff}
+ .admin-status-badge.admin{border-color:#3466a8;color:#c9dcff}
+.presenca-status{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.presenca-bolinha{display:inline-block;width:11px;height:11px;border-radius:50%;flex:0 0 11px;box-shadow:0 0 0 1px rgba(255,255,255,.16)}
+.presenca-online{background:#19c45b}
+.presenca-recente{background:#1689ff}
+.presenca-offline{background:#e33434}
+
 .admin-actions .btn-warning{background:#7a5b13;color:#fff}
 .admin-actions .btn-info{background:#245b78;color:#fff}
 .admin-actions .btn-dark{background:#333;color:#eee;border:1px solid #555}
@@ -2843,6 +2849,8 @@ const sb = window.supabase.createClient(
 let usuarioAtual = null;
 let perfilAtual = null;
 let souAdmin = false;
+let intervaloHeartbeatAcesso = null;
+let intervaloAtualizacaoPresencaAdmin = null;
 
 function normalizarRE(valor) {
     return String(valor || "")
@@ -3578,6 +3586,58 @@ async function atualizarIndicadoresAcesso() {
     }
 }
 
+async function registrarAtividadeUsuario() {
+    if (!usuarioAtual?.id) return;
+    try {
+        const { error } = await sb.rpc("extrator_registrar_presenca");
+        if (error) console.error("Erro ao atualizar atividade do usuário:", error);
+    } catch (erro) {
+        console.error("Erro ao registrar atividade:", erro);
+    }
+}
+
+function iniciarHeartbeatAcesso() {
+    if (intervaloHeartbeatAcesso) clearInterval(intervaloHeartbeatAcesso);
+    registrarAtividadeUsuario();
+    intervaloHeartbeatAcesso = setInterval(registrarAtividadeUsuario, 60000);
+}
+
+function pararHeartbeatAcesso() {
+    if (intervaloHeartbeatAcesso) {
+        clearInterval(intervaloHeartbeatAcesso);
+        intervaloHeartbeatAcesso = null;
+    }
+}
+
+function iniciarAtualizacaoPresencaAdmin() {
+    if (intervaloAtualizacaoPresencaAdmin) clearInterval(intervaloAtualizacaoPresencaAdmin);
+    intervaloAtualizacaoPresencaAdmin = setInterval(() => {
+        if (souAdmin && document.getElementById("adminArea")?.style.display !== "none") {
+            carregarAdminUsuarios();
+        }
+    }, 60000);
+}
+
+function pararAtualizacaoPresencaAdmin() {
+    if (intervaloAtualizacaoPresencaAdmin) {
+        clearInterval(intervaloAtualizacaoPresencaAdmin);
+        intervaloAtualizacaoPresencaAdmin = null;
+    }
+}
+
+function obterStatusPresenca(lastSeenAt) {
+    if (!lastSeenAt) return { classe: "presenca-offline", texto: "OFFLINE" };
+    const minutos = (Date.now() - new Date(lastSeenAt).getTime()) / 60000;
+    if (minutos <= 2) return { classe: "presenca-online", texto: "ONLINE" };
+    if (minutos <= 15) return { classe: "presenca-recente", texto: "ATIVO HÁ POUCO" };
+    return { classe: "presenca-offline", texto: "OFFLINE" };
+}
+
+function renderizarPresencaUsuario(lastSeenAt) {
+    const status = obterStatusPresenca(lastSeenAt);
+    return '<span class="presenca-status"><span class="presenca-bolinha ' + status.classe + '"></span>' + status.texto + '</span>';
+}
+
 async function entrarSistema() {
     const re = formatarRE(document.getElementById("loginRE").value);
     const senha = document.getElementById("loginSenha").value;
@@ -3635,6 +3695,7 @@ async function entrarSistema() {
         sessionStorage.removeItem("extrator_mensagem_login_exibida");
 
         await atualizarIndicadoresAcesso();
+        iniciarHeartbeatAcesso();
         mostrarAplicacao();
         iniciarRealtimeLista();
         await carregarLista();
@@ -3658,6 +3719,8 @@ async function entrarSistema() {
 
 async function sairSistema() {
     fecharMensagemAdmin();
+    pararHeartbeatAcesso();
+    pararAtualizacaoPresencaAdmin();
     pararRealtimeLista();
     await sb.auth.signOut();
     usuarioAtual = null;
@@ -3675,9 +3738,11 @@ async function abrirAdmin() {
     document.getElementById("appPrincipal").style.display = "none";
     document.getElementById("adminArea").style.display = "block";
     await carregarAdmin();
+    iniciarAtualizacaoPresencaAdmin();
 }
 
 function voltarDoAdmin() {
+    pararAtualizacaoPresencaAdmin();
     document.getElementById("adminArea").style.display = "none";
     document.getElementById("appPrincipal").style.display = "block";
 }
@@ -3724,7 +3789,7 @@ async function carregarAdminUsuarios() {
 
     const consultaAdmin = Promise.all([
         sb.from("extrator_usuarios")
-            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at,aprovacao_em,aprovacao_latitude,aprovacao_longitude,aprovacao_localizacao_precisao")
+            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at,last_seen_at,aprovacao_em,aprovacao_latitude,aprovacao_longitude,aprovacao_localizacao_precisao")
             .order("created_at", { ascending: true }),
         sb.rpc("extrator_lista_admins")
     ]);
@@ -3798,6 +3863,7 @@ function montarCardUsuario(usuario, adminIds, pendente) {
         '<div class="admin-grid">' +
             '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
             '<div><span>Status:</span> ' + badgeStatus + badgeAdmin + '</div>' +
+            '<div><span>Presença:</span> ' + renderizarPresencaUsuario(usuario.last_seen_at) + '</div>' +
             '<div><span>Nome:</span> ' + escapeHtml(usuario.nome_completo) + '</div>' +
             '<div><span>Unidade:</span> ' + escapeHtml(usuario.unidade) + '</div>' +
             '<div><span>E-mail funcional:</span> ' + escapeHtml(usuario.email_funcional) + '</div>' +
@@ -4040,6 +4106,7 @@ async function restaurarSessao() {
         escapeHtml(perfil.unidade);
 
     await atualizarIndicadoresAcesso();
+    iniciarHeartbeatAcesso();
     mostrarAplicacao();
     iniciarRealtimeLista();
     await carregarLista();
@@ -4074,6 +4141,8 @@ sb.auth.onAuthStateChange(function(event, session) {
         usuarioAtual = null;
         perfilAtual = null;
         souAdmin = false;
+        pararHeartbeatAcesso();
+        pararAtualizacaoPresencaAdmin();
         pararRealtimeLista();
         mostrarTelaAcesso();
     }
