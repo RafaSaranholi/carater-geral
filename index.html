@@ -361,6 +361,58 @@
 }
 </style>
 
+
+<style id="correcao-modal-detalhes-usuario">
+#detalhesUsuarioOverlay{
+    position:fixed !important;
+    inset:0 !important;
+    width:100vw !important;
+    height:100vh !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    box-sizing:border-box !important;
+    padding:20px !important;
+    margin:0 !important;
+    background:rgba(0,0,0,.72) !important;
+    z-index:200000 !important;
+}
+#detalhesUsuarioOverlay .admin-gerenciar-modal{
+    width:min(760px,94vw) !important;
+    max-width:760px !important;
+    max-height:85vh !important;
+    overflow:auto !important;
+    margin:0 !important;
+    box-sizing:border-box !important;
+}
+</style>
+
+
+<style id="correcao-final-modal-e-busca">
+#detalhesUsuarioOverlay{
+    position:fixed !important;
+    inset:0 !important;
+    width:100vw !important;
+    height:100vh !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    box-sizing:border-box !important;
+    padding:20px !important;
+    margin:0 !important;
+    background:rgba(0,0,0,.72) !important;
+    z-index:200000 !important;
+}
+#detalhesUsuarioOverlay .admin-gerenciar-modal{
+    width:min(760px,94vw) !important;
+    max-width:760px !important;
+    max-height:85vh !important;
+    overflow:auto !important;
+    margin:0 !important;
+    box-sizing:border-box !important;
+}
+</style>
+
 </head>
 
 <body>
@@ -522,7 +574,13 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
             <h3>Usuários aprovados</h3>
             <span id="contagemAprovados" class="admin-count"></span><small id="contagemAdministradores" class="admin-count admin-count-secundario"></small>
         </div>
-        <div id="listaAprovados" class="admin-list"><div class="empty-admin">Carregando...</div></div>
+        <div style="margin:10px 0 12px;">
+    <input id="buscaUsuariosAprovados" type="search"
+        placeholder="🔎 Buscar por RE, nome, unidade, e-mail ou status..."
+        autocomplete="off"
+        style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:6px;border:1px solid #555;background:#101010;color:#eee;font-size:14px">
+</div>
+<div id="listaAprovados" class="admin-list"><div class="empty-admin">Carregando...</div></div>
     </div>
 
 </div>
@@ -3892,6 +3950,28 @@ async function carregarAdmin() {
     await carregarAdminUsuarios();
 }
 
+
+let usuariosAprovadosAdmin = [];
+
+function filtrarUsuariosAprovados() {
+    const campo = document.getElementById("buscaUsuariosAprovados");
+    const termo = (campo?.value || "").trim().toUpperCase();
+
+    const lista = termo
+        ? usuariosAprovadosAdmin.filter(u =>
+            [u.re, u.nome_completo, u.unidade, u.email_funcional, u.status]
+                .some(v => String(v || "").toUpperCase().includes(termo))
+        )
+        : usuariosAprovadosAdmin;
+
+    const admins = new Set(
+        usuariosAprovadosAdmin.filter(u => u.__ehAdmin).map(u => u.id)
+    );
+
+    const container = document.getElementById("listaAprovados");
+    if (container) renderizarCardsUsuarios(container, lista, admins);
+}
+
 async function carregarAdminUsuarios() {
     const pendentes = document.getElementById("listaPendentes");
     const listaAprovadosEl = document.getElementById("listaAprovados");
@@ -3954,7 +4034,18 @@ async function carregarAdminUsuarios() {
     }
 
     renderizarCardsPendentes(pendentes, pendentesData, adminIds);
-    renderizarCardsUsuarios(listaAprovadosEl, aprovados, adminIds);
+
+    usuariosAprovadosAdmin = aprovados.map(u =>
+        Object.assign({}, u, { __ehAdmin: adminIds.has(u.id) })
+    );
+
+    const campoBuscaUsuarios = document.getElementById("buscaUsuariosAprovados");
+    if (campoBuscaUsuarios && !campoBuscaUsuarios.dataset.listener) {
+        campoBuscaUsuarios.addEventListener("input", filtrarUsuariosAprovados);
+        campoBuscaUsuarios.dataset.listener = "1";
+    }
+
+    filtrarUsuariosAprovados();
 }
 
 function montarCardUsuario(usuario, adminIds, pendente) {
