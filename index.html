@@ -2307,7 +2307,7 @@ function classeCorCarater(texto) {
     const normalizado = String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
     if (/\bROUBO\b/.test(normalizado)) return "carater-roubo";
     if (/\bFURTO\b/.test(normalizado)) return "carater-furto";
-    if (/ACAO\s+CRIMINOSA/.test(normalizado) || /\bOUTROS\b/.test(normalizado)) return "carater-outros";
+    if (/ACAO\s+CRIMINOSA/.test(normalizado) || /\bOUTROS\b/.test(normalizado) || /\bSUSPEITO\b/.test(normalizado)) return "carater-outros";
     return "";
 }
 
@@ -3874,7 +3874,8 @@ function montarCardUsuario(usuario, adminIds, pendente) {
     item.innerHTML =
         '<div class="admin-grid">' +
             '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
-            '<div><span>Status:</span> ' + badgePresenca + badgeStatus + badgeAdmin + '<div class="presenca-legenda">' + escapeHtml(tituloPresenca) + '</div></div>' +
+            '<div><span>Status do usuário:</span> ' + badgeStatus + badgeAdmin + '</div>' +
+            '<div><span>Status:</span> ' + badgePresenca + '<strong>' + escapeHtml(tituloPresenca) + '</strong></div>' +
             '<div><span>Nome:</span> ' + escapeHtml(usuario.nome_completo) + '</div>' +
             '<div><span>Unidade:</span> ' + escapeHtml(usuario.unidade) + '</div>' +
             '<div><span>E-mail funcional:</span> ' + escapeHtml(usuario.email_funcional) + '</div>' +
