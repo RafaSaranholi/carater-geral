@@ -1,4 +1,4 @@
-
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -490,6 +490,7 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
             <h3>Usuários aprovados</h3>
             <span id="contagemAprovados" class="admin-count"></span><small id="contagemAdministradores" class="admin-count admin-count-secundario"></small>
         </div>
+        <div style="margin:10px 0 12px"><input id="buscaUsuariosAprovados" type="search" placeholder="🔎 Buscar por RE, nome, unidade, e-mail ou status..." autocomplete="off" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:6px;border:1px solid #555;background:#101010;color:#eee;font-size:14px"></div>
         <div id="listaAprovados" class="admin-list"><div class="empty-admin">Carregando...</div></div>
     </div>
 
@@ -3790,7 +3791,6 @@ async function carregarGerenciadorAdministradores() {
     const admins = Array.isArray(adminsResult.data) ? adminsResult.data : [];
     const adminIds = new Set(admins.map(item => item.user_id || item.id));
     const administradores = usuarios.filter(u => adminIds.has(u.id));
-    const disponiveis = usuarios.filter(u => !adminIds.has(u.id));
 
     let html = '<div class="info"><strong>' + administradores.length + '</strong> administrador(es) ativo(s)</div>';
     if (!administradores.length) {
@@ -3802,15 +3802,6 @@ async function carregarGerenciadorAdministradores() {
         });
     }
 
-    html += '<hr style="border:0;border-top:1px solid #444;margin:16px 0">';
-    html += '<div><strong>Ativar administrador</strong></div>';
-    if (!disponiveis.length) {
-        html += '<div class="admin-gerenciar-vazio">Todos os usuários aprovados já são administradores.</div>';
-    } else {
-        disponiveis.forEach(u => {
-            html += '<div class="admin-gerenciar-item"><div class="info-admin"><strong>' + escapeHtml(u.nome_completo || '-') + '</strong><small>RE: ' + escapeHtml(u.re || '-') + ' · ' + escapeHtml(u.email_funcional || '-') + '</small></div><button type="button" class="btn-info" onclick="alterarAdministrador(\'' + escapeHtml(u.id) + '\', true); setTimeout(carregarGerenciadorAdministradores, 400)">👑 Ativar ADM</button></div>';
-        });
-    }
     listaEl.innerHTML = html;
 }
 
@@ -3860,6 +3851,17 @@ async function carregarAdmin() {
     await carregarAdminUsuarios();
 }
 
+let usuariosAprovadosAdmin = [];
+
+function filtrarUsuariosAprovados() {
+    const campo = document.getElementById("buscaUsuariosAprovados");
+    const termo = (campo?.value || "").trim().toUpperCase();
+    const lista = termo ? usuariosAprovadosAdmin.filter(u => [u.re,u.nome_completo,u.unidade,u.email_funcional,u.status].some(v => String(v || "").toUpperCase().includes(termo))) : usuariosAprovadosAdmin;
+    const admins = new Set(usuariosAprovadosAdmin.filter(u => u.__ehAdmin).map(u => u.id));
+    const container = document.getElementById("listaAprovados");
+    if (container) renderizarCardsUsuarios(container, lista, admins);
+}
+
 async function carregarAdminUsuarios() {
     const pendentes = document.getElementById("listaPendentes");
     const listaAprovadosEl = document.getElementById("listaAprovados");
@@ -3867,6 +3869,8 @@ async function carregarAdminUsuarios() {
 
     pendentes.innerHTML = '<div class="empty-admin">Carregando...</div>';
     listaAprovadosEl.innerHTML = '<div class="empty-admin">Carregando...</div>';
+    const campoBuscaUsuarios = document.getElementById("buscaUsuariosAprovados");
+    if (campoBuscaUsuarios && !campoBuscaUsuarios.dataset.listener) { campoBuscaUsuarios.addEventListener("input", filtrarUsuariosAprovados); campoBuscaUsuarios.dataset.listener = "1"; }
 
     const consultaAdmin = Promise.all([
         sb.from("extrator_usuarios")
@@ -3909,6 +3913,7 @@ async function carregarAdminUsuarios() {
     const adminIds = new Set(listaAdmins.map(item => item.user_id || item.id));
     const pendentesData = todos.filter(u => u.status === "pendente");
     const aprovados = todos.filter(u => u.status === "aprovado");
+    usuariosAprovadosAdmin = aprovados.map(u => Object.assign({}, u, { __ehAdmin: adminIds.has(u.id) }));
     document.getElementById("contagemPendentes").textContent = pendentesData.length + " pendente(s)";
     document.getElementById("contagemAprovados").textContent = aprovados.length + " aprovado(s)";
     const administradoresAtivos = aprovados.filter(u => adminIds.has(u.id)).length;
@@ -3922,7 +3927,7 @@ async function carregarAdminUsuarios() {
     }
 
     renderizarCardsPendentes(pendentes, pendentesData, adminIds);
-    renderizarCardsUsuarios(listaAprovadosEl, aprovados, adminIds);
+    filtrarUsuariosAprovados();
 }
 
 function montarCardUsuario(usuario, adminIds, pendente) {
