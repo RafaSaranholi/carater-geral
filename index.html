@@ -162,6 +162,7 @@
 .admin-message-dropdown .auth-actions button{min-width:0;padding:8px 9px;font-size:12px}
 .admin-message-dropdown .admin-message-current{margin-top:12px;padding:10px;font-size:12px;line-height:1.45;max-height:190px;overflow:auto}
 @media(max-width:700px){.admin-message-dropdown{right:-4px;width:calc(100vw - 24px)}}
+#adminGerenciarOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9999;align-items:center;justify-content:center;padding:20px}.admin-gerenciar-modal{width:min(760px,100%);max-height:85vh;overflow:auto;background:#202020;border:1px solid #555;border-radius:10px;padding:18px;box-shadow:0 15px 45px rgba(0,0,0,.45)}.admin-gerenciar-lista{display:grid;gap:8px;margin-top:12px}.admin-gerenciar-item{background:#101010;border:1px solid #444;border-radius:8px;padding:10px;display:flex;align-items:center;justify-content:space-between;gap:10px}.admin-gerenciar-item .info-admin{display:flex;flex-direction:column;gap:3px}.admin-gerenciar-item small{color:#aaa}.admin-gerenciar-vazio{color:#aaa;padding:10px 0}.admin-gerenciar-modal h3{margin-top:0}
 #appPrincipal,#adminArea{display:none}
 .admin-card{background:#202020;border:1px solid #444;border-radius:10px;padding:16px;margin-bottom:18px}
 .admin-card h2{margin-top:0}
@@ -321,6 +322,8 @@
     white-space:nowrap;pointer-events:none;
 }
 
+
+.admin-section-title .admin-count-secundario { display:block; font-size:11px; font-weight:500; opacity:.75; margin-top:2px; }
 </style>
 
 <link rel="manifest" href="./manifest.json">
@@ -470,6 +473,7 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
         <div class="auth-actions">
             <button class="btn-secondary" type="button" onclick="voltarDoAdmin()">Voltar ao extrator</button>
             <button class="btn-secondary" type="button" onclick="carregarAdmin()">Atualizar</button>
+            <button class="btn-info" type="button" onclick="abrirGerenciadorAdministradores()">👑 Administradores</button>
         </div>
     </div>
 
@@ -484,11 +488,22 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
     <div class="admin-card">
         <div class="admin-section-title">
             <h3>Usuários aprovados</h3>
-            <span id="contagemAprovados" class="admin-count"></span>
+            <span id="contagemAprovados" class="admin-count"></span><small id="contagemAdministradores" class="admin-count admin-count-secundario"></small>
         </div>
         <div id="listaAprovados" class="admin-list"><div class="empty-admin">Carregando...</div></div>
     </div>
 
+</div>
+
+<div id="adminGerenciarOverlay" onclick="if(event.target===this) fecharGerenciadorAdministradores()">
+    <div class="admin-gerenciar-modal">
+        <h3>👑 Gerenciar administradores</h3>
+        <p class="info">Veja os administradores ativos e ative ou desative o privilégio administrativo dos usuários aprovados.</p>
+        <div id="listaAdministradoresGerenciar" class="admin-gerenciar-lista"><div class="admin-gerenciar-vazio">Carregando...</div></div>
+        <div class="auth-actions">
+            <button class="btn-secondary" type="button" onclick="fecharGerenciadorAdministradores()">Fechar</button>
+        </div>
+    </div>
 </div>
 
 <div id="adminSelfieOverlay" class="cad-selfie-overlay">
@@ -3741,6 +3756,64 @@ async function sairSistema() {
     mostrarTelaAcesso();
 }
 
+function abrirGerenciadorAdministradores() {
+    if (!souAdmin) return;
+    const overlay = document.getElementById("adminGerenciarOverlay");
+    if (!overlay) return;
+    overlay.style.display = "flex";
+    carregarGerenciadorAdministradores();
+}
+
+function fecharGerenciadorAdministradores() {
+    const overlay = document.getElementById("adminGerenciarOverlay");
+    if (overlay) overlay.style.display = "none";
+}
+
+async function carregarGerenciadorAdministradores() {
+    if (!souAdmin) return;
+    const listaEl = document.getElementById("listaAdministradoresGerenciar");
+    if (!listaEl) return;
+    listaEl.innerHTML = '<div class="admin-gerenciar-vazio">Carregando...</div>';
+
+    const [usuariosResult, adminsResult] = await Promise.all([
+        sb.from("extrator_usuarios").select("id,re,nome_completo,unidade,email_funcional,status").eq("status", "aprovado").order("nome_completo", { ascending: true }),
+        sb.rpc("extrator_lista_admins")
+    ]);
+
+    if (usuariosResult.error || adminsResult.error) {
+        console.error(usuariosResult.error || adminsResult.error);
+        listaEl.innerHTML = '<div class="admin-gerenciar-vazio">Não foi possível carregar os administradores.</div>';
+        return;
+    }
+
+    const usuarios = usuariosResult.data || [];
+    const admins = Array.isArray(adminsResult.data) ? adminsResult.data : [];
+    const adminIds = new Set(admins.map(item => item.user_id || item.id));
+    const administradores = usuarios.filter(u => adminIds.has(u.id));
+    const disponiveis = usuarios.filter(u => !adminIds.has(u.id));
+
+    let html = '<div class="info"><strong>' + administradores.length + '</strong> administrador(es) ativo(s)</div>';
+    if (!administradores.length) {
+        html += '<div class="admin-gerenciar-vazio">Nenhum administrador ativo.</div>';
+    } else {
+        administradores.forEach(u => {
+            const podeRetirar = u.id !== usuarioAtual?.id;
+            html += '<div class="admin-gerenciar-item"><div class="info-admin"><strong>' + escapeHtml(u.nome_completo || '-') + '</strong><small>RE: ' + escapeHtml(u.re || '-') + ' · ' + escapeHtml(u.email_funcional || '-') + '</small></div><button type="button" class="btn-warning" ' + (podeRetirar ? '' : 'disabled') + ' onclick="alterarAdministrador(\'' + escapeHtml(u.id) + '\', false); setTimeout(carregarGerenciadorAdministradores, 400)">' + (podeRetirar ? '↩️ Desativar ADM' : '🔒 Seu ADM') + '</button></div>';
+        });
+    }
+
+    html += '<hr style="border:0;border-top:1px solid #444;margin:16px 0">';
+    html += '<div><strong>Ativar administrador</strong></div>';
+    if (!disponiveis.length) {
+        html += '<div class="admin-gerenciar-vazio">Todos os usuários aprovados já são administradores.</div>';
+    } else {
+        disponiveis.forEach(u => {
+            html += '<div class="admin-gerenciar-item"><div class="info-admin"><strong>' + escapeHtml(u.nome_completo || '-') + '</strong><small>RE: ' + escapeHtml(u.re || '-') + ' · ' + escapeHtml(u.email_funcional || '-') + '</small></div><button type="button" class="btn-info" onclick="alterarAdministrador(\'' + escapeHtml(u.id) + '\', true); setTimeout(carregarGerenciadorAdministradores, 400)">👑 Ativar ADM</button></div>';
+        });
+    }
+    listaEl.innerHTML = html;
+}
+
 async function abrirAdmin() {
     if (!souAdmin) return;
     fecharMensagemAdmin();
@@ -3750,6 +3823,7 @@ async function abrirAdmin() {
 }
 
 function voltarDoAdmin() {
+    fecharGerenciadorAdministradores();
     document.getElementById("adminArea").style.display = "none";
     document.getElementById("appPrincipal").style.display = "block";
 }
@@ -3837,6 +3911,9 @@ async function carregarAdminUsuarios() {
     const aprovados = todos.filter(u => u.status === "aprovado");
     document.getElementById("contagemPendentes").textContent = pendentesData.length + " pendente(s)";
     document.getElementById("contagemAprovados").textContent = aprovados.length + " aprovado(s)";
+    const administradoresAtivos = aprovados.filter(u => adminIds.has(u.id)).length;
+    const contagemAdministradores = document.getElementById("contagemAdministradores");
+    if (contagemAdministradores) contagemAdministradores.textContent = "Administradores ativos: " + administradoresAtivos;
 
     const badgeAprovacoes = document.getElementById("badgeAprovacoes");
     if (badgeAprovacoes) {
