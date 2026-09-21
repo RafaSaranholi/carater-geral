@@ -331,6 +331,36 @@
 <link rel="manifest" href="./manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
 <meta name="theme-color" content="#0b0f14">
+
+<style id="modal-aprovado-centralizado">
+#modalDetalhesUsuario {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 99999 !important;
+    display: none;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 20px !important;
+    box-sizing: border-box !important;
+    background: rgba(0,0,0,.72) !important;
+}
+#modalDetalhesUsuario.aberto {
+    display: flex !important;
+}
+#modalDetalhesUsuario .modal-conteudo,
+#modalDetalhesUsuario .modal-content,
+#modalDetalhesUsuario > div {
+    max-width: 720px;
+    width: min(720px, 94vw);
+    max-height: 88vh;
+    overflow-y: auto;
+    margin: 0 auto !important;
+    box-sizing: border-box;
+}
+</style>
+
 </head>
 
 <body>
@@ -4342,5 +4372,21 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
   });
 })();
 </script>
+
+<script id="centralizar-modal-aprovado">
+(function(){
+    function ajustarModalDetalhes(){
+        const m = document.getElementById('modalDetalhesUsuario');
+        if (!m) return;
+        if (m.classList.contains('aberto')) {
+            m.style.display = 'flex';
+        }
+    }
+    document.addEventListener('click', function(){
+        setTimeout(ajustarModalDetalhes, 0);
+    });
+})();
+</script>
+
 </body>
 </html>
