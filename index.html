@@ -711,7 +711,9 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
             <div class="backup-actions">
                 <button class="btn-success" type="button" onclick="baixarBackupUsuarios()">💾 Fazer backup agora</button>
                 <button class="btn-info" type="button" onclick="document.getElementById('arquivoBackupUsuarios').click()">♻️ Restaurar backup</button>
+                <button class="btn-dark" type="button" onclick="document.getElementById('arquivoVerificarBackupUsuarios').click()">🔍 Verificar backup</button>
                 <input id="arquivoBackupUsuarios" type="file" accept="application/json,.json" style="display:none" onchange="restaurarBackupUsuarios(event)">
+                <input id="arquivoVerificarBackupUsuarios" type="file" accept="application/json,.json" style="display:none" onchange="verificarBackupUsuarios(event)">
             </div>
             <div id="backupUsuariosStatus" class="backup-status">Faça um backup sempre que alterar cadastros ou administradores e guarde o arquivo fora do site.</div>
         </div>
@@ -4784,71 +4786,93 @@ async function baixarBackupUsuarios() {
     }
 }
 
+async function lerEValidarBackupUsuarios(arquivo) {
+    const texto = await arquivo.text();
+    const backup = JSON.parse(texto);
+    if (backup?.formato !== "extrator-carater-geral-backup" || !Array.isArray(backup.usuarios)) {
+        throw new Error("Arquivo de backup inválido ou incompatível.");
+    }
+    const camposPermitidos = [
+        "id","re","nome_completo","unidade","email_funcional","status","created_at","updated_at",
+        "selfie_base64","selfie_liveness_status","selfie_liveness_verified_at","termo_aceito","termo_aceito_em",
+        "termo_versao","termo_latitude","termo_longitude","termo_localizacao_precisao","aprovacao_em",
+        "aprovacao_latitude","aprovacao_longitude","aprovacao_localizacao_precisao","last_seen_at"
+    ];
+    const registros = backup.usuarios.map(u => {
+        const r = {};
+        camposPermitidos.forEach(c => { if (Object.prototype.hasOwnProperty.call(u, c)) r[c] = u[c]; });
+        return r;
+    }).filter(u => u.id && u.re && u.nome_completo && u.unidade && u.email_funcional);
+    if (!registros.length) throw new Error("O backup não contém cadastros válidos.");
+    const admins = Array.isArray(backup.administradores)
+        ? backup.administradores.filter(a => a?.user_id).map(a => ({ user_id:a.user_id, ...(a.created_at ? {created_at:a.created_at} : {}) }))
+        : [];
+    return {backup, registros, admins};
+}
+
+async function verificarBackupUsuarios(event) {
+    if (!souAdmin) return;
+    const arquivo = event.target.files?.[0];
+    const statusEl = document.getElementById("backupUsuariosStatus");
+    event.target.value = "";
+    if (!arquivo) return;
+    try {
+        statusEl.textContent = "Verificando backup...";
+        const {backup, registros, admins} = await lerEValidarBackupUsuarios(arquivo);
+        const ids = [...new Set(registros.map(u => u.id))];
+        const {data: atuais, error} = await sb.from("extrator_usuarios").select("id,re,nome_completo,status").in("id", ids);
+        if (error) throw error;
+        const atuaisMap = new Map((atuais || []).map(u => [u.id,u]));
+        const existentes = registros.filter(u => atuaisMap.has(u.id));
+        const ausentes = registros.filter(u => !atuaisMap.has(u.id));
+        const nomeBackup = backup.gerado_em ? new Date(backup.gerado_em).toLocaleString("pt-BR") : "data não informada";
+        statusEl.textContent = `Backup válido. Gerado em ${nomeBackup}. ${registros.length} perfil(is): ${existentes.length} já existem e ${ausentes.length} não existem nesta tabela. ${admins.length} administrador(es) no arquivo.`;
+        alert("BACKUP VÁLIDO\n\nPerfis no arquivo: " + registros.length + "\nPerfis que já existem: " + existentes.length + "\nPerfis ausentes: " + ausentes.length + "\nAdministradores no arquivo: " + admins.length + "\n\nEsta verificação NÃO altera nenhum dado.");
+    } catch (error) {
+        console.error(error);
+        statusEl.textContent = "Erro na verificação: " + (error.message || error);
+        alert("O arquivo não pôde ser validado. " + (error.message || error));
+    }
+}
+
 async function restaurarBackupUsuarios(event) {
     if (!souAdmin) return;
     const arquivo = event.target.files?.[0];
     const statusEl = document.getElementById("backupUsuariosStatus");
     event.target.value = "";
     if (!arquivo) return;
-
-    if (!confirm("ATENÇÃO: a restauração vai atualizar/reintegrar os cadastros existentes no backup. Ela não apaga usuários que não estejam no arquivo. Deseja continuar?")) return;
-
     try {
-        statusEl.textContent = "Lendo backup...";
-        const texto = await arquivo.text();
-        const backup = JSON.parse(texto);
-
-        if (backup?.formato !== "extrator-carater-geral-backup" || !Array.isArray(backup.usuarios)) {
-            throw new Error("Arquivo de backup inválido ou incompatível.");
-        }
-
-        const camposPermitidos = [
-            "id","re","nome_completo","unidade","email_funcional","status",
-            "created_at","updated_at","selfie_base64","selfie_liveness_status",
-            "selfie_liveness_verified_at","termo_aceito","termo_aceito_em","termo_versao",
-            "termo_latitude","termo_longitude","termo_localizacao_precisao","aprovacao_em",
-            "aprovacao_latitude","aprovacao_longitude","aprovacao_localizacao_precisao","last_seen_at"
-        ];
-
-        const registros = backup.usuarios.map(u => {
-            const r = {};
-            camposPermitidos.forEach(c => { if (Object.prototype.hasOwnProperty.call(u, c)) r[c] = u[c]; });
-            return r;
-        }).filter(u => u.id && u.re && u.nome_completo && u.unidade && u.email_funcional);
-
-        if (!registros.length) throw new Error("O backup não contém cadastros válidos.");
-
-        // Upsert dos perfis. Se a conta correspondente ainda existir em auth.users,
-        // o cadastro volta a aparecer no sistema com os dados do backup.
-        const { error: upsertError } = await sb
-            .from("extrator_usuarios")
-            .upsert(registros, { onConflict: "id" });
-
-        if (upsertError) {
-            throw new Error("Não foi possível reintegrar os perfis. Verifique se as contas de autenticação (Supabase Auth) correspondentes ainda existem. Detalhe: " + upsertError.message);
-        }
-
-        let adminsRestaurados = 0;
-        const admins = Array.isArray(backup.administradores) ? backup.administradores : [];
+        statusEl.textContent = "Analisando backup antes da restauração...";
+        const {registros, admins} = await lerEValidarBackupUsuarios(arquivo);
+        const ids = [...new Set(registros.map(u => u.id))];
+        const {data: atuais, error: consultaError} = await sb.from("extrator_usuarios").select("id,re,nome_completo,status").in("id", ids);
+        if (consultaError) throw consultaError;
+        const atuaisMap = new Map((atuais || []).map(u => [u.id,u]));
+        const existentes = registros.filter(u => atuaisMap.has(u.id));
+        const ausentes = registros.filter(u => !atuaisMap.has(u.id));
+        const confirmar = confirm("RESTAURAÇÃO DE BACKUP\n\nO arquivo contém " + registros.length + " perfil(is).\n• " + existentes.length + " já existem e terão os dados do backup atualizados.\n• " + ausentes.length + " não existem na tabela e serão reintegrados, se a conta correspondente do Supabase Auth ainda existir.\n• " + admins.length + " administrador(es) serão reintegrados.\n\nUsuários que não estão no backup NÃO serão apagados.\n\nAs senhas NÃO são restauradas pelo JSON.\n\nDeseja realmente continuar?");
+        if (!confirmar) { statusEl.textContent = "Restauração cancelada. Nenhum dado foi alterado."; return; }
+        statusEl.textContent = "Restaurando perfis...";
+        const {error: upsertError} = await sb.from("extrator_usuarios").upsert(registros,{onConflict:"id"});
+        if (upsertError) throw new Error("Não foi possível reintegrar os perfis. Isso pode ocorrer quando um ID do backup não possui mais a conta correspondente no Supabase Auth. Nenhum usuário fora do backup é apagado. Detalhe: " + upsertError.message);
+        let adminsRestaurados=0;
         if (admins.length) {
-            const adminRows = admins.filter(a => a?.user_id).map(a => ({ user_id: a.user_id, ...(a.created_at ? { created_at: a.created_at } : {}) }));
+            const adminRows=admins.filter(a => ids.includes(a.user_id));
             if (adminRows.length) {
-                const { error: adminError } = await sb.from("extrator_admins").upsert(adminRows, { onConflict: "user_id" });
-                if (adminError) throw new Error("Perfis restaurados, mas não foi possível restaurar os administradores: " + adminError.message);
-                adminsRestaurados = adminRows.length;
+                const {error: adminError}=await sb.from("extrator_admins").upsert(adminRows,{onConflict:"user_id"});
+                if (adminError) throw new Error("Os perfis foram restaurados, mas não foi possível restaurar os administradores: " + adminError.message);
+                adminsRestaurados=adminRows.length;
             }
         }
-
-        statusEl.textContent = `Restauração concluída: ${registros.length} perfil(is) reintegrado(s) e ${adminsRestaurados} administrador(es) restaurado(s).`;
+        statusEl.textContent=`Restauração concluída: ${registros.length} perfil(is) processado(s) e ${adminsRestaurados} administrador(es) restaurado(s).`;
         await carregarAdminUsuarios();
-        alert("Backup restaurado com sucesso. Os usuários precisam ter suas contas de autenticação existentes para conseguir entrar.");
+        alert("BACKUP RESTAURADO\n\nPerfis processados: " + registros.length + "\nAdministradores restaurados: " + adminsRestaurados + "\n\nNenhum usuário que não estivesse no backup foi apagado.\nAs senhas do Supabase Auth não fazem parte do backup.");
     } catch (error) {
         console.error(error);
         statusEl.textContent = "Erro na restauração: " + (error.message || error);
         alert("Não foi possível restaurar o backup. " + (error.message || error));
     }
 }
-
 
 async function alterarStatusUsuario(id, novoStatus) {
     if (!souAdmin) return;
