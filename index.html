@@ -434,6 +434,44 @@
 }
 </style>
 
+
+<style id="titulo-login-centralizado">
+/* Apenas o título e subtítulo da tela de acesso ficam centralizados.
+   Todo o restante do sistema permanece com a aparência original. */
+#loginScreen h1,
+#loginScreen h2,
+#loginScreen .login-title,
+#loginScreen .login-subtitle {
+    text-align: center !important;
+}
+</style>
+
+
+<style id="centralizacao-real-titulo-login">
+#loginScreen .login-container,
+#loginScreen .login-card,
+#loginScreen .login-box {
+    text-align: center !important;
+}
+
+#loginScreen h1,
+#loginScreen h2,
+#loginScreen h3 {
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    text-align: center !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+
+#loginScreen h1 + *,
+#loginScreen h2 + *,
+#loginScreen h3 + * {
+    text-align: center !important;
+}
+</style>
+
 </head>
 
 <body>
@@ -444,7 +482,7 @@
 <div id="telaAcesso" class="auth-shell">
     <div class="auth-card">
         <div id="loginBox">
-            <h2>Extrator de Caráter Geral</h2>
+            <h2 style="text-align:center !important;">Extrator de Caráter Geral</h2>
             <p>Acesso restrito. Entre utilizando seu <strong>RE</strong> e sua senha.</p>
 
             <label for="loginRE">RE</label>
