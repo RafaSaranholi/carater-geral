@@ -3473,12 +3473,12 @@ function iniciarPresenca() {
     // Registra imediatamente ao entrar/recuperar a sessão.
     registrarPresenca();
 
-    // Heartbeat a cada 30 segundos.
+    // Heartbeat a cada 15 segundos.
     intervaloPresenca = setInterval(function() {
         if (document.visibilityState === "visible" && navigator.onLine !== false) {
             registrarPresenca();
         }
-    }, 30000);
+    }, 5000);
 
     // O administrador atualiza SOMENTE os indicadores de presença.
     // A lista completa só é recarregada quando houver mudança administrativa
@@ -3538,7 +3538,7 @@ async function atualizarSomentePresencaAdmin() {
         let classe = "presenca-offline";
         let titulo = "Offline";
 
-        if (minutosInativo <= 2) {
+        if (minutosInativo <= 0.5) {
             classe = "presenca-online";
             titulo = "Online";
         } else if (minutosInativo <= 15) {
