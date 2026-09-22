@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -332,6 +332,8 @@
 
 
 .admin-section-title .admin-count-secundario { display:block; font-size:11px; font-weight:500; opacity:.75; margin-top:2px; }
+
+.permissao-admin-opcao{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;background:#101010;border:1px solid #444;border-radius:8px;cursor:pointer}.permissao-admin-opcao:hover{border-color:#666}.permissao-admin-opcao input{margin-top:3px;accent-color:#2f80ed}.permissao-admin-opcao span{display:flex;flex-direction:column;gap:3px}.permissao-admin-opcao small{color:#aaa;font-size:11px;line-height:1.35}.admin-permissao-resumo{color:#aaa;font-size:11px;margin-top:4px;line-height:1.35}.admin-master-badge{display:inline-block;padding:3px 7px;border-radius:999px;border:1px solid #d4af37;color:#f0d878;font-size:10px;font-weight:700;margin-left:5px}
 </style>
 
 <link rel="manifest" href="./manifest.json">
@@ -702,7 +704,8 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
         <div class="auth-actions">
             <button class="btn-secondary" type="button" onclick="voltarDoAdmin()">Voltar ao extrator</button>
             <button class="btn-secondary" type="button" onclick="carregarAdmin()">Atualizar</button>
-            <button class="btn-info" type="button" onclick="abrirGerenciadorAdministradores()">👑 Administradores</button>
+            <button id="btnGerenciarAdmins" class="btn-info" type="button" onclick="abrirGerenciadorAdministradores()">👑 Administradores</button>
+            <button id="btnHistoricoAdmin" class="btn-info" type="button" onclick="abrirHistoricoAprovacoes()">📋 Histórico / Auditoria</button>
         </div>
 
         <div class="backup-box">
@@ -750,6 +753,39 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
         <div id="listaAdministradoresGerenciar" class="admin-gerenciar-lista"><div class="admin-gerenciar-vazio">Carregando...</div></div>
         <div class="auth-actions">
             <button class="btn-secondary" type="button" onclick="fecharGerenciadorAdministradores()">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<div id="historicoAdminOverlay" class="mensagem-overlay" style="z-index:240000;display:none" onclick="if(event.target===this) fecharHistoricoAprovacoes()">
+    <div class="admin-gerenciar-modal" style="max-width:760px">
+        <h3>📋 Histórico / Auditoria de aprovações</h3>
+        <p class="info">Consulta dos registros históricos de membros aprovados.</p>
+        <div id="listaHistoricoAdmin" class="admin-list"><div class="empty-admin">Carregando...</div></div>
+        <div class="auth-actions">
+            <button class="btn-secondary" type="button" onclick="fecharHistoricoAprovacoes()">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<div id="modalPermissoesAdmin" class="mensagem-overlay" style="z-index:250000;display:none" onclick="if(event.target===this) fecharModalPermissoesAdmin()">
+    <div class="admin-gerenciar-modal" style="max-width:560px">
+        <h3 id="tituloPermissoesAdmin">👑 Permissões do administrador</h3>
+        <p id="subtituloPermissoesAdmin" class="info">Escolha exatamente o que este administrador poderá fazer.</p>
+        <input type="hidden" id="permissaoAdminUserId">
+        <div style="display:grid;gap:9px;margin-top:14px">
+            <label class="permissao-admin-opcao"><input id="permAcessoFull" type="checkbox" onchange="alternarPermissaoFull()"><span><strong>Acesso Full</strong><small>Libera todas as permissões administrativas.</small></span></label>
+            <label class="permissao-admin-opcao"><input id="permAdicionarRemover" type="checkbox"><span><strong>Adicionar e remover caráter</strong><small>Salvar novos registros e excluir registros da lista.</small></span></label>
+            <label class="permissao-admin-opcao"><input id="permGerenciarMembros" type="checkbox"><span><strong>Aceitar e excluir membros</strong><small>Aprovar, rejeitar e excluir usuários.</small></span></label>
+            <label class="permissao-admin-opcao"><input id="permGerenciarAdmins" type="checkbox"><span><strong>Tornar membros administradores</strong><small>Conceder, alterar e retirar permissões administrativas.</small></span></label>
+            <label class="permissao-admin-opcao"><input id="permDownloadLista" type="checkbox"><span><strong>Download da lista de caráter geral</strong><small>Baixar a lista em arquivo TXT.</small></span></label>
+            <label class="permissao-admin-opcao"><input id="permVisualizarHistorico" type="checkbox"><span><strong>Visualizar histórico / auditoria</strong><small>Consultar o histórico de aprovações dos membros.</small></span></label>
+            <label class="permissao-admin-opcao"><input id="permGerenciarMensagens" type="checkbox"><span><strong>Gerenciar mensagens do sistema</strong><small>Publicar e desativar mensagens destinadas aos usuários.</small></span></label>
+        </div>
+        <div id="permissaoAdminAviso" class="auth-msg" style="display:none"></div>
+        <div class="auth-actions">
+            <button class="btn-primary" type="button" onclick="salvarPermissoesAdministrador()">💾 Confirmar permissões</button>
+            <button class="btn-secondary" type="button" onclick="fecharModalPermissoesAdmin()">Cancelar</button>
         </div>
     </div>
 </div>
@@ -854,6 +890,7 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
         <button id="btnMensagemAdmin" class="btn-secondary" type="button" onclick="alternarMensagemAdmin(event)" style="display:none">💬 Mensagem</button>
         <button id="btnAdmin" class="btn-secondary" type="button" onclick="abrirAdmin()" style="display:none">⚙️ Aprovações<span id="badgeAprovacoes" class="aprovacoes-badge" style="display:none">0</span></button>
         <button class="btn-secondary" type="button" onclick="abrirConfiguracaoBloqueio()">🔒 Bloqueio de tela</button>
+        <button id="btnTelaSempreAtiva" class="btn-secondary" type="button" onclick="alternarTelaSempreAtiva()">📱 Tela sempre ativa: OFF</button>
         <button class="btn-secondary" type="button" onclick="sairSistema()">Sair</button>
 
         <div id="adminMensagemDropdown" class="admin-message-dropdown" aria-hidden="true">
@@ -944,8 +981,8 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
 ></textarea>
 
 <div class="botoes-salvar-abaixo" id="botoesEditorLista">
-<button onclick="salvarTextoLista()">💾 Salvar texto na lista</button>
-<button onclick="baixarListaTxt()">📥 Salvar lista TXT</button>
+<button id="btnAdicionarCarater" onclick="salvarTextoLista()">💾 Salvar texto na lista</button>
+<button id="btnDownloadLista" onclick="baixarListaTxt()">📥 Salvar lista TXT</button>
 </div>
 
 <script>
@@ -2865,8 +2902,8 @@ function limparBuscaLista() {
 
 
 async function salvarTextoLista() {
-    if (!souAdmin) {
-        alert("Somente administradores podem adicionar registros à lista online.");
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.adicionar_remover_carater || adminPermissoes.is_master)) {
+        alert("Você não possui permissão para adicionar registros à lista online.");
         return;
     }
 
@@ -2935,6 +2972,10 @@ async function salvarTextoLista() {
 }
 
 function baixarListaTxt() {
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.download_lista || adminPermissoes.is_master)) {
+        alert("Você não possui permissão para baixar a lista de caráter geral.");
+        return;
+    }
     if (!listaTextos.length) {
         alert("A lista está vazia.");
         return;
@@ -2959,8 +3000,8 @@ function baixarListaTxt() {
 }
 
 async function excluirRegistroOnline(id, numeroRegistro) {
-    if (!souAdmin) {
-        alert("Somente administradores podem excluir registros.");
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.adicionar_remover_carater || adminPermissoes.is_master)) {
+        alert("Você não possui permissão para excluir registros da lista.");
         return;
     }
 
@@ -3360,6 +3401,8 @@ const sb = window.supabase.createClient(
 let usuarioAtual = null;
 let perfilAtual = null;
 let souAdmin = false;
+let adminPermissoes = { acesso_full:false, adicionar_remover_carater:false, gerenciar_membros:false, gerenciar_admins:false, download_lista:false, visualizar_historico:false, gerenciar_mensagens:false, is_master:false };
+let adminPermissoesCache = new Map();
 
 function normalizarRE(valor) {
     return String(valor || "")
@@ -3581,6 +3624,7 @@ function mostrarAplicacao() {
     document.getElementById("telaAcesso").style.display = "none";
     document.getElementById("adminArea").style.display = "none";
     document.getElementById("appPrincipal").style.display = "block";
+    carregarConfiguracaoTelaSempreAtiva();
 }
 
 let selfieCadastroBase64 = "";
@@ -4054,7 +4098,7 @@ async function carregarMensagemAdmin() {
 }
 
 async function publicarMensagemUsuarios() {
-    if (!souAdmin) return;
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.gerenciar_mensagens || adminPermissoes.is_master)) return;
 
     const mensagem = (document.getElementById("adminMensagemTexto")?.value || "").trim();
     const inicio = document.getElementById("adminMensagemInicio")?.value || "";
@@ -4097,7 +4141,7 @@ async function publicarMensagemUsuarios() {
 }
 
 async function desativarMensagemUsuarios() {
-    if (!souAdmin) return;
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.gerenciar_mensagens || adminPermissoes.is_master)) return;
 
     if (!confirm("Desativar a mensagem atualmente programada para os usuários?")) return;
 
@@ -4200,6 +4244,11 @@ async function atualizarIndicadoresAcesso() {
 
     const { data: adminData, error: adminError } = await sb.rpc("extrator_sou_admin");
     souAdmin = !adminError && adminData === true;
+    adminPermissoes = { acesso_full:false, adicionar_remover_carater:false, gerenciar_membros:false, gerenciar_admins:false, download_lista:false, visualizar_historico:false, gerenciar_mensagens:false, is_master:false };
+    if (souAdmin) {
+        const { data: permData, error: permError } = await sb.rpc("extrator_minhas_permissoes");
+        if (!permError && permData) adminPermissoes = Array.isArray(permData) ? (permData[0] || adminPermissoes) : permData;
+    }
 
     const btnAdmin = document.getElementById("btnAdmin");
     const badgeAprovacoes = document.getElementById("badgeAprovacoes");
@@ -4237,11 +4286,30 @@ async function atualizarIndicadoresAcesso() {
         }
     }
     if (btnCapturarTelaAdmin) btnCapturarTelaAdmin.style.display = souAdmin ? "inline-block" : "none";
-    if (!souAdmin) fecharMensagemAdmin();
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.gerenciar_mensagens || adminPermissoes.is_master)) fecharMensagemAdmin();
     if (botoesLista) botoesLista.style.display = souAdmin ? "flex" : "none";
     if (botoesUsuarioLista) botoesUsuarioLista.style.display = souAdmin ? "none" : "flex";
     if (botoesEditor) botoesEditor.style.display = souAdmin ? "flex" : "none";
-
+    const podeEditar = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.adicionar_remover_carater || adminPermissoes.is_master);
+    const podeDownload = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.download_lista || adminPermissoes.is_master);
+    const podeMembros = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.gerenciar_membros || adminPermissoes.is_master);
+    const podeAdmins = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.gerenciar_admins || adminPermissoes.is_master);
+    const podeHistorico = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.visualizar_historico || adminPermissoes.is_master);
+    const podeMensagens = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.gerenciar_mensagens || adminPermissoes.is_master);
+    const btnAddCarater = document.getElementById("btnAdicionarCarater");
+    const btnDownloadLista = document.getElementById("btnDownloadLista");
+    if (btnAddCarater) btnAddCarater.style.display = podeEditar ? "inline-block" : "none";
+    if (btnDownloadLista) btnDownloadLista.style.display = podeDownload ? "inline-block" : "none";
+    if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
+    if (document.getElementById("btnMensagemAdmin")) document.getElementById("btnMensagemAdmin").style.display = podeMensagens ? "inline-block" : "none";
+    if (document.getElementById("btnCapturarTelaAdmin")) document.getElementById("btnCapturarTelaAdmin").style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
+    const btnAdmins = document.getElementById("btnGerenciarAdmins");
+    if (btnAdmins) btnAdmins.style.display = podeAdmins ? "inline-block" : "none";
+    const btnHistoricoAdmin = document.getElementById("btnHistoricoAdmin");
+    if (btnHistoricoAdmin) btnHistoricoAdmin.style.display = podeHistorico ? "inline-block" : "none";
+    if (document.getElementById("btnMensagemAdmin")) document.getElementById("btnMensagemAdmin").style.display = podeMensagens ? "inline-block" : "none";
+    const backupBox = document.querySelector('#adminArea .backup-box');
+    if (backupBox) backupBox.style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "block" : "none";
     const app = document.getElementById("appPrincipal");
     if (app) {
         app.classList.toggle("readonly-user", !souAdmin);
@@ -4346,6 +4414,9 @@ async function sairSistema() {
     }
 
     pararPresenca();
+    telaSempreAtiva = false;
+    atualizarBotaoTelaSempreAtiva();
+    await liberarWakeLockTela();
 
     await sb.auth.signOut();
     usuarioAtual = null;
@@ -4358,7 +4429,7 @@ async function sairSistema() {
 }
 
 function abrirGerenciadorAdministradores() {
-    if (!souAdmin) return;
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.gerenciar_admins || adminPermissoes.is_master)) return;
     const overlay = document.getElementById("adminGerenciarOverlay");
     if (!overlay) return;
     overlay.style.display = "flex";
@@ -4371,48 +4442,79 @@ function fecharGerenciadorAdministradores() {
 }
 
 async function carregarGerenciadorAdministradores() {
-    if (!souAdmin) return;
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.gerenciar_admins || adminPermissoes.is_master)) return;
     const listaEl = document.getElementById("listaAdministradoresGerenciar");
     if (!listaEl) return;
     listaEl.innerHTML = '<div class="admin-gerenciar-vazio">Carregando...</div>';
-
     const [usuariosResult, adminsResult] = await Promise.all([
         sb.from("extrator_usuarios").select("id,re,nome_completo,unidade,email_funcional,status").eq("status", "aprovado").order("nome_completo", { ascending: true }),
         sb.rpc("extrator_lista_admins")
     ]);
-
     if (usuariosResult.error || adminsResult.error) {
         console.error(usuariosResult.error || adminsResult.error);
         listaEl.innerHTML = '<div class="admin-gerenciar-vazio">Não foi possível carregar os administradores.</div>';
         return;
     }
-
     const usuarios = usuariosResult.data || [];
     const admins = Array.isArray(adminsResult.data) ? adminsResult.data : [];
+    adminPermissoesCache = new Map(admins.map(item => [item.user_id || item.id, item]));
     const adminIds = new Set(admins.map(item => item.user_id || item.id));
     const administradores = usuarios.filter(u => adminIds.has(u.id));
     const disponiveis = usuarios.filter(u => !adminIds.has(u.id));
-
     let html = '<div class="info"><strong>' + administradores.length + '</strong> administrador(es) ativo(s)</div>';
-    if (!administradores.length) {
-        html += '<div class="admin-gerenciar-vazio">Nenhum administrador ativo.</div>';
-    } else {
-        administradores.forEach(u => {
-            const podeRetirar = u.id !== usuarioAtual?.id;
-            html += '<div class="admin-gerenciar-item"><div class="info-admin"><strong>' + escapeHtml(u.nome_completo || '-') + '</strong><small>RE: ' + escapeHtml(u.re || '-') + ' · ' + escapeHtml(u.email_funcional || '-') + '</small></div><button type="button" class="btn-warning" ' + (podeRetirar ? '' : 'disabled') + ' onclick="alterarAdministrador(\'' + escapeHtml(u.id) + '\', false); setTimeout(carregarGerenciadorAdministradores, 400)">' + (podeRetirar ? '↩️ Desativar ADM' : '🔒 Seu ADM') + '</button></div>';
-        });
-    }
-
-    html += '<hr style="border:0;border-top:1px solid #444;margin:16px 0">';
-    html += '<div><strong>Ativar administrador</strong></div>';
+    administradores.forEach(u => {
+        const a = adminPermissoesCache.get(u.id) || {};
+        const resumo = a.is_master ? '🔒 MASTER — acesso protegido' : (a.acesso_full ? 'Acesso Full' : [a.adicionar_remover_carater?'Adicionar/remover caráter':'',a.gerenciar_membros?'Gerenciar membros':'',a.gerenciar_admins?'Gerenciar administradores':'',a.download_lista?'Download da lista':'',a.visualizar_historico?'Histórico/auditoria':'',a.gerenciar_mensagens?'Mensagens do sistema':''].filter(Boolean).join(' · ') || 'Sem permissões');
+        const podeRetirar = u.id !== usuarioAtual?.id && !a.is_master;
+        html += `<div class="admin-gerenciar-item"><div class="info-admin"><strong>${escapeHtml(u.nome_completo || '-')}</strong><small>RE: ${escapeHtml(u.re || '-')} · ${escapeHtml(u.email_funcional || '-')}</small><small class="admin-permissao-resumo">${escapeHtml(resumo)}</small></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn-info" onclick="abrirModalPermissoesAdmin('${escapeHtml(u.id)}','${escapeHtml(u.nome_completo || 'Administrador')}')">⚙️ Permissões</button><button type="button" class="btn-warning" ${podeRetirar ? '' : 'disabled'} onclick="alterarAdministrador('${escapeHtml(u.id)}', false)">${a.is_master ? '🔒 MASTER' : (podeRetirar ? '↩️ Desativar ADM' : '🔒 Seu ADM')}</button></div></div>`;
+    });
+    html += '<hr style="border:0;border-top:1px solid #444;margin:16px 0"><div><strong>Ativar administrador</strong></div>';
     if (!disponiveis.length) {
         html += '<div class="admin-gerenciar-vazio">Todos os usuários aprovados já são administradores.</div>';
     } else {
         disponiveis.forEach(u => {
-            html += '<div class="admin-gerenciar-item"><div class="info-admin"><strong>' + escapeHtml(u.nome_completo || '-') + '</strong><small>RE: ' + escapeHtml(u.re || '-') + ' · ' + escapeHtml(u.email_funcional || '-') + '</small></div><button type="button" class="btn-info" onclick="alterarAdministrador(\'' + escapeHtml(u.id) + '\', true); setTimeout(carregarGerenciadorAdministradores, 400)">👑 Ativar ADM</button></div>';
+            html += `<div class="admin-gerenciar-item"><div class="info-admin"><strong>${escapeHtml(u.nome_completo || '-')}</strong><small>RE: ${escapeHtml(u.re || '-')} · ${escapeHtml(u.email_funcional || '-')}</small></div><button type="button" class="btn-info" onclick="abrirModalPermissoesAdmin('${escapeHtml(u.id)}','${escapeHtml(u.nome_completo || 'Usuário')}')">👑 Ativar ADM</button></div>`;
         });
     }
     listaEl.innerHTML = html;
+}
+
+async function abrirHistoricoAprovacoes() {
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.visualizar_historico || adminPermissoes.is_master)) {
+        alert("Você não possui permissão para visualizar o histórico / auditoria.");
+        return;
+    }
+    const overlay = document.getElementById("historicoAdminOverlay");
+    const lista = document.getElementById("listaHistoricoAdmin");
+    if (!overlay || !lista) return;
+    overlay.style.display = "flex";
+    lista.innerHTML = '<div class="empty-admin">Carregando...</div>';
+    const { data, error } = await sb.from("extrator_historico_aprovados")
+        .select("id,usuario_id,re,nome_completo,unidade,email_funcional,aprovado_em")
+        .order("aprovado_em", { ascending: false });
+    if (error) {
+        console.error(error);
+        lista.innerHTML = '<div class="empty-admin">Não foi possível carregar o histórico.</div>';
+        return;
+    }
+    const registros = data || [];
+    if (!registros.length) {
+        lista.innerHTML = '<div class="empty-admin">Nenhum registro histórico encontrado.</div>';
+        return;
+    }
+    lista.innerHTML = registros.map(item =>
+        '<div class="admin-item" style="margin-bottom:8px">' +
+        '<strong>' + escapeHtml(item.nome_completo || '-') + '</strong>' +
+        '<div class="admin-meta">RE: ' + escapeHtml(item.re || '-') + ' · ' + escapeHtml(item.unidade || '-') + '</div>' +
+        '<div class="admin-meta">E-mail: ' + escapeHtml(item.email_funcional || '-') + '</div>' +
+        '<div class="admin-meta">Aprovado em: ' + (item.aprovado_em ? new Date(item.aprovado_em).toLocaleString("pt-BR") : '-') + '</div>' +
+        '</div>'
+    ).join("");
+}
+
+function fecharHistoricoAprovacoes() {
+    const overlay = document.getElementById("historicoAdminOverlay");
+    if (overlay) overlay.style.display = "none";
 }
 
 async function abrirAdmin() {
@@ -4425,6 +4527,7 @@ async function abrirAdmin() {
 
 function voltarDoAdmin() {
     fecharGerenciadorAdministradores();
+    fecharHistoricoAprovacoes();
     document.getElementById("adminArea").style.display = "none";
     document.getElementById("appPrincipal").style.display = "block";
 }
@@ -4529,9 +4632,12 @@ async function carregarAdminUsuarios() {
 
     const todos = usuariosResult.data || [];
     const listaAdmins = Array.isArray(adminsResult.data) ? adminsResult.data : [];
+    adminPermissoesCache = new Map(listaAdmins.map(item => [item.user_id || item.id, item]));
     const adminIds = new Set(listaAdmins.map(item => item.user_id || item.id));
     const pendentesData = todos.filter(u => u.status === "pendente");
     const aprovados = todos.filter(u => u.status === "aprovado");
+    aprovados.forEach(u => { u.__ehAdmin = adminIds.has(u.id); });
+    usuariosAprovadosAdmin = aprovados;
     document.getElementById("contagemPendentes").textContent = pendentesData.length + " pendente(s)";
     document.getElementById("contagemAprovados").textContent = aprovados.length + " aprovado(s)";
     const administradoresAtivos = aprovados.filter(u => adminIds.has(u.id)).length;
@@ -4564,6 +4670,8 @@ function montarCardUsuario(usuario, adminIds, pendente) {
     item.className = "admin-item";
 
     const ehAdmin = adminIds.has(usuario.id);
+    const dadosAdmin = adminPermissoesCache.get(usuario.id) || {};
+    const ehMaster = !!dadosAdmin.is_master;
     const ehEu = usuario.id === usuarioAtual?.id;
     const dataTexto = usuario.created_at ? new Date(usuario.created_at).toLocaleString("pt-BR") : "-";
     const aprovacaoDataTexto = usuario.aprovacao_em ? new Date(usuario.aprovacao_em).toLocaleString("pt-BR") : "-";
@@ -4625,6 +4733,7 @@ function montarCardUsuario(usuario, adminIds, pendente) {
 
     const actions = item.querySelector(".admin-actions");
     if (pendente) {
+        if (!adminPermissoes.acesso_full && !adminPermissoes.gerenciar_membros && !adminPermissoes.is_master) return item;
         const aprovar = document.createElement("button");
         aprovar.className = "btn-success";
         aprovar.type = "button";
@@ -4647,19 +4756,23 @@ function montarCardUsuario(usuario, adminIds, pendente) {
             actions.appendChild(aprovar);
         } else {
             if (!ehAdmin) {
+                if (!(adminPermissoes.acesso_full || adminPermissoes.gerenciar_admins || adminPermissoes.is_master)) {
+                    // Sem permissão para promover este usuário.
+                } else {
                 const tornarAdmin = document.createElement("button");
                 tornarAdmin.className = "btn-info";
                 tornarAdmin.type = "button";
                 tornarAdmin.textContent = "👑 Tornar administrador";
-                tornarAdmin.onclick = () => alterarAdministrador(usuario.id, true);
+                tornarAdmin.onclick = () => abrirModalPermissoesAdmin(usuario.id, usuario.nome_completo, {});
                 actions.appendChild(tornarAdmin);
+                }
             } else {
                 const retirarAdmin = document.createElement("button");
                 retirarAdmin.className = "btn-warning";
                 retirarAdmin.type = "button";
                 retirarAdmin.textContent = "↩️ Retirar administrador";
-                retirarAdmin.disabled = ehEu;
-                retirarAdmin.title = ehEu ? "Você não pode retirar seu próprio acesso administrativo." : "Retirar acesso de administrador";
+                retirarAdmin.disabled = ehEu || ehMaster || !(adminPermissoes.acesso_full || adminPermissoes.gerenciar_admins || adminPermissoes.is_master);
+                retirarAdmin.title = ehMaster ? "O MASTER não pode ser removido ou rebaixado." : (ehEu ? "Você não pode retirar seu próprio acesso administrativo." : "Retirar acesso de administrador");
                 retirarAdmin.onclick = () => alterarAdministrador(usuario.id, false);
                 actions.appendChild(retirarAdmin);
             }
@@ -4669,7 +4782,7 @@ function montarCardUsuario(usuario, adminIds, pendente) {
         excluir.className = "btn-danger";
         excluir.type = "button";
         excluir.textContent = "🗑️ Excluir usuário";
-        excluir.disabled = ehEu;
+        excluir.disabled = ehEu || !(adminPermissoes.acesso_full || adminPermissoes.gerenciar_membros || adminPermissoes.is_master);
         excluir.title = ehEu ? "Você não pode excluir seu próprio usuário." : "Excluir usuário e remover o acesso";
         excluir.onclick = () => excluirUsuario(usuario.id, usuario.re, usuario.nome_completo);
         actions.appendChild(excluir);
@@ -4742,14 +4855,14 @@ function renderizarCardsUsuarios(container, lista, adminIds) {
 }
 
 async function baixarBackupUsuarios() {
-    if (!souAdmin) return;
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) { alert("Somente administradores com Acesso Full podem gerar backup de usuários."); return; }
     const statusEl = document.getElementById("backupUsuariosStatus");
     try {
         statusEl.textContent = "Gerando backup...";
 
         const [{ data: usuarios, error: usuariosError }, { data: admins, error: adminsError }, { data: historico, error: historicoError }] = await Promise.all([
             sb.from("extrator_usuarios").select("*").order("created_at", { ascending: true }),
-            sb.from("extrator_admins").select("user_id,created_at").order("created_at", { ascending: true }),
+            sb.from("extrator_admins").select("user_id,created_at,is_master,acesso_full,adicionar_remover_carater,gerenciar_membros,gerenciar_admins,download_lista,visualizar_historico,gerenciar_mensagens").order("created_at", { ascending: true }),
             sb.from("extrator_historico_aprovados").select("*").order("aprovado_em", { ascending: true })
         ]);
 
@@ -4805,7 +4918,18 @@ async function lerEValidarBackupUsuarios(arquivo) {
     }).filter(u => u.id && u.re && u.nome_completo && u.unidade && u.email_funcional);
     if (!registros.length) throw new Error("O backup não contém cadastros válidos.");
     const admins = Array.isArray(backup.administradores)
-        ? backup.administradores.filter(a => a?.user_id).map(a => ({ user_id:a.user_id, ...(a.created_at ? {created_at:a.created_at} : {}) }))
+        ? backup.administradores.filter(a => a?.user_id).map(a => ({
+            user_id: a.user_id,
+            ...(a.created_at ? {created_at:a.created_at} : {}),
+            ...(Object.prototype.hasOwnProperty.call(a,"is_master") ? {is_master:!!a.is_master} : {}),
+            ...(Object.prototype.hasOwnProperty.call(a,"acesso_full") ? {acesso_full:!!a.acesso_full} : {}),
+            ...(Object.prototype.hasOwnProperty.call(a,"adicionar_remover_carater") ? {adicionar_remover_carater:!!a.adicionar_remover_carater} : {}),
+            ...(Object.prototype.hasOwnProperty.call(a,"gerenciar_membros") ? {gerenciar_membros:!!a.gerenciar_membros} : {}),
+            ...(Object.prototype.hasOwnProperty.call(a,"gerenciar_admins") ? {gerenciar_admins:!!a.gerenciar_admins} : {}),
+            ...(Object.prototype.hasOwnProperty.call(a,"download_lista") ? {download_lista:!!a.download_lista} : {}),
+            ...(Object.prototype.hasOwnProperty.call(a,"visualizar_historico") ? {visualizar_historico:!!a.visualizar_historico} : {}),
+            ...(Object.prototype.hasOwnProperty.call(a,"gerenciar_mensagens") ? {gerenciar_mensagens:!!a.gerenciar_mensagens} : {})
+        }))
         : [];
     return {backup, registros, admins};
 }
@@ -4836,7 +4960,7 @@ async function verificarBackupUsuarios(event) {
 }
 
 async function restaurarBackupUsuarios(event) {
-    if (!souAdmin) return;
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) { alert("Somente administradores com Acesso Full podem restaurar backup de usuários."); return; }
     const arquivo = event.target.files?.[0];
     const statusEl = document.getElementById("backupUsuariosStatus");
     event.target.value = "";
@@ -4858,10 +4982,33 @@ async function restaurarBackupUsuarios(event) {
         let adminsRestaurados=0;
         if (admins.length) {
             const adminRows=admins.filter(a => ids.includes(a.user_id));
-            if (adminRows.length) {
-                const {error: adminError}=await sb.from("extrator_admins").upsert(adminRows,{onConflict:"user_id"});
-                if (adminError) throw new Error("Os perfis foram restaurados, mas não foi possível restaurar os administradores: " + adminError.message);
-                adminsRestaurados=adminRows.length;
+            for (const a of adminRows) {
+                if (a.user_id === "f7145437-19e1-48f6-82c5-1a247c6bbbc7" || a.is_master) {
+                    const {error: masterError}=await sb.rpc("extrator_conceder_admin_permissoes", {
+                        p_user_id: a.user_id,
+                        p_acesso_full: true,
+                        p_adicionar_remover_carater: true,
+                        p_gerenciar_membros: true,
+                        p_gerenciar_admins: true,
+                        p_download_lista: true,
+                        p_visualizar_historico: true,
+                        p_gerenciar_mensagens: true
+                    });
+                    if (masterError) throw new Error("Não foi possível restaurar o MASTER: " + masterError.message);
+                } else {
+                    const {error: adminError}=await sb.rpc("extrator_conceder_admin_permissoes", {
+                        p_user_id: a.user_id,
+                        p_acesso_full: !!a.acesso_full,
+                        p_adicionar_remover_carater: !!a.adicionar_remover_carater,
+                        p_gerenciar_membros: !!a.gerenciar_membros,
+                        p_gerenciar_admins: !!a.gerenciar_admins,
+                        p_download_lista: !!a.download_lista,
+                        p_visualizar_historico: !!a.visualizar_historico,
+                        p_gerenciar_mensagens: !!a.gerenciar_mensagens
+                    });
+                    if (adminError) throw new Error("Os perfis foram restaurados, mas não foi possível restaurar as permissões do administrador " + a.user_id + ": " + adminError.message);
+                }
+                adminsRestaurados++;
             }
         }
         statusEl.textContent=`Restauração concluída: ${registros.length} perfil(is) processado(s) e ${adminsRestaurados} administrador(es) restaurado(s).`;
@@ -4875,7 +5022,10 @@ async function restaurarBackupUsuarios(event) {
 }
 
 async function alterarStatusUsuario(id, novoStatus) {
-    if (!souAdmin) return;
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.gerenciar_membros || adminPermissoes.is_master)) {
+        alert("Você não possui permissão para aceitar ou excluir membros.");
+        return;
+    }
 
     const texto = novoStatus === "aprovado" ? "aprovar" : "rejeitar";
     if (!confirm("Deseja " + texto + " este cadastro?")) return;
@@ -4945,41 +5095,110 @@ function obterLocalizacaoAprovacao() {
     });
 }
 
+function alternarPermissaoFull() {
+    const full = document.getElementById("permAcessoFull");
+    if (!full) return;
+    ["permAdicionarRemover","permGerenciarMembros","permGerenciarAdmins","permDownloadLista","permVisualizarHistorico","permGerenciarMensagens"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = full.checked;
+        if (el && full.checked) el.checked = false;
+    });
+}
+
+function abrirModalPermissoesAdmin(userId, nome, permissoes) {
+    if (!permissoes || typeof permissoes !== "object" || Object.keys(permissoes).length === 0) permissoes = adminPermissoesCache.get(userId) || {};
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.gerenciar_admins || adminPermissoes.is_master)) {
+        alert("Você não possui permissão para tornar ou alterar administradores.");
+        return;
+    }
+    const overlay = document.getElementById("modalPermissoesAdmin");
+    if (!overlay) return;
+    document.getElementById("permissaoAdminUserId").value = userId || "";
+    document.getElementById("tituloPermissoesAdmin").textContent = "👑 Permissões — " + (nome || "Administrador");
+    const p = permissoes || {};
+    document.getElementById("permAcessoFull").checked = !!p.acesso_full;
+    document.getElementById("permAdicionarRemover").checked = !!p.adicionar_remover_carater;
+    document.getElementById("permGerenciarMembros").checked = !!p.gerenciar_membros;
+    document.getElementById("permGerenciarAdmins").checked = !!p.gerenciar_admins;
+    document.getElementById("permDownloadLista").checked = !!p.download_lista;
+    document.getElementById("permVisualizarHistorico").checked = !!p.visualizar_historico;
+    document.getElementById("permGerenciarMensagens").checked = !!p.gerenciar_mensagens;
+    alternarPermissaoFull();
+    const aviso = document.getElementById("permissaoAdminAviso");
+    if (aviso) { aviso.style.display = "none"; aviso.textContent = ""; }
+    overlay.style.display = "flex";
+}
+
+function fecharModalPermissoesAdmin() {
+    const overlay = document.getElementById("modalPermissoesAdmin");
+    if (overlay) overlay.style.display = "none";
+}
+
+async function salvarPermissoesAdministrador() {
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.gerenciar_admins || adminPermissoes.is_master)) return;
+    const userId = document.getElementById("permissaoAdminUserId")?.value;
+    if (!userId) return;
+    const full = document.getElementById("permAcessoFull")?.checked === true;
+    const permissoes = {
+        acesso_full: full,
+        adicionar_remover_carater: full || document.getElementById("permAdicionarRemover")?.checked === true,
+        gerenciar_membros: full || document.getElementById("permGerenciarMembros")?.checked === true,
+        gerenciar_admins: full || document.getElementById("permGerenciarAdmins")?.checked === true,
+        download_lista: full || document.getElementById("permDownloadLista")?.checked === true,
+        visualizar_historico: full || document.getElementById("permVisualizarHistorico")?.checked === true,
+        gerenciar_mensagens: full || document.getElementById("permGerenciarMensagens")?.checked === true
+    };
+    const aviso = document.getElementById("permissaoAdminAviso");
+    if (aviso) { aviso.style.display = "block"; aviso.className = "auth-msg warn"; aviso.textContent = "Salvando permissões..."; }
+    const { error } = await sb.rpc("extrator_conceder_admin_permissoes", {
+        p_user_id: userId,
+        p_acesso_full: permissoes.acesso_full,
+        p_adicionar_remover_carater: permissoes.adicionar_remover_carater,
+        p_gerenciar_membros: permissoes.gerenciar_membros,
+        p_gerenciar_admins: permissoes.gerenciar_admins,
+        p_download_lista: permissoes.download_lista,
+        p_visualizar_historico: permissoes.visualizar_historico,
+        p_gerenciar_mensagens: permissoes.gerenciar_mensagens
+    });
+    if (error) {
+        console.error(error);
+        if (aviso) { aviso.className = "auth-msg err"; aviso.textContent = error.message || "Não foi possível salvar as permissões."; }
+        return;
+    }
+    fecharModalPermissoesAdmin();
+    await carregarAdminUsuarios();
+    await carregarGerenciadorAdministradores();
+}
+
 async function alterarAdministrador(userId, tornar) {
     if (!souAdmin || !userId) return;
-    if (!tornar && userId === usuarioAtual?.id) {
+    if (tornar) {
+        const u = (usuariosAprovadosAdmin || []).find(x => x.id === userId);
+        abrirModalPermissoesAdmin(userId, u?.nome_completo || "Usuário", {});
+        return;
+    }
+    if (!(adminPermissoes.acesso_full || adminPermissoes.gerenciar_admins || adminPermissoes.is_master)) {
+        alert("Você não possui permissão para retirar administradores.");
+        return;
+    }
+    const alvo = adminPermissoesCache.get(userId) || {};
+    if (alvo.is_master) {
+        alert("O usuário MASTER não pode ser removido ou rebaixado.");
+        return;
+    }
+    if (userId === usuarioAtual?.id) {
         alert("Você não pode retirar seu próprio acesso administrativo.");
         return;
     }
-
-    const pergunta = tornar
-        ? "Deseja tornar este usuário administrador?"
-        : "Deseja retirar o acesso de administrador deste usuário?";
-    if (!confirm(pergunta)) return;
-
-    const rpcName = tornar
-        ? "extrator_conceder_admin"
-        : "extrator_alterar_admin";
-
-    const rpcParams = tornar
-        ? { p_user_id: userId }
-        : { p_user_id: userId, p_tornar: false };
-
-    const { error } = await sb.rpc(rpcName, rpcParams);
-
-    if (error) {
-        console.error(error);
-        alert(error.message || "Não foi possível alterar o privilégio administrativo.");
-        return;
-    }
-
-    // A RLS da tabela de administradores permite leitura apenas do próprio
-    // registro. Por isso a tela é atualizada através da RPC que lista todos.
+    if (!confirm("Deseja retirar o acesso de administrador deste usuário?")) return;
+    const { error } = await sb.rpc("extrator_alterar_admin", { p_user_id: userId, p_tornar: false });
+    if (error) { alert(error.message || "Não foi possível retirar o acesso de administrador."); return; }
     await carregarAdminUsuarios();
+    await carregarGerenciadorAdministradores();
 }
 
 async function excluirUsuario(userId, re, nome) {
-    if (!souAdmin || !userId || userId === usuarioAtual?.id) {
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.gerenciar_membros || adminPermissoes.is_master) || !userId || userId === usuarioAtual?.id) {
         alert("Seu próprio usuário não pode ser excluído.");
         return;
     }
@@ -5145,6 +5364,81 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 let intervaloBloqueioTela = null;
 let ultimoMovimentoTela = Date.now();
 let bloqueioTelaAtivo = false;
+
+let wakeLockTela = null;
+let telaSempreAtiva = false;
+
+function chaveConfiguracaoTelaAtiva() {
+    const id = usuarioAtual?.id || perfilAtual?.id || perfilAtual?.re || "anonimo";
+    return "extrator_tela_sempre_ativa_" + id;
+}
+
+function atualizarBotaoTelaSempreAtiva() {
+    const botao = document.getElementById("btnTelaSempreAtiva");
+    if (!botao) return;
+    botao.textContent = telaSempreAtiva ? "📱 Tela sempre ativa: ON" : "📱 Tela sempre ativa: OFF";
+    botao.title = telaSempreAtiva
+        ? "A tela permanecerá ligada enquanto o app estiver aberto e visível."
+        : "A tela seguirá o tempo normal de bloqueio do celular.";
+}
+
+async function solicitarWakeLockTela() {
+    if (!telaSempreAtiva || !usuarioAtual || !perfilAtual || document.visibilityState !== "visible") return;
+    if (!("wakeLock" in navigator)) {
+        alert("Este navegador/dispositivo não oferece suporte para manter a tela sempre ativa.");
+        telaSempreAtiva = false;
+        localStorage.setItem(chaveConfiguracaoTelaAtiva(), "0");
+        atualizarBotaoTelaSempreAtiva();
+        return;
+    }
+
+    try {
+        if (wakeLockTela && !wakeLockTela.released) return;
+        wakeLockTela = await navigator.wakeLock.request("screen");
+        wakeLockTela.addEventListener("release", function() {
+            wakeLockTela = null;
+            if (telaSempreAtiva && document.visibilityState === "visible") {
+                setTimeout(solicitarWakeLockTela, 250);
+            }
+        });
+    } catch (erro) {
+        console.warn("Não foi possível manter a tela ativa:", erro);
+    }
+}
+
+async function liberarWakeLockTela() {
+    if (!wakeLockTela) return;
+    try {
+        await wakeLockTela.release();
+    } catch (erro) {
+        console.warn("Não foi possível liberar o bloqueio da tela:", erro);
+    }
+    wakeLockTela = null;
+}
+
+async function alternarTelaSempreAtiva() {
+    if (!usuarioAtual || !perfilAtual) return;
+    telaSempreAtiva = !telaSempreAtiva;
+    localStorage.setItem(chaveConfiguracaoTelaAtiva(), telaSempreAtiva ? "1" : "0");
+    atualizarBotaoTelaSempreAtiva();
+
+    if (telaSempreAtiva) {
+        await solicitarWakeLockTela();
+        const status = document.getElementById("status");
+        if (status) status.textContent = "Tela sempre ativa: ligada enquanto o app estiver aberto.";
+    } else {
+        await liberarWakeLockTela();
+        const status = document.getElementById("status");
+        if (status) status.textContent = "Tela sempre ativa: desligada.";
+    }
+}
+
+function carregarConfiguracaoTelaSempreAtiva() {
+    const valor = localStorage.getItem(chaveConfiguracaoTelaAtiva());
+    telaSempreAtiva = valor === "1";
+    atualizarBotaoTelaSempreAtiva();
+    if (telaSempreAtiva) solicitarWakeLockTela();
+}
 
 function chaveConfiguracaoBloqueio() {
     const id = usuarioAtual?.id || perfilAtual?.id || perfilAtual?.re || "anonimo";
@@ -5313,8 +5607,13 @@ document.addEventListener("visibilitychange", function() {
     if (!document.hidden && !bloqueioTelaAtivo) {
         ultimoMovimentoTela = Date.now();
     }
+
+    if (document.visibilityState === "visible") {
+        if (telaSempreAtiva) solicitarWakeLockTela();
+    } else {
+        liberarWakeLockTela();
+    }
 });
 </script>
 
 </body>
-</html>
