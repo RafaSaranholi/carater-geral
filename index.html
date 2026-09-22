@@ -472,6 +472,86 @@
 }
 </style>
 
+
+<style id="bloqueio-tela-css">
+.bloqueio-overlay{
+    position:fixed !important;
+    inset:0 !important;
+    width:100vw !important;
+    height:100vh !important;
+    z-index:250000 !important;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    box-sizing:border-box;
+    background:rgba(0,0,0,.72);
+}
+.bloqueio-tela{
+    background:rgba(0,0,0,.82);
+}
+.bloqueio-modal{
+    width:min(430px,94vw);
+    background:#202020;
+    border:1px solid #555;
+    border-radius:10px;
+    box-shadow:0 20px 60px rgba(0,0,0,.6);
+    padding:22px;
+    box-sizing:border-box;
+    color:#eee;
+}
+.bloqueio-modal h3{
+    margin:0 0 8px;
+    font-size:18px;
+}
+.bloqueio-modal p{
+    color:#aaa;
+    font-size:13px;
+    line-height:1.45;
+    margin:0 0 16px;
+}
+.bloqueio-modal label{
+    display:block;
+    margin:10px 0 6px;
+    color:#ddd;
+    font-size:13px;
+}
+.bloqueio-modal select,
+.bloqueio-modal input{
+    width:100%;
+    box-sizing:border-box;
+    padding:11px 12px;
+    border-radius:7px;
+    border:1px solid #555;
+    background:#101010;
+    color:#eee;
+    font-size:14px;
+}
+.bloqueio-acoes{
+    display:flex;
+    gap:8px;
+    margin-top:18px;
+}
+.bloqueio-acoes button{
+    flex:1;
+}
+.bloqueio-modal-central{
+    text-align:center;
+}
+.bloqueio-modal-central label,
+.bloqueio-modal-central input{
+    text-align:left;
+}
+.bloqueio-modal-central button{
+    width:100%;
+    margin-top:14px;
+}
+.bloqueio-icone{
+    font-size:34px;
+    margin-bottom:5px;
+}
+</style>
+
 </head>
 
 <body>
@@ -704,6 +784,49 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
 <!-- =========================================================
      APLICAÇÃO ORIGINAL
 ========================================================= -->
+
+<!-- CONFIGURAÇÃO DE BLOQUEIO DE TELA -->
+<div id="configBloqueioOverlay" class="bloqueio-overlay" style="display:none" onclick="if(event.target===this) fecharConfiguracaoBloqueio()">
+    <div class="bloqueio-modal">
+        <h3>🔒 Bloqueio de tela</h3>
+        <p>Escolha após quanto tempo de inatividade a tela será bloqueada.</p>
+
+        <label for="bloqueioTempo">Tempo para bloqueio</label>
+        <select id="bloqueioTempo">
+            <option value="0">Sem bloqueio</option>
+            <option value="1">1 minuto</option>
+            <option value="2">2 minutos</option>
+            <option value="5">5 minutos</option>
+            <option value="10">10 minutos</option>
+            <option value="15">15 minutos</option>
+            <option value="20">20 minutos</option>
+            <option value="30">30 minutos</option>
+            <option value="60">60 minutos</option>
+        </select>
+
+        <div class="bloqueio-acoes">
+            <button class="btn-primary" type="button" onclick="salvarConfiguracaoBloqueio()">Salvar</button>
+            <button class="btn-secondary" type="button" onclick="fecharConfiguracaoBloqueio()">Cancelar</button>
+        </div>
+        <div id="bloqueioConfigMsg" class="auth-msg" style="display:none"></div>
+    </div>
+</div>
+
+<!-- TELA DE BLOQUEIO POR INATIVIDADE -->
+<div id="telaBloqueioOverlay" class="bloqueio-overlay bloqueio-tela" style="display:none">
+    <div class="bloqueio-modal bloqueio-modal-central">
+        <div class="bloqueio-icone">🔒</div>
+        <h3>Tela bloqueada</h3>
+        <p>Por segurança, a tela foi bloqueada por inatividade.</p>
+        <label for="bloqueioSenha">Senha</label>
+        <input id="bloqueioSenha" type="password" autocomplete="current-password"
+               placeholder="Digite sua senha"
+               onkeydown="if(event.key==='Enter') desbloquearTela()">
+        <button class="btn-primary" type="button" onclick="desbloquearTela()">Desbloquear</button>
+        <div id="bloqueioLoginMsg" class="auth-msg" style="display:none"></div>
+    </div>
+</div>
+
 <div id="appPrincipal">
 <div class="user-bar">
     <div class="user-info" id="usuarioBarraInfo">Acesso autenticado.</div>
@@ -711,6 +834,7 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
         <button id="btnCapturarTelaAdmin" class="btn-secondary" type="button" onclick="capturarTelaAdmin()" style="display:none">🖥️ Capturar tela</button>
         <button id="btnMensagemAdmin" class="btn-secondary" type="button" onclick="alternarMensagemAdmin(event)" style="display:none">💬 Mensagem</button>
         <button id="btnAdmin" class="btn-secondary" type="button" onclick="abrirAdmin()" style="display:none">⚙️ Aprovações<span id="badgeAprovacoes" class="aprovacoes-badge" style="display:none">0</span></button>
+        <button class="btn-secondary" type="button" onclick="abrirConfiguracaoBloqueio()">🔒 Bloqueio de tela</button>
         <button class="btn-secondary" type="button" onclick="sairSistema()">Sair</button>
 
         <div id="adminMensagemDropdown" class="admin-message-dropdown" aria-hidden="true">
@@ -3298,26 +3422,83 @@ function mostrarTelaAcesso() {
 }
 
 let intervaloPresenca = null;
+let intervaloAtualizacaoPresencaAdmin = null;
+let ultimaPresencaEnviada = 0;
+let enviandoPresenca = false;
 
 async function registrarPresenca() {
-    if (!usuarioAtual || !perfilAtual || perfilAtual.status !== "aprovado") return;
-    try { await sb.rpc("extrator_registrar_presenca"); } catch (e) { console.warn("Não foi possível atualizar presença:", e); }
+    if (!usuarioAtual || !perfilAtual || perfilAtual.status !== "aprovado" || enviandoPresenca) return;
+
+    enviandoPresenca = true;
+
+    try {
+        const { error } = await sb.rpc("extrator_registrar_presenca");
+
+        if (error) {
+            console.warn("Não foi possível atualizar presença:", error);
+            return;
+        }
+
+        ultimaPresencaEnviada = Date.now();
+    } catch (e) {
+        console.warn("Não foi possível atualizar presença:", e);
+    } finally {
+        enviandoPresenca = false;
+    }
 }
 
 function iniciarPresenca() {
-    if (intervaloPresenca) clearInterval(intervaloPresenca);
+    pararPresenca();
+
+    if (!usuarioAtual || !perfilAtual || perfilAtual.status !== "aprovado") return;
+
+    // Registra imediatamente ao entrar/recuperar a sessão.
     registrarPresenca();
-    intervaloPresenca = setInterval(function(){ registrarPresenca(); atualizarBolinhasPresenca(); }, 60000);
+
+    // Heartbeat a cada 30 segundos.
+    intervaloPresenca = setInterval(function() {
+        if (document.visibilityState === "visible" && navigator.onLine !== false) {
+            registrarPresenca();
+        }
+    }, 30000);
+
+    // O administrador atualiza a lista a cada 15 segundos,
+    // deixando o indicador muito mais próximo do estado real.
+    if (souAdmin) {
+        intervaloAtualizacaoPresencaAdmin = setInterval(function() {
+            if (document.visibilityState === "visible" && navigator.onLine !== false) {
+                carregarAdminUsuarios();
+            }
+        }, 15000);
+    }
 }
 
 function pararPresenca() {
     if (intervaloPresenca) clearInterval(intervaloPresenca);
+    if (intervaloAtualizacaoPresencaAdmin) clearInterval(intervaloAtualizacaoPresencaAdmin);
+
     intervaloPresenca = null;
+    intervaloAtualizacaoPresencaAdmin = null;
+    enviandoPresenca = false;
 }
 
 function atualizarBolinhasPresenca() {
     if (souAdmin) carregarAdminUsuarios();
 }
+
+// Ao voltar para a aba, registra imediatamente a presença.
+// Ao recuperar a conexão, também registra imediatamente.
+document.addEventListener("visibilitychange", function() {
+    if (document.visibilityState === "visible") {
+        registrarPresenca();
+        if (souAdmin) carregarAdminUsuarios();
+    }
+});
+
+window.addEventListener("online", function() {
+    registrarPresenca();
+    if (souAdmin) carregarAdminUsuarios();
+});
 
 function mostrarAplicacao() {
     document.getElementById("telaAcesso").style.display = "none";
@@ -4050,6 +4231,7 @@ async function entrarSistema() {
 
         await atualizarIndicadoresAcesso();
         mostrarAplicacao();
+        iniciarPresenca();
         iniciarRealtimeLista();
         await carregarLista();
         await mostrarMensagemProgramadaNoLogin();
@@ -4071,6 +4253,7 @@ async function entrarSistema() {
 }
 
 async function sairSistema() {
+    pararMonitorBloqueioTela();
     fecharMensagemAdmin();
     pararRealtimeLista();
     await sb.auth.signOut();
@@ -4730,6 +4913,182 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
     new MutationObserver(elevarSelfie).observe(document.body, {childList:true, subtree:true});
     document.addEventListener("click", function(){ setTimeout(elevarSelfie, 50); });
 })();
+</script>
+
+
+<script id="bloqueio-tela-js">
+let intervaloBloqueioTela = null;
+let ultimoMovimentoTela = Date.now();
+let bloqueioTelaAtivo = false;
+
+function chaveConfiguracaoBloqueio() {
+    const id = usuarioAtual?.id || perfilAtual?.id || perfilAtual?.re || "anonimo";
+    return "extrator_bloqueio_tela_" + id;
+}
+
+function obterTempoBloqueioTela() {
+    // Sem bloqueio é o estado padrão.
+    // A configuração somente é considerada depois que o usuário
+    // abrir o painel e salvar uma opção.
+    const chave = chaveConfiguracaoBloqueio();
+    if (localStorage.getItem(chave + "_configurado") !== "1") return 0;
+
+    const valor = Number(localStorage.getItem(chave) || 0);
+    return Number.isFinite(valor) && valor >= 0 ? valor : 0;
+}
+
+function abrirConfiguracaoBloqueio() {
+    if (!usuarioAtual || !perfilAtual) return;
+
+    const overlay = document.getElementById("configBloqueioOverlay");
+    const select = document.getElementById("bloqueioTempo");
+    if (!overlay || !select) return;
+
+    const chave = chaveConfiguracaoBloqueio();
+    const configurado = localStorage.getItem(chave + "_configurado") === "1";
+
+    select.value = configurado
+        ? String(obterTempoBloqueioTela())
+        : "0";
+
+    overlay.style.display = "flex";
+
+    const msg = document.getElementById("bloqueioConfigMsg");
+    if (msg) {
+        msg.style.display = "none";
+        msg.textContent = "";
+        msg.className = "auth-msg";
+    }
+}
+
+function fecharConfiguracaoBloqueio() {
+    const overlay = document.getElementById("configBloqueioOverlay");
+    if (overlay) overlay.style.display = "none";
+}
+
+function salvarConfiguracaoBloqueio() {
+    if (!usuarioAtual || !perfilAtual) return;
+
+    const select = document.getElementById("bloqueioTempo");
+    const minutos = Number(select?.value || 0);
+
+    const chave = chaveConfiguracaoBloqueio();
+    localStorage.setItem(chave, String(minutos));
+    localStorage.setItem(chave + "_configurado", "1");
+
+    iniciarMonitorBloqueioTela();
+    fecharConfiguracaoBloqueio();
+
+    const texto = minutos === 0
+        ? "Bloqueio de tela desativado."
+        : "Bloqueio de tela configurado para " + minutos + " minuto" + (minutos === 1 ? "." : "s.");
+
+    const status = document.getElementById("status");
+    if (status) status.textContent = texto;
+}
+
+function registrarAtividadeTela() {
+    if (bloqueioTelaAtivo) return;
+    ultimoMovimentoTela = Date.now();
+}
+
+function bloquearTelaPorInatividade() {
+    if (bloqueioTelaAtivo || !usuarioAtual || !perfilAtual) return;
+
+    const minutos = obterTempoBloqueioTela();
+    if (minutos <= 0) return;
+
+    bloqueioTelaAtivo = true;
+
+    const overlay = document.getElementById("telaBloqueioOverlay");
+    const senha = document.getElementById("bloqueioSenha");
+    const msg = document.getElementById("bloqueioLoginMsg");
+
+    if (msg) {
+        msg.style.display = "none";
+        msg.textContent = "";
+        msg.className = "auth-msg";
+    }
+    if (senha) senha.value = "";
+    if (overlay) overlay.style.display = "flex";
+
+    setTimeout(() => {
+        if (senha) senha.focus();
+    }, 80);
+}
+
+async function desbloquearTela() {
+    if (!usuarioAtual || !perfilAtual) return;
+
+    const senha = document.getElementById("bloqueioSenha")?.value || "";
+    const msg = document.getElementById("bloqueioLoginMsg");
+
+    if (!senha) {
+        mostrarMsg("bloqueioLoginMsg", "Digite sua senha para desbloquear.", "err");
+        return;
+    }
+
+    const btn = document.querySelector("#telaBloqueioOverlay .btn-primary");
+    if (btn) btn.disabled = true;
+
+    try {
+        const re = formatarRE(perfilAtual.re);
+        const { error } = await sb.auth.signInWithPassword({
+            email: reEmailAuth(re),
+            password: senha
+        });
+
+        if (error) throw error;
+
+        bloqueioTelaAtivo = false;
+        ultimoMovimentoTela = Date.now();
+
+        const overlay = document.getElementById("telaBloqueioOverlay");
+        if (overlay) overlay.style.display = "none";
+
+        const campo = document.getElementById("bloqueioSenha");
+        if (campo) campo.value = "";
+
+    } catch (erro) {
+        console.error(erro);
+        mostrarMsg("bloqueioLoginMsg", "Senha incorreta. Tente novamente.", "err");
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+function iniciarMonitorBloqueioTela() {
+    if (intervaloBloqueioTela) clearInterval(intervaloBloqueioTela);
+    ultimoMovimentoTela = Date.now();
+
+    intervaloBloqueioTela = setInterval(function() {
+        if (!usuarioAtual || !perfilAtual || bloqueioTelaAtivo) return;
+
+        const minutos = obterTempoBloqueioTela();
+        if (minutos <= 0) return;
+
+        const limite = minutos * 60 * 1000;
+        if (Date.now() - ultimoMovimentoTela >= limite) {
+            bloquearTelaPorInatividade();
+        }
+    }, 1000);
+}
+
+function pararMonitorBloqueioTela() {
+    if (intervaloBloqueioTela) clearInterval(intervaloBloqueioTela);
+    intervaloBloqueioTela = null;
+    bloqueioTelaAtivo = false;
+}
+
+["mousemove","mousedown","keydown","touchstart","scroll","click"].forEach(function(evento) {
+    document.addEventListener(evento, registrarAtividadeTela, { passive: true });
+});
+
+document.addEventListener("visibilitychange", function() {
+    if (!document.hidden && !bloqueioTelaAtivo) {
+        ultimoMovimentoTela = Date.now();
+    }
+});
 </script>
 
 </body>
