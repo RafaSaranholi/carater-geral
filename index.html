@@ -196,6 +196,12 @@
 .btn-copiar-registro:hover{background:#454545}
 .btn-excluir-registro{position:absolute;right:82px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#6b2525;color:#fff;border:1px solid #8f4444}
 .btn-excluir-registro:hover{background:#8a3030}
+.backup-box{margin-top:14px;padding:14px;background:#151515;border:1px solid #444;border-radius:8px}
+.backup-box h3{margin:0 0 7px}
+.backup-box p{margin:0 0 10px;color:#aaa;font-size:12px;line-height:1.45}
+.backup-actions{display:flex;gap:7px;flex-wrap:wrap}
+.backup-actions button{margin:0}
+.backup-status{margin-top:9px;font-size:12px;color:#aaa;line-height:1.4}
 .admin-status-badge{display:inline-block;padding:3px 7px;border-radius:999px;font-size:11px;border:1px solid #555;color:#bbb}
 .admin-status-badge.ok{border-color:#1f7a4d;color:#bfe8d1}
 .admin-status-badge.pending{border-color:#8a6d1d;color:#ffe9a8}
@@ -697,6 +703,17 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
             <button class="btn-secondary" type="button" onclick="voltarDoAdmin()">Voltar ao extrator</button>
             <button class="btn-secondary" type="button" onclick="carregarAdmin()">Atualizar</button>
             <button class="btn-info" type="button" onclick="abrirGerenciadorAdministradores()">👑 Administradores</button>
+        </div>
+
+        <div class="backup-box">
+            <h3>💾 Backup dos usuários</h3>
+            <p>Gera um arquivo JSON com os cadastros, dados de aprovação, selfie e quais usuários são administradores. As senhas não são exportadas, pois o Supabase não permite recuperar senhas.</p>
+            <div class="backup-actions">
+                <button class="btn-success" type="button" onclick="baixarBackupUsuarios()">💾 Fazer backup agora</button>
+                <button class="btn-info" type="button" onclick="document.getElementById('arquivoBackupUsuarios').click()">♻️ Restaurar backup</button>
+                <input id="arquivoBackupUsuarios" type="file" accept="application/json,.json" style="display:none" onchange="restaurarBackupUsuarios(event)">
+            </div>
+            <div id="backupUsuariosStatus" class="backup-status">Faça um backup sempre que alterar cadastros ou administradores e guarde o arquivo fora do site.</div>
         </div>
     </div>
 
@@ -3425,6 +3442,7 @@ let intervaloPresenca = null;
 let intervaloAtualizacaoPresencaAdmin = null;
 let ultimaPresencaEnviada = 0;
 let enviandoPresenca = false;
+let atualizandoPresencaAdmin = false;
 
 async function registrarPresenca() {
     if (!usuarioAtual || !perfilAtual || perfilAtual.status !== "aprovado" || enviandoPresenca) return;
@@ -3484,12 +3502,14 @@ function pararPresenca() {
 }
 
 async function atualizarSomentePresencaAdmin() {
-    if (!souAdmin) return;
+    if (!souAdmin || atualizandoPresencaAdmin) return;
 
-    const { data, error } = await sb
-        .from("extrator_usuarios")
-        .select("id,last_seen_at,status")
-        .eq("status", "aprovado");
+    atualizandoPresencaAdmin = true;
+    try {
+        const { data, error } = await sb
+            .from("extrator_usuarios")
+            .select("id,last_seen_at,status")
+            .eq("status", "aprovado");
 
     if (error) {
         console.warn("Não foi possível atualizar somente a presença:", error);
@@ -3526,10 +3546,15 @@ async function atualizarSomentePresencaAdmin() {
             titulo = "Ativo nos últimos 15 minutos";
         }
 
-        bolinha.className = "presenca-bolinha " + classe;
-        bolinha.title = titulo;
-        texto.textContent = titulo;
-    });
+            bolinha.className = "presenca-bolinha " + classe;
+            bolinha.title = titulo;
+            texto.textContent = titulo;
+        });
+    } catch (erro) {
+        console.warn("Não foi possível atualizar somente a presença:", erro);
+    } finally {
+        atualizandoPresencaAdmin = false;
+    }
 }
 
 function atualizarBolinhasPresenca() {
@@ -4713,6 +4738,117 @@ function renderizarCardsUsuarios(container, lista, adminIds) {
     }
     lista.forEach(usuario => container.appendChild(montarCardUsuario(usuario, adminIds, false)));
 }
+
+async function baixarBackupUsuarios() {
+    if (!souAdmin) return;
+    const statusEl = document.getElementById("backupUsuariosStatus");
+    try {
+        statusEl.textContent = "Gerando backup...";
+
+        const [{ data: usuarios, error: usuariosError }, { data: admins, error: adminsError }, { data: historico, error: historicoError }] = await Promise.all([
+            sb.from("extrator_usuarios").select("*").order("created_at", { ascending: true }),
+            sb.from("extrator_admins").select("user_id,created_at").order("created_at", { ascending: true }),
+            sb.from("extrator_historico_aprovados").select("*").order("aprovado_em", { ascending: true })
+        ]);
+
+        if (usuariosError) throw usuariosError;
+        if (adminsError) throw adminsError;
+        // O histórico pode não existir em instalações antigas; nesse caso o backup continua normalmente.
+        const historicoSeguro = historicoError ? [] : (historico || []);
+
+        const backup = {
+            formato: "extrator-carater-geral-backup",
+            versao: 1,
+            gerado_em: new Date().toISOString(),
+            observacao: "Backup dos perfis do Extrator de Caráter Geral. Senhas do Supabase Auth não podem ser exportadas.",
+            usuarios: usuarios || [],
+            administradores: admins || [],
+            historico_aprovados: historicoSeguro
+        };
+
+        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const data = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = `backup-extrator-usuarios-${data}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        statusEl.textContent = `Backup concluído: ${usuarios?.length || 0} usuário(s) e ${admins?.length || 0} administrador(es).`;
+    } catch (error) {
+        console.error(error);
+        statusEl.textContent = "Erro ao gerar o backup: " + (error.message || error);
+    }
+}
+
+async function restaurarBackupUsuarios(event) {
+    if (!souAdmin) return;
+    const arquivo = event.target.files?.[0];
+    const statusEl = document.getElementById("backupUsuariosStatus");
+    event.target.value = "";
+    if (!arquivo) return;
+
+    if (!confirm("ATENÇÃO: a restauração vai atualizar/reintegrar os cadastros existentes no backup. Ela não apaga usuários que não estejam no arquivo. Deseja continuar?")) return;
+
+    try {
+        statusEl.textContent = "Lendo backup...";
+        const texto = await arquivo.text();
+        const backup = JSON.parse(texto);
+
+        if (backup?.formato !== "extrator-carater-geral-backup" || !Array.isArray(backup.usuarios)) {
+            throw new Error("Arquivo de backup inválido ou incompatível.");
+        }
+
+        const camposPermitidos = [
+            "id","re","nome_completo","unidade","email_funcional","status",
+            "created_at","updated_at","selfie_base64","selfie_liveness_status",
+            "selfie_liveness_verified_at","termo_aceito","termo_aceito_em","termo_versao",
+            "termo_latitude","termo_longitude","termo_localizacao_precisao","aprovacao_em",
+            "aprovacao_latitude","aprovacao_longitude","aprovacao_localizacao_precisao","last_seen_at"
+        ];
+
+        const registros = backup.usuarios.map(u => {
+            const r = {};
+            camposPermitidos.forEach(c => { if (Object.prototype.hasOwnProperty.call(u, c)) r[c] = u[c]; });
+            return r;
+        }).filter(u => u.id && u.re && u.nome_completo && u.unidade && u.email_funcional);
+
+        if (!registros.length) throw new Error("O backup não contém cadastros válidos.");
+
+        // Upsert dos perfis. Se a conta correspondente ainda existir em auth.users,
+        // o cadastro volta a aparecer no sistema com os dados do backup.
+        const { error: upsertError } = await sb
+            .from("extrator_usuarios")
+            .upsert(registros, { onConflict: "id" });
+
+        if (upsertError) {
+            throw new Error("Não foi possível reintegrar os perfis. Verifique se as contas de autenticação (Supabase Auth) correspondentes ainda existem. Detalhe: " + upsertError.message);
+        }
+
+        let adminsRestaurados = 0;
+        const admins = Array.isArray(backup.administradores) ? backup.administradores : [];
+        if (admins.length) {
+            const adminRows = admins.filter(a => a?.user_id).map(a => ({ user_id: a.user_id, ...(a.created_at ? { created_at: a.created_at } : {}) }));
+            if (adminRows.length) {
+                const { error: adminError } = await sb.from("extrator_admins").upsert(adminRows, { onConflict: "user_id" });
+                if (adminError) throw new Error("Perfis restaurados, mas não foi possível restaurar os administradores: " + adminError.message);
+                adminsRestaurados = adminRows.length;
+            }
+        }
+
+        statusEl.textContent = `Restauração concluída: ${registros.length} perfil(is) reintegrado(s) e ${adminsRestaurados} administrador(es) restaurado(s).`;
+        await carregarAdminUsuarios();
+        alert("Backup restaurado com sucesso. Os usuários precisam ter suas contas de autenticação existentes para conseguir entrar.");
+    } catch (error) {
+        console.error(error);
+        statusEl.textContent = "Erro na restauração: " + (error.message || error);
+        alert("Não foi possível restaurar o backup. " + (error.message || error));
+    }
+}
+
 
 async function alterarStatusUsuario(id, novoStatus) {
     if (!souAdmin) return;
