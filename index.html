@@ -425,6 +425,15 @@
 }
 </style>
 
+
+<style id="resultado-uma-linha">
+#resultado {
+    white-space: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+}
+</style>
+
 </head>
 
 <body>
@@ -749,6 +758,7 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
 
 <textarea
     id="resultado"
+    wrap="off"
     placeholder="O texto reconhecido aparecerá aqui..."
 ></textarea>
 
@@ -2078,6 +2088,50 @@ function corrigirAno(texto) {
 }
 
 
+
+/* =========================================================
+   CORRIGIR PLACA DENTRO DO TEXTO OCR
+========================================================= */
+
+function corrigirPlacaNoTexto(texto, placaCorrigida) {
+
+    if (!texto || !placaCorrigida)
+        return texto;
+
+    const candidatos = texto.match(/[A-Z0-9]{7}/gi) || [];
+
+    for (const candidato of candidatos) {
+
+        const normalizado = normalizarCandidato(candidato);
+
+        const antiga = corrigirPlacaAntiga(normalizado);
+        const mercosul = corrigirPlacaMercosul(normalizado);
+
+        if (antiga === placaCorrigida || mercosul === placaCorrigida) {
+            return texto.replace(candidato, placaCorrigida);
+        }
+    }
+
+    /*
+     * Caso o OCR tenha colocado espaços dentro da placa,
+     * tenta localizar o bloco logo no início ou após
+     * "CADASTRO VEÍCULO".
+     */
+    const compacto = texto.replace(/\s+/g, "");
+    if (compacto.includes(placaCorrigida)) {
+        return texto;
+    }
+
+    return texto;
+}
+
+function textoEmUmaLinha(texto) {
+    return String(texto || "")
+        .replace(/[\r\n]+/g, " ")
+        .replace(/[ \t]{2,}/g, " ")
+        .trim();
+}
+
 /* =========================================================
    PROCESSAR RESULTADO
 ========================================================= */
@@ -2097,11 +2151,9 @@ function processarTexto(texto) {
 
 
     /*
-     * Detecta placa separadamente.
-     *
-     * NÃO altera o texto original.
+     * Detecta a placa respeitando a posição dos caracteres.
+     * Ex.: ABCOI45 -> ABC0145.
      */
-
     const placa =
         encontrarPlaca(texto);
 
@@ -2112,6 +2164,12 @@ function processarTexto(texto) {
             .getElementById("placa")
             .innerText = placa;
 
+        texto =
+            corrigirPlacaNoTexto(
+                texto,
+                placa
+            );
+
     } else {
 
         document
@@ -2120,7 +2178,13 @@ function processarTexto(texto) {
     }
 
 
-    return texto;
+    /*
+     * O caráter deve ser apresentado em uma única linha.
+     */
+    texto =
+        textoEmUmaLinha(texto);
+
+    return texto.toUpperCase();
 }
 
 
