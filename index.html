@@ -3462,12 +3462,13 @@ function iniciarPresenca() {
         }
     }, 30000);
 
-    // O administrador atualiza a lista a cada 15 segundos,
-    // deixando o indicador muito mais próximo do estado real.
+    // O administrador atualiza SOMENTE os indicadores de presença.
+    // A lista completa só é recarregada quando houver mudança administrativa
+    // (aprovação, nova solicitação, exclusão, alteração de administrador etc.).
     if (souAdmin) {
         intervaloAtualizacaoPresencaAdmin = setInterval(function() {
             if (document.visibilityState === "visible" && navigator.onLine !== false) {
-                carregarAdminUsuarios();
+                atualizarSomentePresencaAdmin();
             }
         }, 15000);
     }
@@ -3482,8 +3483,57 @@ function pararPresenca() {
     enviandoPresenca = false;
 }
 
+async function atualizarSomentePresencaAdmin() {
+    if (!souAdmin) return;
+
+    const { data, error } = await sb
+        .from("extrator_usuarios")
+        .select("id,last_seen_at,status")
+        .eq("status", "aprovado");
+
+    if (error) {
+        console.warn("Não foi possível atualizar somente a presença:", error);
+        return;
+    }
+
+    const agora = Date.now();
+    const usuarios = Array.isArray(data) ? data : [];
+
+    usuarios.forEach(function(usuario) {
+        const card = document.querySelector('[data-presenca-user-id="' + usuario.id + '"]');
+        if (!card) return;
+
+        const bolinha = card.querySelector(".presenca-bolinha");
+        const texto = card.querySelector(".presenca-texto");
+        if (!bolinha || !texto) return;
+
+        const ultimaAtividade = usuario.last_seen_at
+            ? new Date(usuario.last_seen_at).getTime()
+            : 0;
+
+        const minutosInativo = ultimaAtividade
+            ? (agora - ultimaAtividade) / 60000
+            : Infinity;
+
+        let classe = "presenca-offline";
+        let titulo = "Offline";
+
+        if (minutosInativo <= 2) {
+            classe = "presenca-online";
+            titulo = "Online";
+        } else if (minutosInativo <= 15) {
+            classe = "presenca-recente";
+            titulo = "Ativo nos últimos 15 minutos";
+        }
+
+        bolinha.className = "presenca-bolinha " + classe;
+        bolinha.title = titulo;
+        texto.textContent = titulo;
+    });
+}
+
 function atualizarBolinhasPresenca() {
-    if (souAdmin) carregarAdminUsuarios();
+    if (souAdmin) atualizarSomentePresencaAdmin();
 }
 
 // Ao voltar para a aba, registra imediatamente a presença.
@@ -3491,13 +3541,13 @@ function atualizarBolinhasPresenca() {
 document.addEventListener("visibilitychange", function() {
     if (document.visibilityState === "visible") {
         registrarPresenca();
-        if (souAdmin) carregarAdminUsuarios();
+        if (souAdmin) atualizarSomentePresencaAdmin();
     }
 });
 
 window.addEventListener("online", function() {
     registrarPresenca();
-    if (souAdmin) carregarAdminUsuarios();
+    if (souAdmin) atualizarSomentePresencaAdmin();
 });
 
 function mostrarAplicacao() {
@@ -4256,6 +4306,20 @@ async function sairSistema() {
     pararMonitorBloqueioTela();
     fecharMensagemAdmin();
     pararRealtimeLista();
+
+    // Garante que o último registro de presença seja exatamente o momento da saída.
+    // Depois disso o heartbeat é interrompido e o indicador evolui sozinho:
+    // até 2 min = verde, de 2 a 15 min = azul, acima de 15 min = vermelho.
+    try {
+        if (usuarioAtual && perfilAtual && perfilAtual.status === "aprovado") {
+            await sb.rpc("extrator_registrar_presenca");
+        }
+    } catch (e) {
+        console.warn("Não foi possível registrar o último momento de presença:", e);
+    }
+
+    pararPresenca();
+
     await sb.auth.signOut();
     usuarioAtual = null;
     perfilAtual = null;
@@ -4494,11 +4558,12 @@ function montarCardUsuario(usuario, adminIds, pendente) {
     if (!pendente && usuario.status === "aprovado") {
         item.classList.add("admin-item-clicavel");
         item.title = "Clique para ver os detalhes da aprovação";
+        item.setAttribute("data-presenca-user-id", usuario.id);
         item.innerHTML =
             '<div class="admin-grid admin-resumo-aprovado">' +
                 '<div><span>Nome:</span> <strong>' + escapeHtml(usuario.nome_completo) + '</strong></div>' +
                 '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
-                '<div><span>Status:</span> ' + badgePresenca + '<strong>' + escapeHtml(tituloPresenca) + '</strong> ' + badgeStatus + badgeAdmin + '</div>' +
+                '<div><span>Status:</span> ' + badgePresenca + '<strong class="presenca-texto">' + escapeHtml(tituloPresenca) + '</strong> ' + badgeStatus + badgeAdmin + '</div>' +
             '</div>' +
             '<div class="admin-actions" id="acoes-' + escapeHtml(usuario.id) + '"></div>';
 
