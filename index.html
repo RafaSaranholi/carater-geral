@@ -1156,7 +1156,7 @@ function obterCanvasSelecionado() {
    OCR
 ========================================================= */
 
-async function fazerOCR(canvas, modo, psm) {
+async function fazerOCR(canvas, modo, psm, somentePlaca = false) {
 
     const imagem =
         prepararImagem(canvas, modo);
@@ -1204,7 +1204,16 @@ async function fazerOCR(canvas, modo, psm) {
                      */
 
                     preserve_interword_spaces:
-                        "1"
+                        "1",
+
+                    // Quando usado para placa, restringimos o reconhecimento
+                    // aos caracteres alfanuméricos. Isso reduz trocas como
+                    // G/8, B/8, I/1 e O/0 causadas por caracteres de outros
+                    // campos da imagem.
+                    ...(somentePlaca ? {
+                        tessedit_char_whitelist:
+                            "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
+                    } : {})
                 }
             }
         );
@@ -1351,6 +1360,24 @@ async function executarOCR(canvas, retornarDados = false) {
             11
         );
 
+    // Leituras adicionais focadas em placas.
+    // Não substituem as leituras gerais; entram como candidatos extras.
+    const r4 =
+        await fazerOCR(
+            canvas,
+            0,
+            6,
+            true
+        );
+
+    const r5 =
+        await fazerOCR(
+            canvas,
+            1,
+            11,
+            true
+        );
+
 
     const candidatos = [
 
@@ -1370,6 +1397,18 @@ async function executarOCR(canvas, retornarDados = false) {
             texto: r3.data.text.trim(),
             confianca: r3.data.confidence,
             dados: r3.data
+        },
+
+        {
+            texto: r4.data.text.trim(),
+            confianca: r4.data.confidence,
+            dados: r4.data
+        },
+
+        {
+            texto: r5.data.text.trim(),
+            confianca: r5.data.confidence,
+            dados: r5.data
         }
     ];
 
@@ -1530,6 +1569,51 @@ function normalizarCandidato(valor) {
         .replace(/[^A-Z0-9]/g, "");
 }
 
+
+/* =========================================================
+   VARIANTES DE PLACA PARA AMBIGUIDADES DO OCR
+========================================================= */
+
+function gerarVariantesPlaca(valor) {
+
+    const base = normalizarCandidato(valor);
+
+    if (base.length !== 7)
+        return [base];
+
+    const variantes = [base];
+
+    // 8 pode ser lido no lugar de B ou G.
+    // 6 também pode aparecer como G.
+    // Só alteramos posições que devem ser letras.
+    const ambiguidades = [
+        { pos: 0, de: "8", para: ["B", "G"] },
+        { pos: 1, de: "8", para: ["B", "G"] },
+        { pos: 2, de: "8", para: ["B", "G"] },
+        { pos: 0, de: "6", para: ["G"] },
+        { pos: 1, de: "6", para: ["G"] },
+        { pos: 2, de: "6", para: ["G"] }
+    ];
+
+    for (const item of ambiguidades) {
+        if (base[item.pos] !== item.de)
+            continue;
+
+        const atuais = variantes.slice();
+
+        for (const atual of atuais) {
+            for (const letra of item.para) {
+                const copia = atual.split("");
+                copia[item.pos] = letra;
+                const v = copia.join("");
+                if (!variantes.includes(v))
+                    variantes.push(v);
+            }
+        }
+    }
+
+    return variantes;
+}
 
 /* =========================================================
    PLACA ANTIGA
@@ -1824,33 +1908,35 @@ function encontrarPlaca(texto) {
                     i + 7
                 );
 
+            const variantes = gerarVariantesPlaca(candidato);
 
-            /*
-             * Primeiro Mercosul.
-             */
+            for (const variante of variantes) {
 
-            const mercosul =
-                corrigirPlacaMercosul(
-                    candidato
-                );
+                /*
+                 * Primeiro Mercosul.
+                 */
 
+                const mercosul =
+                    corrigirPlacaMercosul(
+                        variante
+                    );
 
-            if (mercosul)
-                return mercosul;
-
-
-            /*
-             * Depois placa antiga.
-             */
-
-            const antiga =
-                corrigirPlacaAntiga(
-                    candidato
-                );
+                if (mercosul)
+                    return mercosul;
 
 
-            if (antiga)
-                return antiga;
+                /*
+                 * Depois placa antiga.
+                 */
+
+                const antiga =
+                    corrigirPlacaAntiga(
+                        variante
+                    );
+
+                if (antiga)
+                    return antiga;
+            }
         }
     }
 
@@ -1884,14 +1970,17 @@ function encontrarPlaca(texto) {
             return mercosul;
 
 
-        const antiga =
-            corrigirPlacaAntiga(
-                candidato
-            );
+        const variantes = gerarVariantesPlaca(candidato);
 
+        for (const variante of variantes) {
+            const antiga =
+                corrigirPlacaAntiga(
+                    variante
+                );
 
-        if (antiga)
-            return antiga;
+            if (antiga)
+                return antiga;
+        }
     }
 
 
@@ -2357,7 +2446,14 @@ async function extrairSomenteCarater() {
             ? fimMarcador + fimValor
             : restante.length;
 
-        const resultado = restante.slice(0, fim).trim();
+        let resultado = restante.slice(0, fim).trim();
+
+        // Mantém o conteúdo reconhecido, apenas removendo quebras de linha
+        // para que o caráter seja apresentado em uma única linha.
+        resultado = resultado
+            .replace(/[\\r\\n]+/g, " ")
+            .replace(/[ \\t]{2,}/g, " ")
+            .trim();
 
         if (!resultado) {
             alert("Não foi possível extrair o caráter.");
@@ -2529,11 +2625,38 @@ async function salvarTextoLista() {
         return;
     }
 
-    const texto = document.getElementById("resultado").value.trim().toUpperCase();
+    const campoResultado = document.getElementById("resultado");
+    const texto = (campoResultado?.value || "").trim().toUpperCase();
 
     if (!texto) {
         alert("Não há texto para salvar.");
         return;
+    }
+
+    // Confere o emplacamento identificado no caráter.
+    const placaNova = encontrarPlaca(texto);
+
+    if (placaNova) {
+        const { data: registrosExistentes, error: erroConsulta } = await sb
+            .from("extrator_lista_carater")
+            .select("id,texto");
+
+        if (erroConsulta) {
+            console.error(erroConsulta);
+            alert("Não foi possível conferir se o emplacamento já existe na lista.");
+            return;
+        }
+
+        const registroDuplicado = (registrosExistentes || []).find(function(registro) {
+            return encontrarPlaca(registro.texto || "") === placaNova;
+        });
+
+        if (registroDuplicado) {
+            alert("ERRO: o emplacamento " + placaNova + " já existe na lista.");
+            document.getElementById("status").innerText =
+                "Emplacamento já existente na lista: " + placaNova + ".";
+            return;
+        }
     }
 
     const { error } = await sb
