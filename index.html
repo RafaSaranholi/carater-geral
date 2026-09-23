@@ -5130,10 +5130,8 @@ async function salvarPermissoesAdministrador() {
         p_gerenciar_membros: permissoes.gerenciar_membros,
         p_gerenciar_admins: permissoes.gerenciar_admins,
         p_download_lista: permissoes.download_lista,
-        // Estas duas permissões existem no banco, mas não são exibidas
-        // neste painel. Permanecem desativadas para administradores comuns.
-        p_visualizar_historico: false,
-        p_gerenciar_mensagens: false
+        p_visualizar_historico: permissoes.visualizar_historico,
+        p_gerenciar_mensagens: permissoes.gerenciar_mensagens
     });
     if (error) {
         console.error(error);
@@ -5184,7 +5182,7 @@ async function excluirUsuario(userId, re, nome) {
 
     if (error) {
         console.error(error);
-        alert("Não foi possível excluir o usuário. Verifique se a migração de administração foi executada no Supabase.");
+        alert("Não foi possível desativar o usuário.\n\n" + (error.message || "Erro desconhecido no Supabase."));
         return;
     }
 
