@@ -709,7 +709,7 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
 
         <div class="backup-box">
             <h3>💾 Backup dos usuários</h3>
-            <p>Gera um arquivo JSON com os cadastros, dados de aprovação, selfie e quais usuários são administradores. As senhas não são exportadas, pois o Supabase não permite recuperar senhas.</p>
+            <p>Gera um arquivo JSON com os cadastros, dados de aprovação, selfie e as permissões dos administradores. As senhas não são exportadas, pois o Supabase não permite recuperar senhas.</p>
             <div class="backup-actions">
                 <button class="btn-success" type="button" onclick="baixarBackupUsuarios()">💾 Fazer backup agora</button>
                 <button class="btn-info" type="button" onclick="document.getElementById('arquivoBackupUsuarios').click()">♻️ Restaurar backup</button>
@@ -4804,7 +4804,7 @@ async function baixarBackupUsuarios() {
 
         const [{ data: usuarios, error: usuariosError }, { data: admins, error: adminsError }, { data: historico, error: historicoError }] = await Promise.all([
             sb.from("extrator_usuarios").select("*").order("created_at", { ascending: true }),
-            sb.from("extrator_admins").select("user_id,created_at").order("created_at", { ascending: true }),
+            sb.from("extrator_admins").select("user_id,created_at,is_master,acesso_full,adicionar_remover_carater,gerenciar_membros,gerenciar_admins,download_lista,visualizar_historico,gerenciar_mensagens").order("created_at", { ascending: true }),
             sb.from("extrator_historico_aprovados").select("*").order("aprovado_em", { ascending: true })
         ]);
 
@@ -4817,7 +4817,7 @@ async function baixarBackupUsuarios() {
             formato: "extrator-carater-geral-backup",
             versao: 1,
             gerado_em: new Date().toISOString(),
-            observacao: "Backup dos perfis do Extrator de Caráter Geral. Senhas do Supabase Auth não podem ser exportadas.",
+            observacao: "Backup dos perfis do Extrator de Caráter Geral, incluindo permissões administrativas. Senhas do Supabase Auth não podem ser exportadas.",
             usuarios: usuarios || [],
             administradores: admins || [],
             historico_aprovados: historicoSeguro
@@ -4860,7 +4860,18 @@ async function lerEValidarBackupUsuarios(arquivo) {
     }).filter(u => u.id && u.re && u.nome_completo && u.unidade && u.email_funcional);
     if (!registros.length) throw new Error("O backup não contém cadastros válidos.");
     const admins = Array.isArray(backup.administradores)
-        ? backup.administradores.filter(a => a?.user_id).map(a => ({ user_id:a.user_id, ...(a.created_at ? {created_at:a.created_at} : {}) }))
+        ? backup.administradores.filter(a => a?.user_id).map(a => ({
+            user_id: a.user_id,
+            ...(a.created_at ? {created_at:a.created_at} : {}),
+            is_master: a.is_master === true,
+            acesso_full: a.acesso_full === true,
+            adicionar_remover_carater: a.adicionar_remover_carater === true,
+            gerenciar_membros: a.gerenciar_membros === true,
+            gerenciar_admins: a.gerenciar_admins === true,
+            download_lista: a.download_lista === true,
+            visualizar_historico: a.visualizar_historico === true,
+            gerenciar_mensagens: a.gerenciar_mensagens === true
+        }))
         : [];
     return {backup, registros, admins};
 }
@@ -5100,12 +5111,15 @@ async function salvarPermissoesAdministrador() {
     const userId = document.getElementById("permissaoAdminUserId")?.value;
     if (!userId) return;
     const full = document.getElementById("permAcessoFull")?.checked === true;
+    const adminAtual = adminPermissoesCache.get(userId) || {};
     const permissoes = {
         acesso_full: full,
         adicionar_remover_carater: full || document.getElementById("permAdicionarRemover")?.checked === true,
         gerenciar_membros: full || document.getElementById("permGerenciarMembros")?.checked === true,
         gerenciar_admins: full || document.getElementById("permGerenciarAdmins")?.checked === true,
-        download_lista: full || document.getElementById("permDownloadLista")?.checked === true
+        download_lista: full || document.getElementById("permDownloadLista")?.checked === true,
+        visualizar_historico: full || adminAtual.visualizar_historico === true,
+        gerenciar_mensagens: full || adminAtual.gerenciar_mensagens === true
     };
     const aviso = document.getElementById("permissaoAdminAviso");
     if (aviso) { aviso.style.display = "block"; aviso.className = "auth-msg warn"; aviso.textContent = "Salvando permissões..."; }
@@ -5115,7 +5129,11 @@ async function salvarPermissoesAdministrador() {
         p_adicionar_remover_carater: permissoes.adicionar_remover_carater,
         p_gerenciar_membros: permissoes.gerenciar_membros,
         p_gerenciar_admins: permissoes.gerenciar_admins,
-        p_download_lista: permissoes.download_lista
+        p_download_lista: permissoes.download_lista,
+        // Estas duas permissões existem no banco, mas não são exibidas
+        // neste painel. Permanecem desativadas para administradores comuns.
+        p_visualizar_historico: false,
+        p_gerenciar_mensagens: false
     });
     if (error) {
         console.error(error);
@@ -5160,7 +5178,7 @@ async function excluirUsuario(userId, re, nome) {
         return;
     }
 
-    if (!confirm("Excluir o usuário RE " + re + " (" + nome + ")?\n\nO cadastro será desativado, mas a conta do Supabase Auth será PRESERVADA.\nA senha e o ID da conta não serão apagados.\nO usuário poderá ser restaurado posteriormente pelo backup.")) return;
+    if (!confirm("Desativar o usuário RE " + re + " (" + nome + ")?\n\nO cadastro será desativado, mas a conta do Supabase Auth será PRESERVADA.\nA senha e o ID da conta não serão apagados.\nO usuário poderá ser restaurado posteriormente pelo backup.")) return;
 
     const { error } = await sb.rpc("extrator_excluir_usuario", { p_user_id: userId });
 
