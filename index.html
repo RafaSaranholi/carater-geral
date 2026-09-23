@@ -712,11 +712,9 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
             <p>Gera um arquivo JSON com os cadastros, dados de aprovação, selfie e quais usuários são administradores. As senhas não são exportadas, pois o Supabase não permite recuperar senhas.</p>
             <div class="backup-actions">
                 <button class="btn-success" type="button" onclick="baixarBackupUsuarios()">💾 Fazer backup agora</button>
-                <button class="btn-info" type="button" onclick="document.getElementById('arquivoBackupUsuarios').click()">♻️ Restaurar backup completo</button>
-                <button class="btn-success" type="button" onclick="document.getElementById('arquivoRecuperarFotosBackup').click()">📸 Recuperar somente fotos</button>
+                <button class="btn-info" type="button" onclick="document.getElementById('arquivoBackupUsuarios').click()">♻️ Restaurar backup</button>
                 <button class="btn-dark" type="button" onclick="document.getElementById('arquivoVerificarBackupUsuarios').click()">🔍 Verificar backup</button>
                 <input id="arquivoBackupUsuarios" type="file" accept="application/json,.json" style="display:none" onchange="restaurarBackupUsuarios(event)">
-                <input id="arquivoRecuperarFotosBackup" type="file" accept="application/json,.json" style="display:none" onchange="recuperarFotosDoBackup(event)">
                 <input id="arquivoVerificarBackupUsuarios" type="file" accept="application/json,.json" style="display:none" onchange="verificarBackupUsuarios(event)">
             </div>
             <div id="backupUsuariosStatus" class="backup-status">Faça um backup sempre que alterar cadastros ou administradores e guarde o arquivo fora do site.</div>
@@ -4892,81 +4890,6 @@ async function verificarBackupUsuarios(event) {
     }
 }
 
-async function recuperarFotosDoBackup(event) {
-    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) {
-        alert("Somente administradores com Acesso Full podem recuperar as fotos do backup.");
-        return;
-    }
-
-    const arquivo = event.target.files?.[0];
-    const statusEl = document.getElementById("backupUsuariosStatus");
-    event.target.value = "";
-    if (!arquivo) return;
-
-    try {
-        statusEl.textContent = "Analisando o backup para recuperar somente as fotos...";
-        const {backup, registros} = await lerEValidarBackupUsuarios(arquivo);
-        const comFoto = registros.filter(u => typeof u.selfie_base64 === "string" && u.selfie_base64.trim() !== "");
-
-        if (!comFoto.length) {
-            throw new Error("Nenhuma foto foi encontrada no arquivo de backup.");
-        }
-
-        const confirmar = confirm(
-            "RECUPERAR SOMENTE FOTOS\n\n" +
-            "O backup contém " + comFoto.length + " foto(s).\n\n" +
-            "Esta operação NÃO restaura nomes, RE, unidade, status, permissões, histórico ou qualquer outro dado.\n" +
-            "Ela altera SOMENTE o campo selfie_base64 dos usuários que já existem atualmente.\n" +
-            "Nenhum usuário será criado, excluído ou alterado de outra forma.\n\n" +
-            "Backup gerado em: " + (backup.gerado_em ? new Date(backup.gerado_em).toLocaleString("pt-BR") : "data não informada") + "\n\n" +
-            "Deseja recuperar somente as fotos?"
-        );
-
-        if (!confirmar) {
-            statusEl.textContent = "Recuperação de fotos cancelada. Nenhum dado foi alterado.";
-            return;
-        }
-
-        statusEl.textContent = "Recuperando somente as fotos pelo Supabase...";
-
-        const {data: resultado, error} = await sb.rpc(
-            "extrator_restaurar_fotos_backup",
-            { p_backup: backup }
-        );
-
-        if (error) {
-            throw new Error("Não foi possível recuperar as fotos. " + error.message);
-        }
-
-        const r = resultado || {};
-        const recuperadas = Number(r.fotos_recuperadas || 0);
-        const ausentes = Number(r.perfis_nao_encontrados || 0);
-        const semFoto = Number(r.registros_sem_foto || 0);
-        const invalidas = Number(r.fotos_invalidas || 0);
-
-        statusEl.textContent =
-            "Fotos recuperadas: " + recuperadas + ". " +
-            (ausentes ? ausentes + " perfil(is) do backup não existem atualmente. " : "") +
-            (semFoto ? semFoto + " registro(s) sem foto. " : "") +
-            (invalidas ? invalidas + " foto(s) inválida(s)." : "");
-
-        await carregarAdminUsuarios();
-
-        alert(
-            "RECUPERAÇÃO DE FOTOS CONCLUÍDA\n\n" +
-            "Fotos recuperadas: " + recuperadas + "\n" +
-            "Perfis não encontrados atualmente: " + ausentes + "\n" +
-            "Registros sem foto no backup: " + semFoto + "\n" +
-            "Fotos inválidas no backup: " + invalidas + "\n\n" +
-            "Nenhum outro dado dos usuários foi restaurado."
-        );
-    } catch (error) {
-        console.error(error);
-        statusEl.textContent = "Erro na recuperação das fotos: " + (error.message || error);
-        alert("Não foi possível recuperar as fotos. " + (error.message || error));
-    }
-}
-
 async function restaurarBackupUsuarios(event) {
     if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) {
         alert("Somente administradores com Acesso Full podem restaurar backup de usuários.");
@@ -5040,7 +4963,7 @@ async function restaurarBackupUsuarios(event) {
 
         statusEl.textContent =
             "Restauração concluída: " +
-            perfisProcessados + " perfil(is) restaurado(s), " +
+            perfisProcessados + " perfil(is) restaurado(s), incluindo as fotos salvas no backup, " +
             adminsRestaurados + " administrador(es) restaurado(s)." +
             (perfisIgnorados ? " " + perfisIgnorados + " perfil(is) ignorado(s) por não possuir conta Auth." : "");
 
