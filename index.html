@@ -118,39 +118,6 @@
 #listaSalvos{max-height:600px;overflow-y:auto;margin-bottom:10px}
 .item-salvo{background:#101010;border:1px solid #444;border-radius:6px;padding:10px;margin-bottom:8px;white-space:pre-wrap;word-break:break-word;font-size:14px;cursor:pointer}
 .item-salvo:hover{border-color:#777}
-
-/* Destaque do emplacamento na lista */
-.emplacamento-destaque{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    margin:0 0 9px 0;
-    padding:5px 10px;
-    min-width:92px;
-    box-sizing:border-box;
-    border:2px solid #00d4ff;
-    border-radius:6px;
-    background:#0d1b20;
-    color:#ffffff;
-    font-size:18px;
-    font-weight:800;
-    letter-spacing:2px;
-    line-height:1.15;
-    box-shadow:0 0 8px rgba(0,212,255,.18);
-}
-.emplacamento-destaque::before{content:'🚘 ';font-size:14px;letter-spacing:0}
-.emplacamento-invalido{
-    display:block;
-    margin:0 0 9px 0;
-    padding:7px 9px;
-    border:2px solid #e53935;
-    border-radius:6px;
-    background:#2a1111;
-    color:#ffb8b8;
-    font-size:12px;
-    font-weight:700;
-}
-
 .item-salvo .item-numero{color:#aaa;font-size:12px;margin-bottom:5px}
 .botoes-lista{display:flex;flex-wrap:wrap;gap:5px}
 .botoes-salvar-abaixo{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;margin-bottom:12px}
@@ -2839,32 +2806,6 @@ function classeCorCarater(texto) {
     return "";
 }
 
-function obterEmplacamentoParaDestaque(texto) {
-    const encontrado = encontrarPlaca(texto || '');
-    if (!encontrado) return null;
-    const placa = String(encontrado).replace(/[^A-Z0-9]/gi, '').toUpperCase();
-    return placa.length === 7 ? placa : null;
-}
-
-function obterTokenEmplacamento(texto) {
-    const valor = String(texto || '').toUpperCase();
-    const m = valor.match(/CADASTRO\s+VE[ÍI1]CULO\s*[:\-]?\s*([A-Z0-9-]+)/i);
-    if (!m) return null;
-    return String(m[1] || '').replace(/[^A-Z0-9]/g, '');
-}
-
-function validarLimiteEmplacamento(texto) {
-    const token = obterTokenEmplacamento(texto);
-    if (token && token.length > 7) {
-        return { ok:false, valor:token };
-    }
-    const placa = encontrarPlaca(texto || '');
-    if (placa && String(placa).replace(/[^A-Z0-9]/gi, '').length > 7) {
-        return { ok:false, valor:placa };
-    }
-    return { ok:true, valor:token || placa || null };
-}
-
 function renderizarLista() {
     const container = document.getElementById("listaSalvos");
     const contador = document.getElementById("contadorCarater");
@@ -2896,14 +2837,6 @@ function renderizarLista() {
         const numero = document.createElement("div");
         numero.className = "item-numero";
         numero.textContent = "Registro " + numeroRegistro;
-
-        const placaRegistro = obterEmplacamentoParaDestaque(registro.texto || "");
-        if (placaRegistro) {
-            const placaBadge = document.createElement("div");
-            placaBadge.className = "emplacamento-destaque";
-            placaBadge.textContent = placaRegistro;
-            item.appendChild(placaBadge);
-        }
 
         const conteudo = document.createElement("div");
         conteudo.className = "item-conteudo";
@@ -2979,15 +2912,6 @@ async function salvarTextoLista() {
 
     if (!texto) {
         alert("Não há texto para salvar.");
-        return;
-    }
-
-    // Regra: o emplacamento pode ter no máximo 7 caracteres.
-    const validacaoEmplacamento = validarLimiteEmplacamento(texto);
-    if (!validacaoEmplacamento.ok) {
-        alert("ERRO: o emplacamento não pode ter mais de 7 caracteres.\n\nEmplacamento identificado: " + validacaoEmplacamento.valor);
-        document.getElementById("status").innerText =
-            "Emplacamento inválido: máximo de 7 caracteres.";
         return;
     }
 
