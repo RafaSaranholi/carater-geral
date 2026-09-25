@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npesh/face_mesh.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 
 <style>
     body {
@@ -345,6 +346,17 @@
 /* GARANTIA DE EXIBIÇÃO DA LISTA DE CARÁTER GERAL */
 #appPrincipal .painel-lista{display:block !important;visibility:visible !important}
 #appPrincipal.readonly-user .painel-lista{display:block !important;visibility:visible !important}
+
+
+/* ESCOLHA DE DOWNLOAD */
+.download-escolha-overlay{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;align-items:center;justify-content:center;z-index:300000;padding:20px;box-sizing:border-box}
+.download-escolha-overlay.open{display:flex}
+.download-escolha-modal{width:min(430px,94vw);background:#202020;border:1px solid #555;border-radius:12px;padding:22px;box-sizing:border-box;box-shadow:0 20px 60px rgba(0,0,0,.65);text-align:center}
+.download-escolha-modal h3{margin:0 0 8px;font-size:20px}
+.download-escolha-modal p{margin:0 0 18px;color:#aaa;font-size:13px;line-height:1.45}
+.download-escolha-acoes{display:grid;grid-template-columns:1fr;gap:9px}
+.download-escolha-acoes button{width:100%;margin:0}
+
 </style>
 
 <link rel="manifest" href="./manifest.json">
@@ -3019,6 +3031,222 @@ async function salvarTextoLista() {
     await carregarLista();
 }
 
+function abrirEscolhaDownload() {
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.download_lista || adminPermissoes.is_master)) {
+        alert("Você não possui permissão para baixar a lista de caráter geral.");
+        return;
+    }
+    if (!listaTextos.length) {
+        alert("A lista está vazia.");
+        return;
+    }
+    const overlay = document.getElementById("downloadEscolhaOverlay");
+    if (overlay) {
+        overlay.classList.add("open");
+        overlay.setAttribute("aria-hidden", "false");
+    }
+}
+
+function fecharEscolhaDownload() {
+    const overlay = document.getElementById("downloadEscolhaOverlay");
+    if (overlay) {
+        overlay.classList.remove("open");
+        overlay.setAttribute("aria-hidden", "true");
+    }
+}
+
+function baixarListaTxtEscolha() {
+    fecharEscolhaDownload();
+    baixarListaTxt();
+}
+
+function campoCarater(texto, nomes) {
+    const bruto = String(texto || "");
+    const normalizado = bruto.replace(/\r/g, "").replace(/\n+/g, " ").replace(/[ \t]+/g, " ").trim();
+    for (const nome of nomes) {
+        const re = new RegExp("(?:^|[ ;])" + nome + "\\s*[:\\-]?\\s*([^;]+?)(?=\\s+(?:TIPO|MARCA|MODELO|COR|ANO|MUNIC[IÍ]PIO|SITUA[CÇ]?[AÃ]O)\\s*[:\\-]|$)", "i");
+        const m = normalizado.match(re);
+        if (m && m[1]) return m[1].trim();
+    }
+    return "";
+}
+
+function extrairDadosPlanilha(registro) {
+    const texto = String(registro?.texto || "").toUpperCase();
+    const placa = encontrarPlaca(texto) || campoCarater(texto, ["PLACA", "EMPLACAMENTO"]);
+    const modelo = campoCarater(texto, ["MODELO"]);
+    const marca = campoCarater(texto, ["MARCA"]);
+    const tipo = campoCarater(texto, ["TIPO"]);
+    const anoMatch = texto.match(/\bANO\s*[:\-]?\s*([0-9]{4})(?:\s*[\\/\-]\s*([0-9]{4}))?/i);
+    const anos = anoMatch ? (anoMatch[1] + (anoMatch[2] ? "/" + anoMatch[2] : "")) : "";
+    const cor = campoCarater(texto, ["COR"]);
+    const situacao = campoCarater(texto, ["SITUAÇÃO", "SITUACAO"]);
+    let modeloAno = modelo || marca || tipo || "";
+    if (modeloAno && anos) modeloAno += " / " + anos;
+    else if (anos) modeloAno = anos;
+
+    // As colunas R e A da folha original são mantidas como campos editáveis.
+    // Só preenchemos quando o próprio caráter traz explicitamente R: ou A:.
+    const rMatch = texto.match(/(?:^|[ ;])R\s*[:\-]\s*([^;]+)/i);
+    const aMatch = texto.match(/(?:^|[ ;])A\s*[:\-]\s*([^;]+)/i);
+    const r = rMatch ? rMatch[1].trim() : "";
+    const a = aMatch ? aMatch[1].trim() : "";
+
+    return { placa: String(placa || "").trim(), modeloAno, cor, r, a, situacao };
+}
+
+function criarPlanilhaCaraterGeral() {
+    if (typeof XLSX === "undefined") {
+        throw new Error("A biblioteca de planilha não foi carregada. Verifique sua conexão com a internet e tente novamente.");
+    }
+
+    const wb = XLSX.utils.book_new();
+    const porDigito = {};
+    for (let i = 0; i <= 9; i++) porDigito[i] = [];
+
+    listaTextos.forEach(function(registro) {
+        const dados = extrairDadosPlanilha(registro);
+        const primeiro = (dados.placa || "").charAt(0);
+        const digito = /^[0-9]$/.test(primeiro) ? primeiro : "0";
+        porDigito[digito].push(dados);
+    });
+
+    const esquerdas = [0,2,4,6,8];
+    const direitas = [1,3,5,7,9];
+    const linhasPorGrupo = 7;
+    const ultimaLinha = 4 + linhasPorGrupo * 5;
+
+    function adicionarBorda(ws, r, c, border) {
+        const ref = XLSX.utils.encode_cell({r:r-1,c:c-1});
+        if (!ws[ref]) ws[ref] = {t:"s",v:""};
+        ws[ref].s = Object.assign({}, ws[ref].s || {}, {border});
+    }
+
+    function estiloCelula(ws, ref, estilo) {
+        if (!ws[ref]) ws[ref] = {t:"s",v:""};
+        ws[ref].s = Object.assign({}, ws[ref].s || {}, estilo);
+    }
+
+    function montarFolha(nome, esquerda, direita, paginaInicial) {
+        const ws = {};
+        const border = {top:{style:"thin",color:{rgb:"000000"}},bottom:{style:"thin",color:{rgb:"000000"}},left:{style:"thin",color:{rgb:"000000"}},right:{style:"thin",color:{rgb:"000000"}}};
+        const mediumBorder = {top:{style:"medium",color:{rgb:"000000"}},bottom:{style:"medium",color:{rgb:"000000"}},left:{style:"medium",color:{rgb:"000000"}},right:{style:"medium",color:{rgb:"000000"}}};
+        const headerStyle = {font:{name:"Arial",sz:9,bold:true},alignment:{horizontal:"center",vertical:"center",wrap_text:true},fill:{fgColor:{rgb:"D9D9D9"}},border};
+        const digitStyle = {font:{name:"Arial",sz:26,bold:true},alignment:{horizontal:"center",vertical:"center"},fill:{fgColor:{rgb:"D9D9D9"}},border:mediumBorder};
+        const bodyStyle = {font:{name:"Arial",sz:9},alignment:{horizontal:"center",vertical:"center"},border};
+
+        ws["A1"]={t:"s",v:"CARÁTER GERAL"};
+        ws["L1"]={t:"s",v:"DATA:     /     /"};
+        ws["A1"].s={font:{name:"Arial",sz:14,bold:true},alignment:{horizontal:"center",vertical:"center"}};
+        ws["L1"].s={font:{name:"Arial",sz:11,bold:true},alignment:{horizontal:"center",vertical:"center"}};
+        ws["A2"]={t:"s",v:""};
+        ws["A3"]={t:"s",v:""};
+
+        const leftHeader = [["","PLACA","","","MODELO/ANO","","","COR","R","A","","PLACA","","","MODELO/ANO","","","COR","R","A",""]];
+        XLSX.utils.sheet_add_aoa(ws,leftHeader,{origin:"A3"});
+        ws["A3"].v=""; ws["K3"].v="";
+        ["A3","B3","E3","H3","I3","J3","L3","M3","P3","S3","T3","U3"].forEach(ref=>estiloCelula(ws,ref,headerStyle));
+        ws["B3"].s=headerStyle; ws["E3"].s=headerStyle; ws["H3"].s=headerStyle; ws["I3"].s=headerStyle; ws["J3"].s=headerStyle;
+        ws["L3"].s=headerStyle; ws["M3"].s=headerStyle; ws["P3"].s=headerStyle; ws["S3"].s=headerStyle; ws["T3"].s=headerStyle; ws["U3"].s=headerStyle;
+
+        ws["!merges"] = [
+            {s:{r:0,c:0},e:{r:0,c:10}},
+            {s:{r:0,c:11},e:{r:0,c:20}},
+            {s:{r:2,c:1},e:{r:2,c:3}}, {s:{r:2,c:4},e:{r:2,c:6}},
+            {s:{r:2,c:11},e:{r:2,c:13}}, {s:{r:2,c:14},e:{r:2,c:16}}
+        ];
+
+        let row = 4;
+        for (let g=0; g<5; g++) {
+            const dl = esquerda[g], dr = direita[g];
+            const start = row;
+            const end = row + linhasPorGrupo - 1;
+            ws["A"+start]={t:"n",v:dl}; ws["A"+start].s=digitStyle;
+            ws["L"+start]={t:"n",v:dr}; ws["L"+start].s=digitStyle;
+            ws["!merges"].push({s:{r:start-1,c:0},e:{r:end-1,c:0}});
+            ws["!merges"].push({s:{r:start-1,c:11},e:{r:end-1,c:11}});
+            for (let i=0;i<linhasPorGrupo;i++) {
+                const rl = row+i;
+                const dlData = (porDigito[dl] || []).slice(paginaInicial + i, paginaInicial + i + 1)[0];
+                const drData = (porDigito[dr] || []).slice(paginaInicial + i, paginaInicial + i + 1)[0];
+                function preencher(baseCol, dados, dig) {
+                    const vals = [dados?.placa||"",dados?.modeloAno||"",dados?.cor||"",dados?.r||"",dados?.a||""];
+                    const cols = [baseCol,baseCol+3,baseCol+6,baseCol+7,baseCol+8];
+                    // PLACA ocupa 3 colunas; MODELO/ANO ocupa 3 colunas.
+                    ws[XLSX.utils.encode_cell({r:rl-1,c:baseCol-1})]={t:"s",v:vals[0]};
+                    ws[XLSX.utils.encode_cell({r:rl-1,c:baseCol+2})]={t:"s",v:vals[1]};
+                    ws[XLSX.utils.encode_cell({r:rl-1,c:baseCol+5})]={t:"s",v:vals[2]};
+                    ws[XLSX.utils.encode_cell({r:rl-1,c:baseCol+6})]={t:"s",v:vals[3]};
+                    ws[XLSX.utils.encode_cell({r:rl-1,c:baseCol+7})]={t:"s",v:vals[4]};
+                    ws["!merges"].push({s:{r:rl-1,c:baseCol-1},e:{r:rl-1,c:baseCol+1}});
+                    ws["!merges"].push({s:{r:rl-1,c:baseCol+2},e:{r:rl-1,c:baseCol+4}});
+                    for(let c=baseCol;c<=baseCol+8;c++) {
+                        const ref=XLSX.utils.encode_cell({r:rl-1,c:c-1});
+                        if(!ws[ref]) ws[ref]={t:"s",v:""};
+                        ws[ref].s=bodyStyle;
+                    }
+                    // Thick separator after every 7-row group.
+                    if (i===linhasPorGrupo-1) {
+                        for(let c=baseCol;c<=baseCol+8;c++) {
+                            const ref=XLSX.utils.encode_cell({r:rl-1,c:c-1});
+                            ws[ref].s=Object.assign({},ws[ref].s,{border:mediumBorder});
+                        }
+                    }
+                }
+                preencher(2,dlData,dl);  // B:J
+                preencher(13,drData,dr);  // M:U
+                // Borda da linha completa incluindo as células de grupo.
+                for(let c=1;c<=9;c++) adicionarBorda(ws,rl,c+1,border);
+                for(let c=12;c<=20;c++) adicionarBorda(ws,rl,c+1,border);
+            }
+            row += linhasPorGrupo;
+        }
+
+        // Larguras para reproduzir visualmente a folha da foto.
+        const widths={A:5,B:7,C:7,D:10,E:11,F:11,G:11,H:9,I:5,J:5,K:3,L:5,M:7,N:7,O:10,P:11,Q:11,R:11,S:9,T:5,U:5};
+        ws["!cols"]=Object.keys(widths).map(k=>({wch:widths[k]}));
+        ws["!rows"]=[{hpt:22},{hpt:8},{hpt:20}];
+        for(let r=4;r<=38;r++) ws["!rows"][r-1]={hpt:18};
+        ws["!freeze"]= {xSplit:0,ySplit:3};
+        ws["!pageSetup"]={orientation:"landscape",fitToWidth:1,fitToHeight:1,paperSize:9};
+        ws["!sheetPr"]={pageSetUpPr:{fitToPage:true}};
+        ws["!margins"]={left:0.2,right:0.2,top:0.3,bottom:0.3,header:0.1,footer:0.1};
+        XLSX.utils.book_append_sheet(wb,ws,nome);
+    }
+
+    montarFolha("Caráter Geral", esquerdas, direitas, 0);
+    // Registros acima de 7 por algarismo continuam em folhas adicionais, sem perder dados.
+    let pagina = 1;
+    while (Object.values(porDigito).some(arr => arr.length > pagina*linhasPorGrupo)) {
+        montarFolha("Caráter Geral " + (pagina+1), esquerdas, direitas, pagina*linhasPorGrupo);
+        pagina++;
+        if (pagina > 50) break;
+    }
+    return wb;
+}
+
+function baixarListaPlanilha() {
+    fecharEscolhaDownload();
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.download_lista || adminPermissoes.is_master)) {
+        alert("Você não possui permissão para baixar a lista de caráter geral.");
+        return;
+    }
+    if (!listaTextos.length) {
+        alert("A lista está vazia.");
+        return;
+    }
+    try {
+        const wb = criarPlanilhaCaraterGeral();
+        const agora = new Date();
+        const data = String(agora.getDate()).padStart(2,"0") + "-" + String(agora.getMonth()+1).padStart(2,"0") + "-" + agora.getFullYear();
+        XLSX.writeFile(wb, "carater_geral_" + data + ".xlsx");
+        document.getElementById("status").innerText = "Planilha Excel gerada no modelo de caráter geral.";
+    } catch (erro) {
+        console.error(erro);
+        alert("Não foi possível gerar a planilha. " + (erro.message || erro));
+    }
+}
+
 function baixarListaTxt() {
     if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.download_lista || adminPermissoes.is_master)) {
         alert("Você não possui permissão para baixar a lista de caráter geral.");
@@ -5326,16 +5554,28 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 <div class="botoes-lista" id="botoesAdminLista" style="display:none">
 <button onclick="excluirUltimoOnline()">↩️ Excluir último</button>
 <button onclick="limparListaOnline()">🗑️ Limpar lista</button>
-<button id="btnDownloadLista" onclick="baixarListaTxt()">📥 Download lista carater geral .TXT</button>
+<button id="btnDownloadLista" onclick="abrirEscolhaDownload()">📥 Download lista de caráter</button>
 </div>
 <div class="botoes-lista" id="botoesUsuarioLista" style="display:none">
-<button type="button" onclick="baixarListaTxt()">📥 Baixar lista de caráter</button>
+<button type="button" onclick="abrirEscolhaDownload()">📥 Baixar lista de caráter</button>
 </div>
 <div class="info">Usuários não administradores podem somente pesquisar, copiar e baixar a lista. Somente administradores podem adicionar, excluir e gerenciar os registros.</div>
 </div></div>
 
 </div><!-- /conteudo-principal -->
 </div><!-- /appPrincipal -->
+
+<div id="downloadEscolhaOverlay" class="download-escolha-overlay" aria-hidden="true" onclick="if(event.target===this) fecharEscolhaDownload()">
+    <div class="download-escolha-modal" role="dialog" aria-modal="true" aria-labelledby="downloadEscolhaTitulo">
+        <h3 id="downloadEscolhaTitulo">📥 Baixar lista de caráter</h3>
+        <p>Escolha o formato do arquivo que deseja gerar.</p>
+        <div class="download-escolha-acoes">
+            <button type="button" class="btn-primary" onclick="baixarListaTxtEscolha()">📄 Arquivo TXT</button>
+            <button type="button" class="btn-success" onclick="baixarListaPlanilha()">📊 Planilha Excel pronta</button>
+            <button type="button" class="btn-secondary" onclick="fecharEscolhaDownload()">Cancelar</button>
+        </div>
+    </div>
+</div>
 
 <script>
 (function(){
@@ -5645,3 +5885,4 @@ document.addEventListener("visibilitychange", function() {
 
 </body>
 </html>
+Hadassa26&
