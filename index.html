@@ -1,4 +1,4 @@
-
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -187,11 +187,17 @@
 .lista-toolbar input{flex:1;min-width:0;box-sizing:border-box;padding:12px 13px;border-radius:7px;border:1px solid #555;background:#101010;color:#eee;font-size:15px}
 .lista-toolbar button{margin:0;padding:9px 13px;min-width:42px;background:#333;color:#eee;border:1px solid #555}
 .item-salvo{position:relative;padding-bottom:46px;cursor:default}
-.item-salvo.carater-roubo{border:2px solid #e53935}
-.item-salvo.carater-furto{border:2px solid #2e7d32}
-.item-salvo.carater-acao-criminosa{border:2px solid #8e44ad}
-.item-salvo.carater-outros{border:2px solid #f57c00}
-.emplacamento-destaque{display:inline-block;padding:2px 8px;border:2px solid #f0c419;border-radius:5px;font-weight:800;letter-spacing:1.5px;line-height:1.15;background:rgba(240,196,25,.10);color:#fff}
+.emplacamento-destaque{display:inline-flex;align-items:center;justify-content:center;margin:0 0 9px 0;padding:6px 12px;min-width:110px;box-sizing:border-box;border:3px solid #00d4ff;border-radius:7px;background:#0d1b20;color:#fff;font-size:19px;font-weight:900;letter-spacing:2px;line-height:1.15;box-shadow:0 0 9px rgba(0,212,255,.22)}
+.emplacamento-destaque::before{content:'🚘 ';font-size:14px;letter-spacing:0}
+.emplacamento-destaque.emplacamento-roubo{border-color:#e53935;background:#2a1111;box-shadow:0 0 9px rgba(229,57,53,.25)}
+.emplacamento-destaque.emplacamento-furto{border-color:#2e7d32;background:#102516;box-shadow:0 0 9px rgba(46,125,50,.25)}
+.emplacamento-destaque.emplacamento-acao{border-color:#fbc02d;background:#2a240d;color:#fff8c7;box-shadow:0 0 9px rgba(251,192,45,.25)}
+.emplacamento-destaque.emplacamento-outros{border-color:#f57c00;background:#2a190d;box-shadow:0 0 9px rgba(245,124,50,.25)}
+.emplacamento-invalido{display:block;margin:0 0 9px 0;padding:7px 9px;border:2px solid #e53935;border-radius:7px;background:#2a1111;color:#ffb3b3;font-weight:700}
+.item-salvo.carater-roubo{border:2px solid #e53935 !important}
+.item-salvo.carater-furto{border:2px solid #2e7d32 !important}
+.item-salvo.carater-acao{border:2px solid #fbc02d !important}
+.item-salvo.carater-outros{border:2px solid #f57c00 !important}
 .item-salvo:hover{border-color:#666}
 .item-salvo .item-conteudo{line-height:1.28}
 .btn-copiar-registro{position:absolute;right:10px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#333;color:#eee;border:1px solid #555}
@@ -2146,212 +2152,43 @@ function corrigirPlacaMercosul(valor) {
 
 function encontrarPlaca(texto) {
 
-    if (!texto)
-        return null;
+    if (!texto) return null;
 
+    const textoMaiusculo = String(texto).toUpperCase();
 
-    const textoMaiusculo =
-        texto.toUpperCase();
-
-
-    /*
-     * Primeiro procura especificamente
-     * depois de CADASTRO VEÍCULO.
-     */
-
-    const campo =
-        textoMaiusculo.match(
-            /CADASTRO\s+VE[ÍI1]CULO\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s\-]{5,14})/
-        );
-
+    const campo = textoMaiusculo.match(
+        /CADASTRO\s+VE[ÍI1]CULO\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s\-]{5,14})/
+    );
 
     if (campo) {
-
-        const trecho =
-            campo[1];
-
-
-        const limpo =
-            trecho.replace(
-                /[^A-Z0-9]/g,
-                ""
-            );
-
-        // Emplacamento válido: no máximo 7 caracteres.
-        // Se o campo tiver mais de 7 caracteres, não aproveita
-        // um pedaço da sequência como se fosse a placa.
-        if (limpo.length !== 7) return null;
-
-        const candidato = limpo;
-
+        const limpo = campo[1].replace(/[^A-Z0-9]/g, '');
+        for (let i = 0; i <= limpo.length - 7; i++) {
+            const candidato = limpo.substring(i, i + 7);
             const variantes = gerarVariantesPlaca(candidato);
-
             for (const variante of variantes) {
-
-                /*
-                 * Primeiro Mercosul.
-                 */
-
-                const mercosul =
-                    corrigirPlacaMercosul(
-                        variante
-                    );
-
-                if (mercosul)
-                    return mercosul;
-
-
-                /*
-                 * Depois placa antiga.
-                 */
-
-                const antiga =
-                    corrigirPlacaAntiga(
-                        variante
-                    );
-
-                if (antiga)
-                    return antiga;
+                const mercosul = corrigirPlacaMercosul(variante);
+                if (mercosul) return mercosul;
+                const antiga = corrigirPlacaAntiga(variante);
+                if (antiga) return antiga;
             }
-        }
-
-
-    /*
-     * Procura no texto inteiro.
-     */
-
-    const geral =
-        textoMaiusculo.replace(
-            /[^A-Z0-9]/g,
-            " "
-        );
-
-
-    const candidatos =
-        geral.match(
-            /[A-Z0-9]{7}/g
-        ) || [];
-
-
-    for (const candidato of candidatos) {
-
-        const mercosul =
-            corrigirPlacaMercosul(
-                candidato
-            );
-
-
-        if (mercosul)
-            return mercosul;
-
-
-        const variantes = gerarVariantesPlaca(candidato);
-
-        for (const variante of variantes) {
-            const antiga =
-                corrigirPlacaAntiga(
-                    variante
-                );
-
-            if (antiga)
-                return antiga;
         }
     }
 
+    const geral = textoMaiusculo.replace(/[^A-Z0-9]/g, ' ');
+    const candidatos = geral.match(/[A-Z0-9]{7}/g) || [];
+
+    for (const candidato of candidatos) {
+        const mercosul = corrigirPlacaMercosul(candidato);
+        if (mercosul) return mercosul;
+        const variantes = gerarVariantesPlaca(candidato);
+        for (const variante of variantes) {
+            const antiga = corrigirPlacaAntiga(variante);
+            if (antiga) return antiga;
+        }
+    }
 
     return null;
 }
-
-
-/* =========================================================
-   CORRIGIR ANO
-========================================================= */
-
-function corrigirAno(texto) {
-
-    /*
-     * Só mexe no campo ANO.
-     */
-
-    const regex =
-        /(ANO\s*[:\-]?\s*)([0-9A-ZIOBS]{4})\s*[\/\-]\s*([0-9A-ZIOBS]{4})/i;
-
-
-    const encontrado =
-        texto.match(regex);
-
-
-    if (!encontrado)
-        return texto;
-
-
-    function converter(valor) {
-
-        const mapa = {
-
-            "O": "0",
-            "Q": "0",
-
-            "I": "1",
-            "L": "1",
-
-            "S": "5",
-
-            "B": "8",
-
-            "G": "6"
-        };
-
-
-        return valor
-            .toUpperCase()
-            .split("")
-            .map(c => mapa[c] || c)
-            .join("");
-    }
-
-
-    const ano1 =
-        converter(encontrado[2]);
-
-
-    const ano2 =
-        converter(encontrado[3]);
-
-
-    const n1 =
-        parseInt(ano1);
-
-
-    const n2 =
-        parseInt(ano2);
-
-
-    /*
-     * Só altera se forem anos plausíveis.
-     */
-
-    if (
-        n1 >= 1900 &&
-        n1 <= 2100 &&
-        n2 >= 1900 &&
-        n2 <= 2100
-    ) {
-
-        texto =
-            texto.replace(
-                regex,
-                "$1" +
-                ano1 +
-                "/" +
-                ano2
-            );
-    }
-
-
-    return texto;
-}
-
 
 
 /* =========================================================
@@ -2793,9 +2630,54 @@ function classeCorCarater(texto) {
     const normalizado = String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
     if (/\bROUBO\b/.test(normalizado)) return "carater-roubo";
     if (/\bFURTO\b/.test(normalizado)) return "carater-furto";
-    if (/ACAO\s+CRIMINOSA/.test(normalizado)) return "carater-acao-criminosa";
+    if (/ACAO\s+CRIMINOSA/.test(normalizado)) return "carater-acao";
     if (/\bOUTROS\b/.test(normalizado) || /\bSUSPEITO\b/.test(normalizado)) return "carater-outros";
     return "";
+}
+
+function obterEmplacamentoParaDestaque(texto) {
+    const encontrado = encontrarPlaca(texto || '');
+    if (!encontrado) return null;
+    const placa = String(encontrado).replace(/[^A-Z0-9]/gi, '').toUpperCase();
+    return placa.length === 7 ? placa : null;
+}
+
+function destacarEmplacamentoLista(texto) {
+    const seguro = escaparHtmlLista(texto);
+    const placa = obterEmplacamentoParaDestaque(texto);
+
+    // Regra: emplacamento válido para destaque deve ter exatamente 7 caracteres.
+    if (!placa || String(placa).length !== 7) return seguro;
+
+    const tipo = classeCorCarater(texto);
+    let classe = "emplacamento-outros";
+
+    if (tipo === "carater-roubo") classe = "emplacamento-roubo";
+    else if (tipo === "carater-furto") classe = "emplacamento-furto";
+    else if (tipo === "carater-acao") classe = "emplacamento-acao";
+
+    const placaEscapada = String(placa).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // Destaca somente a placa inteira, sem atingir letras/números vizinhos.
+    const regex = new RegExp("(^|[^A-Z0-9])(" + placaEscapada + ")(?![A-Z0-9])", "gi");
+
+    return seguro.replace(regex, function(_, antes, valor) {
+        return antes + '<span class="emplacamento-destaque ' + classe + '">' + valor + '</span>';
+    });
+}
+
+function obterTokenEmplacamento(texto) {
+    const valor = String(texto || '').toUpperCase();
+    const m = valor.match(/CADASTRO\s+VE[ÍI1]CULO\s*[:\-]?\s*([A-Z0-9-]+)/i);
+    if (!m) return null;
+    return String(m[1] || '').replace(/[^A-Z0-9]/g, '');
+}
+
+function validarLimiteEmplacamento(texto) {
+    const token = obterTokenEmplacamento(texto);
+    if (token && token.length > 7) return {ok:false, valor:token};
+    const placa = encontrarPlaca(texto || '');
+    if (placa && String(placa).replace(/[^A-Z0-9]/gi, '').length > 7) return {ok:false, valor:placa};
+    return {ok:true, valor:token || placa || null};
 }
 
 function renderizarLista() {
@@ -2832,15 +2714,8 @@ function renderizarLista() {
 
         const conteudo = document.createElement("div");
         conteudo.className = "item-conteudo";
-        const textoRegistro = String(registro.texto || "");
-        const placaRegistro = encontrarPlaca(textoRegistro);
-        if (placaRegistro) {
-            const seguro = escapeHtml(textoRegistro);
-            const padraoPlaca = new RegExp(placaRegistro.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-            conteudo.innerHTML = seguro.replace(padraoPlaca, '<span class="emplacamento-destaque">$&</span>');
-        } else {
-            conteudo.textContent = textoRegistro;
-        }
+        // Renderiza o texto escapado para permitir apenas o destaque seguro do emplacamento.
+        conteudo.innerHTML = destacarEmplacamentoLista(registro.texto || "");
 
         const botaoCopiar = document.createElement("button");
         botaoCopiar.type = "button";
@@ -2852,6 +2727,20 @@ function renderizarLista() {
         });
 
         item.appendChild(numero);
+
+        const placaRegistro = obterEmplacamentoParaDestaque(registro.texto || "");
+        if (placaRegistro) {
+            const placaBadge = document.createElement("div");
+            placaBadge.className = "emplacamento-destaque";
+            const classeOcorrencia = classeCorCarater(registro.texto || "");
+            if (classeOcorrencia === "carater-roubo") placaBadge.classList.add("emplacamento-roubo");
+            else if (classeOcorrencia === "carater-furto") placaBadge.classList.add("emplacamento-furto");
+            else if (classeOcorrencia === "carater-acao") placaBadge.classList.add("emplacamento-acao");
+            else if (classeOcorrencia === "carater-outros") placaBadge.classList.add("emplacamento-outros");
+            placaBadge.textContent = placaRegistro;
+            item.appendChild(placaBadge);
+        }
+
         item.appendChild(conteudo);
         item.appendChild(botaoCopiar);
 
@@ -2912,6 +2801,14 @@ async function salvarTextoLista() {
 
     if (!texto) {
         alert("Não há texto para salvar.");
+        return;
+    }
+
+    // Regra: emplacamento com no máximo 7 caracteres.
+    const validacaoEmplacamento = validarLimiteEmplacamento(texto);
+    if (!validacaoEmplacamento.ok) {
+        alert("ERRO: o emplacamento não pode ter mais de 7 caracteres.\n\nEmplacamento identificado: " + validacaoEmplacamento.valor);
+        document.getElementById("status").innerText = "Emplacamento inválido: máximo de 7 caracteres.";
         return;
     }
 
@@ -5129,9 +5026,7 @@ async function salvarPermissoesAdministrador() {
         p_adicionar_remover_carater: permissoes.adicionar_remover_carater,
         p_gerenciar_membros: permissoes.gerenciar_membros,
         p_gerenciar_admins: permissoes.gerenciar_admins,
-        p_download_lista: permissoes.download_lista,
-        p_visualizar_historico: false,
-        p_gerenciar_mensagens: false
+        p_download_lista: permissoes.download_lista
     });
     if (error) {
         console.error(error);
