@@ -3240,7 +3240,6 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
     const porDigito = {};
     for (let i = 0; i <= 9; i++) porDigito[i] = [];
 
-    // Aceita uma área única por compatibilidade e também múltiplas áreas.
     const areas = Array.isArray(areasSelecionadas) ? areasSelecionadas : [areasSelecionadas];
     const areasNormalizadas = new Set(areas.map(normalizarGrupoAreaPlanilha).filter(Boolean));
 
@@ -3259,10 +3258,6 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
         const placaLimpa = String(placa || "")
             .replace(/[^A-Z0-9]/gi, "")
             .toUpperCase();
-
-        // A planilha é organizada pelo 4º caractere do emplacamento,
-        // exatamente como o algarismo gigante 0 a 9 do modelo da foto.
-        // Ex.: AAA4J35 -> fica no grupo 4.
         const quarto = placaLimpa.charAt(3);
         return /^[0-9]$/.test(quarto) ? quarto : null;
     }
@@ -3277,7 +3272,6 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
     const esquerdas = [0,2,4,6,8];
     const direitas = [1,3,5,7,9];
     const linhasPorGrupo = 7;
-    const ultimaLinha = 4 + linhasPorGrupo * 5;
 
     function adicionarBorda(ws, r, c, border) {
         const ref = XLSX.utils.encode_cell({r:r-1,c:c-1});
@@ -3292,95 +3286,253 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
 
     function montarFolha(nome, esquerda, direita, paginaInicial) {
         const ws = {};
-        const border = {top:{style:"thin",color:{rgb:"000000"}},bottom:{style:"thin",color:{rgb:"000000"}},left:{style:"thin",color:{rgb:"000000"}},right:{style:"thin",color:{rgb:"000000"}}};
-        const mediumBorder = {top:{style:"medium",color:{rgb:"000000"}},bottom:{style:"medium",color:{rgb:"000000"}},left:{style:"medium",color:{rgb:"000000"}},right:{style:"medium",color:{rgb:"000000"}}};
-        const headerStyle = {font:{name:"Arial",sz:9,bold:true},alignment:{horizontal:"center",vertical:"center",wrap_text:true},fill:{fgColor:{rgb:"D9D9D9"}},border};
-        const digitStyle = {font:{name:"Arial",sz:26,bold:true},alignment:{horizontal:"center",vertical:"center"},fill:{fgColor:{rgb:"D9D9D9"}},border:mediumBorder};
-        const bodyStyle = {font:{name:"Arial",sz:9},alignment:{horizontal:"center",vertical:"center"},border};
+        const border = {
+            top:{style:"thin",color:{rgb:"000000"}},
+            bottom:{style:"thin",color:{rgb:"000000"}},
+            left:{style:"thin",color:{rgb:"000000"}},
+            right:{style:"thin",color:{rgb:"000000"}}
+        };
+        const mediumBorder = {
+            top:{style:"medium",color:{rgb:"000000"}},
+            bottom:{style:"medium",color:{rgb:"000000"}},
+            left:{style:"medium",color:{rgb:"000000"}},
+            right:{style:"medium",color:{rgb:"000000"}}
+        };
+        const headerStyle = {
+            font:{name:"Arial",sz:8,bold:true},
+            alignment:{horizontal:"center",vertical:"center",wrap_text:true},
+            fill:{fgColor:{rgb:"D9D9D9"}},
+            border
+        };
+        const digitStyle = {
+            font:{name:"Arial",sz:26,bold:true},
+            alignment:{horizontal:"center",vertical:"center"},
+            fill:{fgColor:{rgb:"D9D9D9"}},
+            border:mediumBorder
+        };
+        const fixedPlateStyle = {
+            font:{name:"Arial",sz:10,bold:true},
+            alignment:{horizontal:"center",vertical:"center"},
+            border
+        };
+        const plateCharStyle = {
+            font:{name:"Arial",sz:9,bold:false},
+            alignment:{horizontal:"center",vertical:"center"},
+            border
+        };
+        const plateRestStyle = {
+            font:{name:"Arial",sz:9,bold:false},
+            alignment:{horizontal:"center",vertical:"center"},
+            border
+        };
+        const bodyStyle = {
+            font:{name:"Arial",sz:8},
+            alignment:{horizontal:"center",vertical:"center",wrap_text:true},
+            border
+        };
 
         ws["A1"]={t:"s",v:"CARÁTER GERAL"};
-        ws["L1"]={t:"s",v:"DATA:     /     /"};
+        ws["O1"]={t:"s",v:"DATA:     /     /"};
         ws["A1"].s={font:{name:"Arial",sz:14,bold:true},alignment:{horizontal:"center",vertical:"center"}};
-        ws["L1"].s={font:{name:"Arial",sz:11,bold:true},alignment:{horizontal:"center",vertical:"center"}};
-        ws["A2"]={t:"s",v:""};
-        ws["A3"]={t:"s",v:""};
+        ws["O1"].s={font:{name:"Arial",sz:11,bold:true},alignment:{horizontal:"center",vertical:"center"}};
 
-        const leftHeader = [["","PLACA","","","MODELO/ANO","","","COR","R","A","","PLACA","","","MODELO/ANO","","","COR","R","A",""]];
-        XLSX.utils.sheet_add_aoa(ws,leftHeader,{origin:"A3"});
-        ws["A3"].v=""; ws["K3"].v="";
-        ["A3","B3","E3","H3","I3","J3","L3","M3","P3","S3","T3","U3"].forEach(ref=>estiloCelula(ws,ref,headerStyle));
-        ws["B3"].s=headerStyle; ws["E3"].s=headerStyle; ws["H3"].s=headerStyle; ws["I3"].s=headerStyle; ws["J3"].s=headerStyle;
-        ws["L3"].s=headerStyle; ws["M3"].s=headerStyle; ws["P3"].s=headerStyle; ws["S3"].s=headerStyle; ws["T3"].s=headerStyle; ws["U3"].s=headerStyle;
+        const headerRow = [[
+            "",
+            "PLACA","","","","","",
+            "MODELO/ANO","","",
+            "COR","R","A",
+            "",
+            "",
+            "PLACA","","","","","",
+            "MODELO/ANO","","",
+            "COR","R","A"
+        ]];
+        XLSX.utils.sheet_add_aoa(ws, headerRow, {origin:"A3"});
+
+        for (const ref of [
+            "A3","B3","C3","D3","E3","F3","G3","H3","I3","J3","K3","L3","M3",
+            "O3","P3","Q3","R3","S3","T3","U3","V3","W3","X3","Y3","Z3","AA3"
+        ]) {
+            estiloCelula(ws, ref, headerStyle);
+        }
 
         ws["!merges"] = [
-            {s:{r:0,c:0},e:{r:0,c:10}},
-            {s:{r:0,c:11},e:{r:0,c:20}},
-            {s:{r:2,c:1},e:{r:2,c:3}}, {s:{r:2,c:4},e:{r:2,c:6}},
-            {s:{r:2,c:11},e:{r:2,c:13}}, {s:{r:2,c:14},e:{r:2,c:16}}
+            {s:{r:0,c:0},e:{r:0,c:12}},
+            {s:{r:0,c:14},e:{r:0,c:26}},
+            {s:{r:2,c:1},e:{r:2,c:6}},
+            {s:{r:2,c:7},e:{r:2,c:9}},
+            {s:{r:2,c:15},e:{r:2,c:20}},
+            {s:{r:2,c:21},e:{r:2,c:23}}
         ];
 
         let row = 4;
+
+        function preencherBloco(base, dados, digito) {
+            // Estrutura da placa: EXATAMENTE 4 lacunas visuais.
+            // Ex.: 1114J49 -> [1] [1] [1] [4J49]
+            // O 4º caractere (número gigante do bloco) fica fixado e em negrito,
+            // seguido pelos caracteres restantes do emplacamento na mesma lacuna visual.
+            const placaLimpa = String(dados?.placa || "")
+                .replace(/[^A-Z0-9]/gi, "")
+                .toUpperCase();
+
+            const primeirosTres = placaLimpa.slice(0,3).split("");
+            const quarto = digito || placaLimpa.charAt(3) || "";
+            const finais = placaLimpa.length > 4 ? placaLimpa.slice(4) : "";
+
+            // Três primeiras lacunas: B/C/D (ou P/Q/R no lado direito).
+            for (let i=0;i<3;i++) {
+                const ref = XLSX.utils.encode_cell({r:row-1,c:base+i-1});
+                ws[ref] = {t:"s",v:primeirosTres[i] || ""};
+                ws[ref].s = plateCharStyle;
+            }
+
+            // Quarta lacuna: E:G visualmente contínua.
+            // E contém o número fixo em negrito; F:G contém o restante da placa.
+            // Não há borda vertical entre E e F, para que tudo seja percebido como [4J49].
+            const quartoRef = XLSX.utils.encode_cell({r:row-1,c:base+3-1});
+            ws[quartoRef] = {t:"s",v:quarto};
+            ws[quartoRef].s = fixedPlateStyle;
+
+            const finaisRef = XLSX.utils.encode_cell({r:row-1,c:base+4-1});
+            ws[finaisRef] = {t:"s",v:finais};
+            ws[finaisRef].s = plateRestStyle;
+
+            const finaisRef2 = XLSX.utils.encode_cell({r:row-1,c:base+5-1});
+            if (!ws[finaisRef2]) ws[finaisRef2] = {t:"s",v:""};
+            ws[finaisRef2].s = plateRestStyle;
+
+            // Mescla somente F:G, mantendo E como a parte fixa em negrito do mesmo campo visual.
+            ws["!merges"].push({s:{r:row-1,c:base+4-1},e:{r:row-1,c:base+5-1}});
+
+            const modelCol = base + 6;
+            const corCol = base + 9;
+            const rCol = base + 10;
+            const aCol = base + 11;
+
+            const valores = [
+                String(dados?.modeloAno || ""),
+                String(dados?.cor || ""),
+                String(dados?.r || ""),
+                String(dados?.a || "")
+            ];
+
+            const modelRef = XLSX.utils.encode_cell({r:row-1,c:modelCol-1});
+            ws[modelRef] = {t:"s",v:valores[0]};
+            ws[modelRef].s = bodyStyle;
+            for(let c=modelCol;c<modelCol+3;c++) {
+                const ref=XLSX.utils.encode_cell({r:row-1,c:c-1});
+                if(!ws[ref]) ws[ref]={t:"s",v:""};
+                ws[ref].s=bodyStyle;
+            }
+            ws["!merges"].push({s:{r:row-1,c:modelCol-1},e:{r:row-1,c:modelCol+1}});
+
+            const corRef = XLSX.utils.encode_cell({r:row-1,c:corCol-1});
+            ws[corRef] = {t:"s",v:valores[1]};
+            ws[corRef].s = bodyStyle;
+
+            const rRef = XLSX.utils.encode_cell({r:row-1,c:rCol-1});
+            ws[rRef] = {t:"s",v:valores[2]};
+            ws[rRef].s = bodyStyle;
+
+            const aRef = XLSX.utils.encode_cell({r:row-1,c:aCol-1});
+            ws[aRef] = {t:"s",v:valores[3]};
+            ws[aRef].s = bodyStyle;
+
+            // Reforça a borda da linha do bloco inteiro.
+            for(let c=base;c<=aCol;c++) {
+                const ref=XLSX.utils.encode_cell({r:row-1,c:c-1});
+                if(!ws[ref]) ws[ref]={t:"s",v:""};
+                ws[ref].s=Object.assign({},ws[ref].s || bodyStyle,{border});
+            }
+
+            // Corrige a quarta lacuna para ficar visualmente contínua: [4J49].
+            // E = número fixo em negrito; F:G = restante da placa; sem divisória entre E e F.
+            const quartoCell = XLSX.utils.encode_cell({r:row-1,c:base+3-1});
+            const finaisCell = XLSX.utils.encode_cell({r:row-1,c:base+4-1});
+            const finaisCell2 = XLSX.utils.encode_cell({r:row-1,c:base+5-1});
+            ws[quartoCell].s = Object.assign({}, fixedPlateStyle, {
+                border:{
+                    top:border.top, bottom:border.bottom, left:border.left
+                }
+            });
+            ws[finaisCell].s = Object.assign({}, plateRestStyle, {
+                border:{
+                    top:border.top, bottom:border.bottom
+                }
+            });
+            ws[finaisCell2].s = Object.assign({}, plateRestStyle, {
+                border:{
+                    top:border.top, bottom:border.bottom, right:border.right
+                }
+            });
+        }
+
         for (let g=0; g<5; g++) {
             const dl = esquerda[g], dr = direita[g];
             const start = row;
             const end = row + linhasPorGrupo - 1;
+
             ws["A"+start]={t:"n",v:dl}; ws["A"+start].s=digitStyle;
-            ws["L"+start]={t:"n",v:dr}; ws["L"+start].s=digitStyle;
+            ws["O"+start]={t:"n",v:dr}; ws["O"+start].s=digitStyle;
             ws["!merges"].push({s:{r:start-1,c:0},e:{r:end-1,c:0}});
-            ws["!merges"].push({s:{r:start-1,c:11},e:{r:end-1,c:11}});
+            ws["!merges"].push({s:{r:start-1,c:14},e:{r:end-1,c:14}});
+
             for (let i=0;i<linhasPorGrupo;i++) {
                 const rl = row+i;
                 const dlData = (porDigito[dl] || []).slice(paginaInicial + i, paginaInicial + i + 1)[0];
                 const drData = (porDigito[dr] || []).slice(paginaInicial + i, paginaInicial + i + 1)[0];
-                function preencher(baseCol, dados, dig) {
-                    const vals = [dados?.placa||"",dados?.modeloAno||"",dados?.cor||"",dados?.r||"",dados?.a||""];
-                    const cols = [baseCol,baseCol+3,baseCol+6,baseCol+7,baseCol+8];
-                    // PLACA ocupa 3 colunas; MODELO/ANO ocupa 3 colunas.
-                    ws[XLSX.utils.encode_cell({r:rl-1,c:baseCol-1})]={t:"s",v:vals[0]};
-                    ws[XLSX.utils.encode_cell({r:rl-1,c:baseCol+2})]={t:"s",v:vals[1]};
-                    ws[XLSX.utils.encode_cell({r:rl-1,c:baseCol+5})]={t:"s",v:vals[2]};
-                    ws[XLSX.utils.encode_cell({r:rl-1,c:baseCol+6})]={t:"s",v:vals[3]};
-                    ws[XLSX.utils.encode_cell({r:rl-1,c:baseCol+7})]={t:"s",v:vals[4]};
-                    ws["!merges"].push({s:{r:rl-1,c:baseCol-1},e:{r:rl-1,c:baseCol+1}});
-                    ws["!merges"].push({s:{r:rl-1,c:baseCol+2},e:{r:rl-1,c:baseCol+4}});
-                    for(let c=baseCol;c<=baseCol+8;c++) {
-                        const ref=XLSX.utils.encode_cell({r:rl-1,c:c-1});
-                        if(!ws[ref]) ws[ref]={t:"s",v:""};
-                        ws[ref].s=bodyStyle;
-                    }
-                    // Thick separator after every 7-row group.
-                    if (i===linhasPorGrupo-1) {
-                        for(let c=baseCol;c<=baseCol+8;c++) {
-                            const ref=XLSX.utils.encode_cell({r:rl-1,c:c-1});
-                            ws[ref].s=Object.assign({},ws[ref].s,{border:mediumBorder});
-                        }
-                    }
-                }
-                preencher(2,dlData,dl);  // B:J
-                preencher(13,drData,dr);  // M:U
-                // Borda da linha completa incluindo as células de grupo.
-                for(let c=1;c<=9;c++) adicionarBorda(ws,rl,c+1,border);
-                for(let c=12;c<=20;c++) adicionarBorda(ws,rl,c+1,border);
+
+                // A função usa a variável row; atualizamos temporariamente para esta linha.
+                row = rl;
+                preencherBloco(2, dlData || {placa:"",modeloAno:"",cor:"",r:"",a:""}, String(dl));
+                preencherBloco(16, drData || {placa:"",modeloAno:"",cor:"",r:"",a:""}, String(dr));
+
+                // Bordas externas e separador central.
+                adicionarBorda(ws,rl,1,border);
+                adicionarBorda(ws,rl,14,border);
+                adicionarBorda(ws,rl,15,border);
+                adicionarBorda(ws,rl,27,border);
             }
-            row += linhasPorGrupo;
+
+            if (end === row) {
+                // nada
+            }
+            // Linha grossa de separação ao final de cada grupo de 7 linhas.
+            for(let c=1;c<=13;c++) {
+                const ref=XLSX.utils.encode_cell({r:end-1,c:c-1});
+                if(!ws[ref]) ws[ref]={t:"s",v:""};
+                ws[ref].s=Object.assign({},ws[ref].s || {},{border:mediumBorder});
+            }
+            for(let c=15;c<=27;c++) {
+                const ref=XLSX.utils.encode_cell({r:end-1,c:c-1});
+                if(!ws[ref]) ws[ref]={t:"s",v:""};
+                ws[ref].s=Object.assign({},ws[ref].s || {},{border:mediumBorder});
+            }
+            row = end + 1;
         }
 
-        // Larguras para reproduzir visualmente a folha da foto.
-        const widths={A:5,B:7,C:7,D:10,E:11,F:11,G:11,H:9,I:5,J:5,K:3,L:5,M:7,N:7,O:10,P:11,Q:11,R:11,S:9,T:5,U:5};
-        ws["!cols"]=Object.keys(widths).map(k=>({wch:widths[k]}));
+        // Larguras: 3 lacunas individuais + a 4ª lacuna visual [4J49] um pouco maior.
+        ws["!cols"] = [
+            {wch:4},
+            {wch:3.3},{wch:3.3},{wch:3.3},{wch:4.0},{wch:4.0},{wch:4.0},
+            {wch:8.5},{wch:8.5},{wch:8.5},{wch:8},{wch:5},{wch:7},
+            {wch:2.5},
+            {wch:4},
+            {wch:3.3},{wch:3.3},{wch:3.3},{wch:4.0},{wch:4.0},{wch:4.0},
+            {wch:8.5},{wch:8.5},{wch:8.5},{wch:8},{wch:5},{wch:7}
+        ];
         ws["!rows"]=[{hpt:22},{hpt:8},{hpt:20}];
-        for(let r=4;r<=38;r++) ws["!rows"][r-1]={hpt:18};
-        ws["!freeze"]= {xSplit:0,ySplit:3};
+        for(let rr=4;rr<=38;rr++) ws["!rows"][rr-1]={hpt:18};
+        ws["!freeze"]={xSplit:0,ySplit:3};
         ws["!pageSetup"]={orientation:"landscape",fitToWidth:1,fitToHeight:1,paperSize:9};
         ws["!sheetPr"]={pageSetUpPr:{fitToPage:true}};
-        ws["!margins"]={left:0.2,right:0.2,top:0.3,bottom:0.3,header:0.1,footer:0.1};
-        // Define a área utilizada para garantir que todos os veículos preenchidos sejam exportados.
-        ws["!ref"] = "A1:U38";
+        ws["!margins"]={left:0.15,right:0.15,top:0.25,bottom:0.25,header:0.1,footer:0.1};
+        ws["!ref"]="A1:AA38";
         XLSX.utils.book_append_sheet(wb,ws,nome);
     }
 
     montarFolha("Caráter Geral", esquerdas, direitas, 0);
-    // Registros acima de 7 por algarismo continuam em folhas adicionais, sem perder dados.
     let pagina = 1;
     while (Object.values(porDigito).some(arr => arr.length > pagina*linhasPorGrupo)) {
         montarFolha("Caráter Geral " + (pagina+1), esquerdas, direitas, pagina*linhasPorGrupo);
@@ -3389,7 +3541,6 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
     }
     return wb;
 }
-
 function listarAreasParaPlanilha() {
     const mapa = new Map();
     listaTextos.forEach(function(registro) {
