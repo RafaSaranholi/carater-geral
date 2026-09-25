@@ -2851,7 +2851,7 @@ function classeCorCarater(texto) {
     if (/\bROUBO\b/.test(normalizado)) return "carater-roubo";
     if (/\bFURTO\b/.test(normalizado)) return "carater-furto";
     if (/ACAO\s+CRIMINOSA/.test(normalizado)) return "carater-acao-criminosa";
-    if (/\bOUTROS\b/.test(normalizado) || /\bSUSPEITO\b/.test(normalizado)) return "carater-outros";
+    if (/\bOUTROS\b/.test(normalizado) || /\bSUSPEITO\b/.test(normalizado) || /\bSUSPEIO\b/.test(normalizado)) return "carater-outros";
     return "";
 }
 
@@ -3201,6 +3201,7 @@ function extrairDadosPlanilha(registro) {
     // FURTO            -> R = F
     // AÇÃO CRIMINOSA   -> R = C05
     // OUTROS           -> R = C05
+    // SUSPEITO/SUSPEIO -> R = C05
     //
     // A coluna A recebe SOMENTE a área que vem depois da situação.
     // Assim, "FURTO 1/1M" nunca coloca "FURTO" na coluna A.
@@ -3219,6 +3220,10 @@ function extrairDadosPlanilha(registro) {
     } else if (/\bAÇÃO\s+CRIMINOSA\b|\bACAO\s+CRIMINOSA\b/.test(situacaoLimpa)) {
         r = "C05";
     } else if (/\bOUTROS\b/.test(situacaoLimpa)) {
+        r = "C05";
+    } else if (/\bSUSPEITO\b|\bSUSPEIO\b/.test(situacaoLimpa)) {
+        // SUSPEITO também deve compor a tabela de caráter geral.
+        // Considera-se C05 para a coluna R, assim como OUTROS/AÇÃO CRIMINOSA.
         r = "C05";
     }
 
