@@ -4308,9 +4308,10 @@ async function atualizarIndicadoresAcesso() {
     const botoesUsuarioLista = document.getElementById("botoesUsuarioLista");
     const botoesEditor = document.getElementById("botoesEditorLista");
 
-    if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
+    const podeAcessarAprovacoes = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master);
+    if (btnAdmin) btnAdmin.style.display = podeAcessarAprovacoes ? "inline-block" : "none";
     if (badgeAprovacoes) {
-        badgeAprovacoes.style.display = souAdmin ? "inline-flex" : "none";
+        badgeAprovacoes.style.display = podeAcessarAprovacoes ? "inline-flex" : "none";
         badgeAprovacoes.textContent = "0";
     }
     if (btnMensagemAdmin) btnMensagemAdmin.style.display = souAdmin ? "inline-block" : "none";
@@ -4348,7 +4349,7 @@ async function atualizarIndicadoresAcesso() {
     const btnDownloadLista = document.getElementById("btnDownloadLista");
     if (btnAddCarater) btnAddCarater.style.display = podeEditar ? "inline-block" : "none";
     if (btnDownloadLista) btnDownloadLista.style.display = podeDownload ? "inline-block" : "none";
-    if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
+    if (btnAdmin) btnAdmin.style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
     if (document.getElementById("btnMensagemAdmin")) document.getElementById("btnMensagemAdmin").style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
     if (document.getElementById("btnCapturarTelaAdmin")) document.getElementById("btnCapturarTelaAdmin").style.display = podeEditar ? "inline-block" : "none";
     const btnAdmins = document.querySelector('#adminArea .auth-actions .btn-info');
@@ -4525,7 +4526,10 @@ async function carregarGerenciadorAdministradores() {
 }
 
 async function abrirAdmin() {
-    if (!souAdmin) return;
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) {
+        alert("A tela de Aprovações é exclusiva para administradores com Acesso Full.");
+        return;
+    }
     fecharMensagemAdmin();
     document.getElementById("appPrincipal").style.display = "none";
     document.getElementById("adminArea").style.display = "block";
