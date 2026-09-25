@@ -3227,8 +3227,26 @@ function extrairDadosPlanilha(registro) {
         r = "C05";
     }
 
-    // Localiza somente o código da área dentro da SITUAÇÃO.
+    // Localiza o código da área dentro da SITUAÇÃO.
     a = extrairAreaDaSituacao(situacaoLimpa);
+
+    // Veículos destacados em LARANJA na lista (OUTROS / SUSPEITO / SUSPEIO)
+    // também pertencem à planilha quando a área estiver entre as selecionadas.
+    // Para eles, a coluna R deve receber C05, mesmo que o OCR tenha trazido a
+    // situação em uma grafia incompleta.
+    const classeCarater = classeCorCarater(texto);
+    const ehLaranja = classeCarater === "carater-outros";
+    if (ehLaranja && !r) r = "C05";
+
+    // Em alguns registros o OCR pode colocar a área fora do campo SITUAÇÃO.
+    // Fazemos um segundo passe no texto inteiro para não deixar esses veículos
+    // laranjas fora da planilha quando a área existir no registro.
+    if (!a) {
+        const areaNoTexto = texto.match(/\b\d+\s*\/\s*\d+\s*M\b|\/\s*\d+\s*M\b/i);
+        if (areaNoTexto) {
+            a = areaNoTexto[0].replace(/\s+/g, "").toUpperCase();
+        }
+    }
 
     return {
         placa: String(placa || "").trim(),
@@ -3236,7 +3254,9 @@ function extrairDadosPlanilha(registro) {
         cor: String(cor || "").trim(),
         r,
         a,
-        situacao: String(situacao || "").trim()
+        situacao: String(situacao || "").trim(),
+        classeCarater,
+        ehLaranja
     };
 }
 
@@ -3260,6 +3280,10 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
         if (!areasNormalizadas.size) return false;
         const dados = extrairDadosPlanilha(registro);
         const areaRegistro = normalizarGrupoAreaPlanilha(dados.a);
+
+        // Inclui TODOS os veículos da área selecionada, inclusive os que estão
+        // destacados em LARANJA na lista (OUTROS / SUSPEITO / SUSPEIO).
+        // A cor visual não elimina o registro da planilha; a coluna R recebe C05.
         return areasNormalizadas.has(areaRegistro);
     });
 
@@ -3662,7 +3686,12 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
         return !/^\d$/.test(placaLimpa.charAt(3));
     }).map(function(registro) {
         const dados = extrairDadosPlanilha(registro);
-        return { placa: dados.placa || "(sem placa)", area: dados.a || "(sem área)" };
+        return {
+            placa: dados.placa || "(sem placa)",
+            area: dados.a || "(sem área)",
+            situacao: dados.situacao || "",
+            ehLaranja: !!dados.ehLaranja
+        };
     });
 
     // Uma única folha dinâmica contém todos os veículos das áreas selecionadas.
