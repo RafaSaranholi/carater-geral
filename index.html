@@ -3523,22 +3523,19 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
             const start = row;
             const end = row + altura - 1;
 
+            // Prepara toda a faixa cinza ANTES da mesclagem.
+            // Isso preserva o fundo e o contorno mesmo quando o bloco cresce.
+            for (let i = 0; i < altura; i++) {
+                const faixaL = ws.getCell(start + i, 1);
+                const faixaR = ws.getCell(start + i, 15);
+                faixaL.fill = {type:"pattern", pattern:"solid", fgColor:{argb:"FFD9D9D9"}};
+                faixaR.fill = {type:"pattern", pattern:"solid", fgColor:{argb:"FFD9D9D9"}};
+                applyBorder(faixaL, thinBorder);
+                applyBorder(faixaR, thinBorder);
+            }
+
             ws.mergeCells(start, 1, end, 1);
             ws.mergeCells(start, 15, end, 15);
-
-            const leftDigit = ws.getCell(start, 1);
-            leftDigit.value = dl;
-            leftDigit.font = {name:"Arial", size:26, bold:true};
-            leftDigit.alignment = {horizontal:"center", vertical:"center"};
-            leftDigit.fill = {type:"pattern", pattern:"solid", fgColor:{argb:"FFD9D9D9"}};
-            applyBorder(leftDigit, mediumBorder);
-
-            const rightDigit = ws.getCell(start, 15);
-            rightDigit.value = dr;
-            rightDigit.font = {name:"Arial", size:26, bold:true};
-            rightDigit.alignment = {horizontal:"center", vertical:"center"};
-            rightDigit.fill = {type:"pattern", pattern:"solid", fgColor:{argb:"FFD9D9D9"}};
-            applyBorder(rightDigit, mediumBorder);
 
             for (let i = 0; i < altura; i++) {
                 const rl = start + i;
@@ -3548,6 +3545,22 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
                 preencherBloco(ws, rl, 2, dlData || {placa:"",modeloAno:"",cor:"",r:"",a:""}, String(dl));
                 preencherBloco(ws, rl, 16, drData || {placa:"",modeloAno:"",cor:"",r:"",a:""}, String(dr));
             }
+
+            // Reaplica os números depois de preencher todas as linhas.
+            // Assim, nenhuma rotina de preenchimento pode apagar os prefixos 0–9.
+            const leftDigit = ws.getCell(start, 1);
+            leftDigit.value = String(dl);
+            leftDigit.font = {name:"Arial", size:26, bold:true, color:{argb:"FF000000"}};
+            leftDigit.alignment = {horizontal:"center", vertical:"center"};
+            leftDigit.fill = {type:"pattern", pattern:"solid", fgColor:{argb:"FFD9D9D9"}};
+            applyBorder(leftDigit, mediumBorder);
+
+            const rightDigit = ws.getCell(start, 15);
+            rightDigit.value = String(dr);
+            rightDigit.font = {name:"Arial", size:26, bold:true, color:{argb:"FF000000"}};
+            rightDigit.alignment = {horizontal:"center", vertical:"center"};
+            rightDigit.fill = {type:"pattern", pattern:"solid", fgColor:{argb:"FFD9D9D9"}};
+            applyBorder(rightDigit, mediumBorder);
 
             // Separador inferior mais forte no fim de cada bloco dinâmico.
             for (let c = 1; c <= 13; c++) applyBorder(ws.getCell(end, c), mediumBorder);
