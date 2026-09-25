@@ -789,7 +789,7 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
             <label class="permissao-admin-opcao"><input id="permAdicionarRemover" type="checkbox"><span><strong>Adicionar e remover caráter</strong><small>Salvar novos registros e excluir registros da lista.</small></span></label>
             <label class="permissao-admin-opcao"><input id="permGerenciarMembros" type="checkbox"><span><strong>Aceitar e excluir membros</strong><small>Aprovar, rejeitar e excluir usuários.</small></span></label>
             <label class="permissao-admin-opcao"><input id="permGerenciarAdmins" type="checkbox"><span><strong>Tornar membros administradores</strong><small>Conceder, alterar e retirar permissões administrativas.</small></span></label>
-            <label class="permissao-admin-opcao"><input id="permDownloadLista" type="checkbox"><span><strong>Download da lista de caráter geral</strong><small>Baixar a lista em arquivo TXT.</small></span></label>
+            <label class="permissao-admin-opcao"><input id="permDownloadLista" type="checkbox"><span><strong>Download da lista de caráter geral</strong><small>Baixar a lista em TXT ou planilha Excel no modelo de Caráter Geral.</small></span></label>
         </div>
         <div id="permissaoAdminAviso" class="auth-msg" style="display:none"></div>
         <div class="auth-actions">
@@ -3077,22 +3077,76 @@ function extrairDadosPlanilha(registro) {
     const modelo = campoCarater(texto, ["MODELO"]);
     const marca = campoCarater(texto, ["MARCA"]);
     const tipo = campoCarater(texto, ["TIPO"]);
-    const anoMatch = texto.match(/\bANO\s*[:\-]?\s*([0-9]{4})(?:\s*[\\/\-]\s*([0-9]{4}))?/i);
+    const anoMatch = texto.match(/\bANO\s*[:\-]?\s*([0-9]{4})(?:\s*[\/\-]\s*([0-9]{4}))?/i);
     const anos = anoMatch ? (anoMatch[1] + (anoMatch[2] ? "/" + anoMatch[2] : "")) : "";
     const cor = campoCarater(texto, ["COR"]);
     const situacao = campoCarater(texto, ["SITUAÇÃO", "SITUACAO"]);
-    let modeloAno = modelo || marca || tipo || "";
+
+    // A coluna MODELO/ANO da folha recebe preferencialmente o conteúdo de MODELO.
+    // Nos registros em que o OCR traz o veículo em MARCA (ex.: HONDA/POP 110I),
+    // usamos MARCA; se ambos estiverem ausentes, usamos TIPO.
+    let modeloBase = modelo || marca || tipo || "";
+    let modeloAno = modeloBase;
     if (modeloAno && anos) modeloAno += " / " + anos;
     else if (anos) modeloAno = anos;
 
-    // As colunas R e A da folha original são mantidas como campos editáveis.
-    // Só preenchemos quando o próprio caráter traz explicitamente R: ou A:.
-    const rMatch = texto.match(/(?:^|[ ;])R\s*[:\-]\s*([^;]+)/i);
-    const aMatch = texto.match(/(?:^|[ ;])A\s*[:\-]\s*([^;]+)/i);
-    const r = rMatch ? rMatch[1].trim() : "";
-    const a = aMatch ? aMatch[1].trim() : "";
+    // =========================================================
+    // COLUNAS R e A DA PLANILHA
+    // =========================================================
+    // Exemplo do usuário:
+    // SITUAÇÃO: FURTO 1/1M
+    //        -> R = F
+    //        -> A = 1/1M
+    //
+    // Regras:
+    // ROUBO            -> R = R
+    // FURTO            -> R = F
+    // AÇÃO CRIMINOSA   -> R = C05
+    // OUTROS           -> R = C05
+    //
+    // A coluna A recebe SOMENTE a área que vem depois da situação.
+    // Assim, "FURTO 1/1M" nunca coloca "FURTO" na coluna A.
+    const situacaoLimpa = String(situacao || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toUpperCase();
 
-    return { placa: String(placa || "").trim(), modeloAno, cor, r, a, situacao };
+    let r = "";
+    let a = "";
+
+    if (/\bROUBO\b/.test(situacaoLimpa)) {
+        r = "R";
+    } else if (/\bFURTO\b/.test(situacaoLimpa)) {
+        r = "F";
+    } else if (/\bAÇÃO\s+CRIMINOSA\b|\bACAO\s+CRIMINOSA\b/.test(situacaoLimpa)) {
+        r = "C05";
+    } else if (/\bOUTROS\b/.test(situacaoLimpa)) {
+        r = "C05";
+    }
+
+    // Remove a classificação da ocorrência e conserva exatamente o restante
+    // como área. Exemplos:
+    // "FURTO 1/1M"            -> "1/1M"
+    // "ROUBO 2/2M"            -> "2/2M"
+    // "AÇÃO CRIMINOSA 3/3M"   -> "3/3M"
+    // "OUTROS 4/4M"           -> "4/4M"
+    const areaMatch = situacaoLimpa.match(
+        /^(?:ROUBO|FURTO|AÇÃO\s+CRIMINOSA|ACAO\s+CRIMINOSA|OUTROS)\s*[:\-]?\s*(.*)$/i
+    );
+    if (areaMatch && areaMatch[1]) {
+        a = areaMatch[1].trim();
+        // Segurança: C05 é código da coluna R, nunca deve ir para A.
+        if (/^C05$/i.test(a)) a = "";
+    }
+
+    return {
+        placa: String(placa || "").trim(),
+        modeloAno: String(modeloAno || "").trim(),
+        cor: String(cor || "").trim(),
+        r,
+        a,
+        situacao: String(situacao || "").trim()
+    };
 }
 
 function criarPlanilhaCaraterGeral() {
