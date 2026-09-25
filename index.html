@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -187,23 +187,13 @@
 .lista-toolbar input{flex:1;min-width:0;box-sizing:border-box;padding:12px 13px;border-radius:7px;border:1px solid #555;background:#101010;color:#eee;font-size:15px}
 .lista-toolbar button{margin:0;padding:9px 13px;min-width:42px;background:#333;color:#eee;border:1px solid #555}
 .item-salvo{position:relative;padding-bottom:46px;cursor:default}
+.item-salvo.carater-roubo{border:2px solid #e53935}
+.item-salvo.carater-furto{border:2px solid #2e7d32}
+.item-salvo.carater-acao-criminosa{border:2px solid #8e44ad}
+.item-salvo.carater-outros{border:2px solid #f57c00}
+.emplacamento-destaque{display:inline-block;padding:2px 8px;border:2px solid #f0c419;border-radius:5px;font-weight:800;letter-spacing:1.5px;line-height:1.15;background:rgba(240,196,25,.10);color:#fff}
 .item-salvo:hover{border-color:#666}
 .item-salvo .item-conteudo{line-height:1.28}
-.placa-lista-destaque{
-    display:inline-block;
-    padding:2px 7px;
-    margin:0 2px;
-    border:2px solid currentColor;
-    border-radius:5px;
-    font-weight:800;
-    letter-spacing:1.5px;
-    line-height:1.15;
-    background:rgba(255,255,255,.035);
-}
-.placa-lista-roubo{color:#e53935}
-.placa-lista-furto{color:#2e7d32}
-.placa-lista-outros{color:#f57c00}
-
 .btn-copiar-registro{position:absolute;right:10px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#333;color:#eee;border:1px solid #555}
 .btn-copiar-registro:hover{background:#454545}
 .btn-excluir-registro{position:absolute;right:82px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#6b2525;color:#fff;border:1px solid #8f4444}
@@ -2187,22 +2177,12 @@ function encontrarPlaca(texto) {
                 ""
             );
 
+        // Emplacamento válido: no máximo 7 caracteres.
+        // Se o campo tiver mais de 7 caracteres, não aproveita
+        // um pedaço da sequência como se fosse a placa.
+        if (limpo.length !== 7) return null;
 
-        /*
-         * Testa sequências de 7.
-         */
-
-        for (
-            let i = 0;
-            i <= limpo.length - 7;
-            i++
-        ) {
-
-            const candidato =
-                limpo.substring(
-                    i,
-                    i + 7
-                );
+        const candidato = limpo;
 
             const variantes = gerarVariantesPlaca(candidato);
 
@@ -2234,7 +2214,6 @@ function encontrarPlaca(texto) {
                     return antiga;
             }
         }
-    }
 
 
     /*
@@ -2440,11 +2419,8 @@ function processarTexto(texto) {
      * Detecta a placa respeitando a posição dos caracteres.
      * Ex.: ABCOI45 -> ABC0145.
      */
-    const placaDetectada = encontrarPlaca(texto);
     const placa =
-        (placaDetectada && String(placaDetectada).length === 7)
-            ? placaDetectada
-            : null;
+        encontrarPlaca(texto);
 
 
     if (placa) {
@@ -2817,46 +2793,9 @@ function classeCorCarater(texto) {
     const normalizado = String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
     if (/\bROUBO\b/.test(normalizado)) return "carater-roubo";
     if (/\bFURTO\b/.test(normalizado)) return "carater-furto";
-    if (/ACAO\s+CRIMINOSA/.test(normalizado)) return "carater-outros";
+    if (/ACAO\s+CRIMINOSA/.test(normalizado)) return "carater-acao-criminosa";
     if (/\bOUTROS\b/.test(normalizado) || /\bSUSPEITO\b/.test(normalizado)) return "carater-outros";
     return "";
-}
-
-function extrairEmplacamentoValido(texto) {
-    const placa = encontrarPlaca(texto);
-    return placa && String(placa).length === 7 ? placa : null;
-}
-
-function criarConteudoComEmplacamento(texto) {
-    const wrapper = document.createDocumentFragment();
-    const valor = String(texto || "");
-    const placa = extrairEmplacamentoValido(valor);
-    const classeCarater = classeCorCarater(valor);
-
-    if (!placa || !classeCarater) {
-        wrapper.appendChild(document.createTextNode(valor));
-        return wrapper;
-    }
-
-    const indice = valor.toUpperCase().indexOf(placa.toUpperCase());
-    if (indice < 0) {
-        wrapper.appendChild(document.createTextNode(valor));
-        return wrapper;
-    }
-
-    wrapper.appendChild(document.createTextNode(valor.slice(0, indice)));
-
-    const destaque = document.createElement("span");
-    destaque.className = "placa-lista-destaque " +
-        (classeCarater === "carater-roubo" ? "placa-lista-roubo" :
-         classeCarater === "carater-furto" ? "placa-lista-furto" :
-         "placa-lista-outros");
-    destaque.textContent = placa;
-    destaque.title = "Emplacamento — máximo de 7 caracteres";
-    wrapper.appendChild(destaque);
-
-    wrapper.appendChild(document.createTextNode(valor.slice(indice + placa.length)));
-    return wrapper;
 }
 
 function renderizarLista() {
@@ -2885,7 +2824,7 @@ function renderizarLista() {
         const numeroRegistro = listaTextos.length - indiceOriginal;
 
         const item = document.createElement("div");
-        item.className = "item-salvo";
+        item.className = "item-salvo" + (classeCorCarater(registro.texto) ? " " + classeCorCarater(registro.texto) : "");
 
         const numero = document.createElement("div");
         numero.className = "item-numero";
@@ -2893,7 +2832,15 @@ function renderizarLista() {
 
         const conteudo = document.createElement("div");
         conteudo.className = "item-conteudo";
-        conteudo.appendChild(criarConteudoComEmplacamento(registro.texto || ""));
+        const textoRegistro = String(registro.texto || "");
+        const placaRegistro = encontrarPlaca(textoRegistro);
+        if (placaRegistro) {
+            const seguro = escapeHtml(textoRegistro);
+            const padraoPlaca = new RegExp(placaRegistro.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+            conteudo.innerHTML = seguro.replace(padraoPlaca, '<span class="emplacamento-destaque">$&</span>');
+        } else {
+            conteudo.textContent = textoRegistro;
+        }
 
         const botaoCopiar = document.createElement("button");
         botaoCopiar.type = "button";
@@ -2969,17 +2916,7 @@ async function salvarTextoLista() {
     }
 
     // Confere o emplacamento identificado no caráter.
-    const placaDetectada = encontrarPlaca(texto);
-    const placaNova = placaDetectada && String(placaDetectada).length === 7
-        ? placaDetectada
-        : null;
-
-    if (placaDetectada && String(placaDetectada).length > 7) {
-        alert("O emplacamento deve ter no máximo 7 caracteres.");
-        document.getElementById("status").innerText =
-            "Emplacamento inválido: máximo de 7 caracteres.";
-        return;
-    }
+    const placaNova = encontrarPlaca(texto);
 
     if (placaNova) {
         const { data: registrosExistentes, error: erroConsulta } = await sb
@@ -4321,10 +4258,7 @@ async function atualizarIndicadoresAcesso() {
     const botoesUsuarioLista = document.getElementById("botoesUsuarioLista");
     const botoesEditor = document.getElementById("botoesEditorLista");
 
-    if (btnAdmin) btnAdmin.style.display =
-        (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master))
-            ? "inline-block"
-            : "none";
+    if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
     if (badgeAprovacoes) {
         badgeAprovacoes.style.display = souAdmin ? "inline-flex" : "none";
         badgeAprovacoes.textContent = "0";
@@ -4364,10 +4298,7 @@ async function atualizarIndicadoresAcesso() {
     const btnDownloadLista = document.getElementById("btnDownloadLista");
     if (btnAddCarater) btnAddCarater.style.display = podeEditar ? "inline-block" : "none";
     if (btnDownloadLista) btnDownloadLista.style.display = podeDownload ? "inline-block" : "none";
-    if (btnAdmin) btnAdmin.style.display =
-        (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master))
-            ? "inline-block"
-            : "none";
+    if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
     if (document.getElementById("btnMensagemAdmin")) document.getElementById("btnMensagemAdmin").style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
     if (document.getElementById("btnCapturarTelaAdmin")) document.getElementById("btnCapturarTelaAdmin").style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
     const btnAdmins = document.querySelector('#adminArea .auth-actions .btn-info');
@@ -4544,10 +4475,7 @@ async function carregarGerenciadorAdministradores() {
 }
 
 async function abrirAdmin() {
-    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) {
-        alert("A janela de Aprovações é exclusiva para administradores com Acesso Full.");
-        return;
-    }
+    if (!souAdmin) return;
     fecharMensagemAdmin();
     document.getElementById("appPrincipal").style.display = "none";
     document.getElementById("adminArea").style.display = "block";
@@ -5195,7 +5123,6 @@ async function salvarPermissoesAdministrador() {
     };
     const aviso = document.getElementById("permissaoAdminAviso");
     if (aviso) { aviso.style.display = "block"; aviso.className = "auth-msg warn"; aviso.textContent = "Salvando permissões..."; }
-    const permissaoAtual = adminPermissoesCache.get(userId) || {};
     const { error } = await sb.rpc("extrator_conceder_admin_permissoes", {
         p_user_id: userId,
         p_acesso_full: permissoes.acesso_full,
@@ -5203,8 +5130,8 @@ async function salvarPermissoesAdministrador() {
         p_gerenciar_membros: permissoes.gerenciar_membros,
         p_gerenciar_admins: permissoes.gerenciar_admins,
         p_download_lista: permissoes.download_lista,
-        p_visualizar_historico: !!permissaoAtual.visualizar_historico,
-        p_gerenciar_mensagens: !!permissaoAtual.gerenciar_mensagens
+        p_visualizar_historico: false,
+        p_gerenciar_mensagens: false
     });
     if (error) {
         console.error(error);
