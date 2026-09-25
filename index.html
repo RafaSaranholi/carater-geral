@@ -5129,7 +5129,11 @@ async function salvarPermissoesAdministrador() {
         p_adicionar_remover_carater: permissoes.adicionar_remover_carater,
         p_gerenciar_membros: permissoes.gerenciar_membros,
         p_gerenciar_admins: permissoes.gerenciar_admins,
-        p_download_lista: permissoes.download_lista
+        p_download_lista: permissoes.download_lista,
+        // As duas permissões abaixo existem na função SQL atual,
+        // mas ainda não possuem opções visuais neste modal.
+        p_visualizar_historico: false,
+        p_gerenciar_mensagens: false
     });
     if (error) {
         console.error(error);
