@@ -3549,6 +3549,22 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
         ws.headerFooter.oddFooter = "";
     }
 
+    // Guarda a quantidade real de registros que foram distribuídos para a grade.
+    // Essa contagem é feita a partir dos dados usados no preenchimento, e não
+    // relendo células mescladas do ExcelJS (o que pode subcontar algumas linhas).
+    const quantidadeDistribuida = Object.values(porDigito).reduce(function(total, arr) {
+        return total + arr.length;
+    }, 0);
+
+    const registrosSem4oDigitoNumerico = registrosFiltrados.filter(function(registro) {
+        const dados = extrairDadosPlanilha(registro);
+        const placaLimpa = String(dados.placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
+        return !/^\d$/.test(placaLimpa.charAt(3));
+    }).map(function(registro) {
+        const dados = extrairDadosPlanilha(registro);
+        return { placa: dados.placa || "(sem placa)", area: dados.a || "(sem área)" };
+    });
+
     montarFolha("Caráter Geral", esquerdas, direitas, 0);
     let pagina = 1;
     while (Object.values(porDigito).some(function(arr) { return arr.length > pagina * linhasPorGrupo; })) {
@@ -3556,6 +3572,15 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
         pagina++;
         if (pagina > 50) break;
     }
+
+    // Metadados internos usados pela rotina de validação antes do download.
+    // Assim a validação confere exatamente os registros que a rotina de
+    // preenchimento colocou na grade.
+    wb.__caraterMeta = {
+        selecionados: registrosFiltrados.length,
+        distribuidos: quantidadeDistribuida,
+        naoDistribuidos: registrosSem4oDigitoNumerico
+    };
 
     return wb;
 }
@@ -3732,14 +3757,23 @@ function valorTextoCelulaExcelJS(cell) {
 }
 
 function contarBlocosComVeiculo(workbook) {
-    if (!workbook || !workbook.worksheets) return 0;
+    if (!workbook) return 0;
+
+    // A contagem principal vem dos metadados gerados durante o preenchimento.
+    // Isso evita falsos "70 de 72" causados por células mescladas/richText do ExcelJS.
+    if (workbook.__caraterMeta && Number.isFinite(workbook.__caraterMeta.distribuidos)) {
+        return workbook.__caraterMeta.distribuidos;
+    }
+
+    // Fallback apenas para compatibilidade com workbooks antigos.
+    if (!workbook.worksheets) return 0;
     let total = 0;
     workbook.worksheets.forEach(function(ws) {
         for (let r = 4; r <= 38; r++) {
-            const esquerda = [2,3,4,5].some(function(c) {
+            const esquerda = [2,3,4,5,6,7].some(function(c) {
                 return valorTextoCelulaExcelJS(ws.getCell(r,c)).trim() !== "";
             });
-            const direita = [16,17,18,19].some(function(c) {
+            const direita = [16,17,18,19,20,21].some(function(c) {
                 return valorTextoCelulaExcelJS(ws.getCell(r,c)).trim() !== "";
             });
             if (esquerda) total++;
@@ -3795,20 +3829,24 @@ function gerarPlanilhaDasAreas() {
             const wb = criarPlanilhaCaraterGeral(areas);
 
             // 2) Valida a quantidade esperada de registros antes do download.
-            const quantidadeEsperada = listaTextos.filter(function(registro) {
-                const dados = extrairDadosPlanilha(registro);
-                return areas.map(normalizarGrupoAreaPlanilha).includes(normalizarGrupoAreaPlanilha(dados.a))
-                    && /^\d$/.test(String(dados.placa || "").replace(/[^A-Z0-9]/gi, "").charAt(3));
-            }).length;
+            // O esperado agora é exatamente a quantidade selecionada que foi
+            // distribuída pelos blocos 0–9 durante a criação da grade.
+            const quantidadeEsperada = wb.__caraterMeta ? wb.__caraterMeta.distribuidos : contarBlocosComVeiculo(wb);
+            const quantidadeSelecionada = wb.__caraterMeta ? wb.__caraterMeta.selecionados : quantidadeEsperada;
+            const naoDistribuidos = wb.__caraterMeta ? (wb.__caraterMeta.naoDistribuidos || []) : [];
 
             const quantidadePlanilha = contarBlocosComVeiculo(wb);
             const numeroFolhas = contarFolhasExcelJS(wb);
 
             if (!numeroFolhas) throw new Error("A planilha não criou nenhuma folha.");
-            if (quantidadeEsperada <= 0) throw new Error("Nenhum veículo com 4º caractere numérico válido foi localizado nas áreas selecionadas.");
+            if (quantidadeSelecionada <= 0) throw new Error("Nenhum veículo foi localizado nas áreas selecionadas.");
+            if (naoDistribuidos.length) {
+                const detalhes = naoDistribuidos.slice(0, 5).map(function(item) { return item.placa + " (" + item.area + ")"; }).join(", ");
+                throw new Error("Existem " + naoDistribuidos.length + " veículo(s) selecionado(s) que não puderam ser posicionados pelo 4º caractere numérico da placa. Verifique: " + detalhes + (naoDistribuidos.length > 5 ? "..." : ""));
+            }
             if (quantidadePlanilha <= 0) throw new Error("A planilha foi criada, mas não contém veículos preenchidos.");
-            if (quantidadePlanilha !== quantidadeEsperada) {
-                throw new Error("A planilha ficou incompleta (" + quantidadePlanilha + " de " + quantidadeEsperada + " veículos). O download foi bloqueado.");
+            if (quantidadePlanilha !== quantidadeEsperada || quantidadeEsperada !== quantidadeSelecionada) {
+                throw new Error("A planilha ficou incompleta (" + quantidadePlanilha + " de " + quantidadeSelecionada + " veículos). O download foi bloqueado.");
             }
 
             // 3) Faz uma validação adicional serializando em memória. Se houver
