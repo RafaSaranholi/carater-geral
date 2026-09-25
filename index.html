@@ -3255,13 +3255,22 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
         throw new Error("Nenhum veículo foi encontrado para as áreas selecionadas.");
     }
 
+    function extrairQuartoCaracterePlaca(placa) {
+        const placaLimpa = String(placa || "")
+            .replace(/[^A-Z0-9]/gi, "")
+            .toUpperCase();
+
+        // A planilha é organizada pelo 4º caractere do emplacamento,
+        // exatamente como o algarismo gigante 0 a 9 do modelo da foto.
+        // Ex.: AAA4J35 -> fica no grupo 4.
+        const quarto = placaLimpa.charAt(3);
+        return /^[0-9]$/.test(quarto) ? quarto : null;
+    }
+
     registrosFiltrados.forEach(function(registro) {
         const dados = extrairDadosPlanilha(registro);
-        const placaLimpa = String(dados.placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
-        // O modelo da foto agrupa pela última casa numérica da placa.
-        const digitos = placaLimpa.match(/[0-9]/g);
-        const ultimoDigito = digitos && digitos.length ? digitos[digitos.length - 1] : null;
-        const digito = ultimoDigito !== null ? ultimoDigito : "0";
+        const digitoQuarto = extrairQuartoCaracterePlaca(dados.placa);
+        const digito = digitoQuarto !== null ? digitoQuarto : "0";
         porDigito[digito].push(dados);
     });
 
@@ -5891,7 +5900,7 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 <div id="areaPlanilhaOverlay" class="area-planilha-overlay" aria-hidden="true" onclick="if(event.target===this) fecharEscolhaAreaPlanilha()">
     <div class="area-planilha-modal" role="dialog" aria-modal="true" aria-labelledby="areaPlanilhaTitulo">
         <h3 id="areaPlanilhaTitulo">📊 Selecionar áreas da planilha</h3>
-        <p>Marque uma ou mais áreas. O sistema vai localizar todos os veículos das áreas marcadas, preencher a planilha no modelo de Caráter Geral e só depois iniciar o download.</p>
+        <p>Marque uma ou mais áreas. O sistema vai localizar todos os veículos das áreas marcadas, preencher a planilha no modelo de Caráter Geral e só depois iniciar o download. A distribuição 0 a 9 segue o <strong>4º caractere do emplacamento</strong> (ex.: AAA4J35 vai para o bloco 4).</p>
 
         <div class="area-planilha-toolbar">
             <span id="areaPlanilhaContagem" class="area-planilha-contagem">Nenhuma área selecionada</span>
