@@ -3631,30 +3631,73 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
         // =========================================================
         // CENTRALIZAÇÃO FINAL DE TODAS AS CÉLULAS
         // =========================================================
-        // A centralização é aplicada novamente depois de TODAS as mesclagens
-        // e depois do preenchimento dos veículos. Assim, nenhuma célula da
-        // grade (inclusive cabeçalhos, faixas cinzas e linhas adicionadas
-        // automaticamente) fica com alinhamento diferente. Nas células
-        // mescladas, o alinhamento é garantido no célula-mestre da mesclagem.
-        for (let r = 1; r <= ultimaLinha; r++) {
-            for (let c = 1; c <= 27; c++) {
-                const cell = ws.getCell(r, c);
-                let alvo = cell;
+        // Última etapa de formatação: força o conteúdo de TODA a tabela
+        // para o centro horizontal e vertical, inclusive células vazias,
+        // cabeçalhos, blocos cinza, linhas criadas automaticamente e
+        // células mescladas. O alinhamento é aplicado diretamente na célula
+        // e, quando houver mesclagem, também na célula-mestre.
+        function centralizarTodasCelulas(ws, maxRow, maxCol) {
+            const alinhamentoCentral = {
+                horizontal: "center",
+                vertical: "center",
+                wrapText: true,
+                textRotation: 0,
+                indent: 0,
+                shrinkToFit: false
+            };
+
+            for (let r = 1; r <= maxRow; r++) {
+                for (let c = 1; c <= maxCol; c++) {
+                    const cell = ws.getCell(r, c);
+
+                    try {
+                        cell.alignment = { ...alinhamentoCentral };
+                    } catch (e) {}
+
+                    try {
+                        if (cell && cell.master) {
+                            cell.master.alignment = { ...alinhamentoCentral };
+                        }
+                    } catch (e) {}
+                }
+            }
+
+            // Reforça especificamente todas as áreas mescladas utilizadas
+            // pelo modelo, pois no Excel a célula-mestre é quem determina
+            // o alinhamento visual do conjunto mesclado.
+            [
+                "A1:M1", "O1:AA1",
+                "B3:G3", "H3:J3", "P3:U3", "V3:X3"
+            ].forEach(function(ref) {
                 try {
-                    if (cell && cell.isMerged && cell.master) alvo = cell.master;
+                    ws.getCell(ref.split(":")[0]).alignment = { ...alinhamentoCentral };
                 } catch (e) {}
-                if (alvo) {
-                    alvo.alignment = {
-                        ...(alvo.alignment || {}),
-                        horizontal: "center",
-                        vertical: "center",
-                        wrapText: true
-                    };
+            });
+
+            for (let g = 0; g < 5; g++) {
+                const inicio = 4 + alturasPares.slice(0, g).reduce(function(a,b){ return a+b; }, 0);
+                const fim = inicio + alturasPares[g] - 1;
+
+                // Números gigantes 0–9 (células verticais mescladas)
+                [1, 15].forEach(function(col) {
+                    try {
+                        ws.getCell(inicio, col).alignment = { ...alinhamentoCentral };
+                    } catch (e) {}
+                });
+
+                for (let r = inicio; r <= fim; r++) {
+                    [5, 17, 22, 25].forEach(function(col) {
+                        if (col <= 27) {
+                            try { ws.getCell(r, col).alignment = { ...alinhamentoCentral }; } catch (e) {}
+                        }
+                    });
                 }
             }
         }
 
-        // Garante também o alinhamento para impressão/exportação da página.
+        centralizarTodasCelulas(ws, ultimaLinha, 27);
+
+        // Garante também o alinhamento da própria página para impressão/exportação.
         ws.pageSetup.horizontalCentered = true;
         ws.pageSetup.verticalCentered = true;
 
