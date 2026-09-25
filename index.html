@@ -3604,6 +3604,36 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
             };
         }
 
+        // =========================================================
+        // CENTRALIZAÇÃO FINAL DE TODAS AS CÉLULAS
+        // =========================================================
+        // A centralização é aplicada novamente depois de TODAS as mesclagens
+        // e depois do preenchimento dos veículos. Assim, nenhuma célula da
+        // grade (inclusive cabeçalhos, faixas cinzas e linhas adicionadas
+        // automaticamente) fica com alinhamento diferente. Nas células
+        // mescladas, o alinhamento é garantido no célula-mestre da mesclagem.
+        for (let r = 1; r <= ultimaLinha; r++) {
+            for (let c = 1; c <= 27; c++) {
+                const cell = ws.getCell(r, c);
+                let alvo = cell;
+                try {
+                    if (cell && cell.isMerged && cell.master) alvo = cell.master;
+                } catch (e) {}
+                if (alvo) {
+                    alvo.alignment = {
+                        ...(alvo.alignment || {}),
+                        horizontal: "center",
+                        vertical: "center",
+                        wrapText: true
+                    };
+                }
+            }
+        }
+
+        // Garante também o alinhamento para impressão/exportação da página.
+        ws.pageSetup.horizontalCentered = true;
+        ws.pageSetup.verticalCentered = true;
+
         // Limites de impressão acompanham o tamanho real da planilha.
         ws.pageSetup.printArea = "A1:AA" + ultimaLinha;
         ws.pageMargins = {
