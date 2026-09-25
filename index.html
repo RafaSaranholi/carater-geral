@@ -815,7 +815,6 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
             <label class="permissao-admin-opcao"><input id="permAdicionarRemover" type="checkbox"><span><strong>Adicionar e remover caráter</strong><small>Salvar novos registros e excluir registros da lista.</small></span></label>
             <label class="permissao-admin-opcao"><input id="permGerenciarMembros" type="checkbox"><span><strong>Aceitar e excluir membros</strong><small>Aprovar, rejeitar e excluir usuários.</small></span></label>
             <label class="permissao-admin-opcao"><input id="permGerenciarAdmins" type="checkbox"><span><strong>Tornar membros administradores</strong><small>Conceder, alterar e retirar permissões administrativas.</small></span></label>
-            <label class="permissao-admin-opcao"><input id="permDownloadLista" type="checkbox"><span><strong>Download da lista de caráter geral</strong><small>Baixar a lista em TXT ou planilha Excel no modelo de Caráter Geral.</small></span></label>
         </div>
         <div id="permissaoAdminAviso" class="auth-msg" style="display:none"></div>
         <div class="auth-actions">
@@ -3058,8 +3057,8 @@ async function salvarTextoLista() {
 }
 
 function abrirEscolhaDownload() {
-    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.download_lista || adminPermissoes.is_master)) {
-        alert("Você não possui permissão para baixar a lista de caráter geral.");
+    if (!usuarioAtual) {
+        alert("Faça login para baixar a lista de caráter geral.");
         return;
     }
     if (!listaTextos.length) {
@@ -3836,8 +3835,8 @@ function limparTodasAreasPlanilha() {
 
 function abrirEscolhaAreaPlanilha() {
     fecharEscolhaDownload();
-    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.download_lista || adminPermissoes.is_master)) {
-        alert("Você não possui permissão para baixar a lista de caráter geral.");
+    if (!usuarioAtual) {
+        alert("Faça login para baixar a lista de caráter geral.");
         return;
     }
     if (!listaTextos.length) {
@@ -4141,8 +4140,8 @@ function baixarListaPlanilha() {
 }
 
 function baixarListaTxt() {
-    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.download_lista || adminPermissoes.is_master)) {
-        alert("Você não possui permissão para baixar a lista de caráter geral.");
+    if (!usuarioAtual) {
+        alert("Faça login para baixar a lista de caráter geral.");
         return;
     }
     if (!listaTextos.length) {
@@ -5462,7 +5461,7 @@ async function atualizarIndicadoresAcesso() {
     if (botoesUsuarioLista) botoesUsuarioLista.style.display = souAdmin ? "none" : "flex";
     if (botoesEditor) botoesEditor.style.display = souAdmin ? "flex" : "none";
     const podeEditar = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.adicionar_remover_carater || adminPermissoes.is_master);
-    const podeDownload = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.download_lista || adminPermissoes.is_master);
+    const podeDownload = !!usuarioAtual;
     const podeMembros = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.gerenciar_membros || adminPermissoes.is_master);
     const podeAdmins = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.gerenciar_admins || adminPermissoes.is_master);
     const btnAddCarater = document.getElementById("btnAdicionarCarater");
@@ -5630,7 +5629,7 @@ async function carregarGerenciadorAdministradores() {
     let html = '<div class="info"><strong>' + administradores.length + '</strong> administrador(es) ativo(s)</div>';
     administradores.forEach(u => {
         const a = adminPermissoesCache.get(u.id) || {};
-        const resumo = a.is_master ? '🔒 MASTER — acesso protegido' : (a.acesso_full ? 'Acesso Full' : [a.adicionar_remover_carater?'Adicionar/remover caráter':'',a.gerenciar_membros?'Gerenciar membros':'',a.gerenciar_admins?'Gerenciar administradores':'',a.download_lista?'Download da lista':''].filter(Boolean).join(' · ') || 'Sem permissões');
+        const resumo = a.is_master ? '🔒 MASTER — acesso protegido' : (a.acesso_full ? 'Acesso Full' : [a.adicionar_remover_carater?'Adicionar/remover caráter':'',a.gerenciar_membros?'Gerenciar membros':'',a.gerenciar_admins?'Gerenciar administradores':''].filter(Boolean).join(' · ') || 'Sem permissões');
         const podeRetirar = u.id !== usuarioAtual?.id && !a.is_master;
         html += `<div class="admin-gerenciar-item"><div class="info-admin"><strong>${escapeHtml(u.nome_completo || '-')}</strong><small>RE: ${escapeHtml(u.re || '-')} · ${escapeHtml(u.email_funcional || '-')}</small><small class="admin-permissao-resumo">${escapeHtml(resumo)}</small></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn-info" onclick="abrirModalPermissoesAdmin('${escapeHtml(u.id)}','${escapeHtml(u.nome_completo || 'Administrador')}')">⚙️ Permissões</button><button type="button" class="btn-warning" ${podeRetirar ? '' : 'disabled'} onclick="alterarAdministrador('${escapeHtml(u.id)}', false)">${a.is_master ? '🔒 MASTER' : (podeRetirar ? '↩️ Desativar ADM' : '🔒 Seu ADM')}</button></div></div>`;
     });
@@ -6249,7 +6248,7 @@ function obterLocalizacaoAprovacao() {
 function alternarPermissaoFull() {
     const full = document.getElementById("permAcessoFull");
     if (!full) return;
-    ["permAdicionarRemover","permGerenciarMembros","permGerenciarAdmins","permDownloadLista"].forEach(id => {
+    ["permAdicionarRemover","permGerenciarMembros","permGerenciarAdmins"].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.disabled = full.checked;
         if (el && full.checked) el.checked = false;
@@ -6271,7 +6270,6 @@ function abrirModalPermissoesAdmin(userId, nome, permissoes) {
     document.getElementById("permAdicionarRemover").checked = !!p.adicionar_remover_carater;
     document.getElementById("permGerenciarMembros").checked = !!p.gerenciar_membros;
     document.getElementById("permGerenciarAdmins").checked = !!p.gerenciar_admins;
-    document.getElementById("permDownloadLista").checked = !!p.download_lista;
     alternarPermissaoFull();
     const aviso = document.getElementById("permissaoAdminAviso");
     if (aviso) { aviso.style.display = "none"; aviso.textContent = ""; }
@@ -6292,8 +6290,7 @@ async function salvarPermissoesAdministrador() {
         acesso_full: full,
         adicionar_remover_carater: full || document.getElementById("permAdicionarRemover")?.checked === true,
         gerenciar_membros: full || document.getElementById("permGerenciarMembros")?.checked === true,
-        gerenciar_admins: full || document.getElementById("permGerenciarAdmins")?.checked === true,
-        download_lista: full || document.getElementById("permDownloadLista")?.checked === true
+        gerenciar_admins: full || document.getElementById("permGerenciarAdmins")?.checked === true
     };
     const aviso = document.getElementById("permissaoAdminAviso");
     if (aviso) { aviso.style.display = "block"; aviso.className = "auth-msg warn"; aviso.textContent = "Salvando permissões..."; }
@@ -6303,7 +6300,7 @@ async function salvarPermissoesAdministrador() {
         p_adicionar_remover_carater: permissoes.adicionar_remover_carater,
         p_gerenciar_membros: permissoes.gerenciar_membros,
         p_gerenciar_admins: permissoes.gerenciar_admins,
-        p_download_lista: permissoes.download_lista,
+        p_download_lista: false,
         p_visualizar_historico: false,
         p_gerenciar_mensagens: false
     });
@@ -6452,7 +6449,7 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 <div class="botoes-lista" id="botoesUsuarioLista" style="display:none">
 <button type="button" onclick="abrirEscolhaDownload()">📥 Baixar lista de caráter</button>
 </div>
-<div class="info">Usuários não administradores podem somente pesquisar, copiar e baixar a lista. Somente administradores podem adicionar, excluir e gerenciar os registros.</div>
+<div class="info">Todos os usuários autenticados podem pesquisar, copiar e baixar a lista. Somente administradores podem adicionar, excluir e gerenciar os registros.</div>
 </div></div>
 
 </div><!-- /conteudo-principal -->
