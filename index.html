@@ -704,7 +704,7 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
 <div id="adminArea">
     <div class="admin-card">
         <h2>Administração</h2>
-        <p class="info">Apenas administradores podem aprovar, excluir usuários e conceder ou retirar privilégios administrativos.</p>
+        <p class="info">O usuário MASTER aprova ou rejeita cadastros. Administradores autorizados podem executar as demais funções conforme suas permissões.</p>
         <div class="auth-actions">
             <button class="btn-secondary" type="button" onclick="voltarDoAdmin()">Voltar ao extrator</button>
             <button class="btn-secondary" type="button" onclick="carregarAdmin()">Atualizar</button>
@@ -2802,16 +2802,16 @@ function obterTextoPesquisaLista() {
     return textoNormalizadoPesquisa(document.getElementById("buscaLista")?.value || "");
 }
 
-function escaparHtmlLista(valor) {
-    return String(valor || "")
+function escaparHtmlLista(texto) {
+    return String(texto || "")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
+        .replace(/'/g, "&#039;");
 }
 
-function destacarEmplacamento(texto) {
+function destacarEmplacamentoLista(texto) {
     const seguro = escaparHtmlLista(texto);
     const placa = encontrarPlaca(texto);
     if (!placa || String(placa).length > 7) return seguro;
@@ -2820,6 +2820,33 @@ function destacarEmplacamento(texto) {
     const placaEscapada = placaSegura.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const regex = new RegExp("(^|[^A-Z0-9])(" + placaEscapada + ")(?![A-Z0-9])", "gi");
     return seguro.replace(regex, '$1<span class="emplacamento-destaque">$2</span>');
+}
+
+function validarEmplacamentoMax7(texto) {
+    const normalizado = String(texto || "").toUpperCase();
+    const linhas = normalizado.split(/\r?\n/);
+    for (const linha of linhas) {
+        if (/CADASTRO\s+VE[ÍI1]CULO/.test(linha)) {
+            const pos = linha.search(/CADASTRO\s+VE[ÍI1]CULO/);
+            let trecho = linha.slice(pos).replace(/CADASTRO\s+VE[ÍI1]CULO\s*[:\-]?\s*/i, "");
+            trecho = trecho.trim();
+            const somenteAlnum = trecho.replace(/[^A-Z0-9]/g, "");
+            if (somenteAlnum.length > 7) {
+                return {
+                    valido: false,
+                    mensagem: "O emplacamento não pode ter mais de 7 caracteres. Verifique o campo CADASTRO VEÍCULO."
+                };
+            }
+        }
+    }
+    const placa = encontrarPlaca(texto);
+    if (placa && String(placa).length > 7) {
+        return {
+            valido: false,
+            mensagem: "O emplacamento não pode ter mais de 7 caracteres."
+        };
+    }
+    return { valido: true, mensagem: "" };
 }
 
 function classeCorCarater(texto) {
@@ -2864,7 +2891,7 @@ function renderizarLista() {
 
         const conteudo = document.createElement("div");
         conteudo.className = "item-conteudo";
-        conteudo.innerHTML = destacarEmplacamento(registro.texto || "");
+        conteudo.innerHTML = destacarEmplacamentoLista(registro.texto || "");
 
         const botaoCopiar = document.createElement("button");
         botaoCopiar.type = "button";
@@ -2925,24 +2952,6 @@ function limparBuscaLista() {
 }
 
 
-function extrairTrechoEmplacamento(texto) {
-    const normalizado = String(texto || "").toUpperCase();
-    const campo = normalizado.match(/CADASTRO\s+VE[ÍI1]CULO\s*[:\-]?\s*([^\r\n]+)/);
-    if (!campo) return null;
-    return campo[1].trim();
-}
-
-function emplacamentoMaiorQueSete(texto) {
-    const trecho = extrairTrechoEmplacamento(texto);
-    if (!trecho) return null;
-    const candidatos = trecho.match(/[A-Z0-9][A-Z0-9\s\-]{7,}/g) || [];
-    for (const item of candidatos) {
-        const limpo = item.replace(/[^A-Z0-9]/g, "");
-        if (limpo.length > 7) return limpo;
-    }
-    return null;
-}
-
 async function salvarTextoLista() {
     if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.adicionar_remover_carater || adminPermissoes.is_master)) {
         alert("Você não possui permissão para adicionar registros à lista online.");
@@ -2957,16 +2966,14 @@ async function salvarTextoLista() {
         return;
     }
 
-    // Regra: o emplacamento deve ter no máximo 7 caracteres.
-    const placaExcedente = emplacamentoMaiorQueSete(texto);
-    if (placaExcedente) {
-        alert("ERRO: o emplacamento não pode ter mais de 7 caracteres.\n\nFoi identificado: " + placaExcedente);
-        document.getElementById("status").innerText =
-            "Emplacamento inválido: máximo de 7 caracteres.";
+    // Confere o emplacamento identificado no caráter.
+    const validacaoPlaca = validarEmplacamentoMax7(texto);
+    if (!validacaoPlaca.valido) {
+        alert(validacaoPlaca.mensagem);
+        document.getElementById("status").innerText = validacaoPlaca.mensagem;
         return;
     }
 
-    // Confere o emplacamento identificado no caráter.
     const placaNova = encontrarPlaca(texto);
 
     if (placaNova) {
@@ -4740,7 +4747,8 @@ function montarCardUsuario(usuario, adminIds, pendente) {
 
     const actions = item.querySelector(".admin-actions");
     if (pendente) {
-        if (!adminPermissoes.acesso_full && !adminPermissoes.gerenciar_membros && !adminPermissoes.is_master) return item;
+        // Aprovações/rejeições são exclusivas do MASTER.
+        if (!adminPermissoes.is_master) return item;
         const aprovar = document.createElement("button");
         aprovar.className = "btn-success";
         aprovar.type = "button";
@@ -4755,12 +4763,16 @@ function montarCardUsuario(usuario, adminIds, pendente) {
         actions.append(aprovar, rejeitar);
     } else {
         if (usuario.status === "rejeitado") {
+            if (!adminPermissoes.is_master) {
+                // Somente o MASTER pode reaprovar cadastros rejeitados.
+            } else {
             const aprovar = document.createElement("button");
             aprovar.className = "btn-success";
             aprovar.type = "button";
             aprovar.textContent = "✅ Aprovar";
             aprovar.onclick = () => alterarStatusUsuario(usuario.id, "aprovado");
             actions.appendChild(aprovar);
+            }
         } else {
             if (!ehAdmin) {
                 if (!(adminPermissoes.acesso_full || adminPermissoes.gerenciar_admins || adminPermissoes.is_master)) {
@@ -4869,7 +4881,7 @@ async function baixarBackupUsuarios() {
 
         const [{ data: usuarios, error: usuariosError }, { data: admins, error: adminsError }, { data: historico, error: historicoError }] = await Promise.all([
             sb.from("extrator_usuarios").select("*").order("created_at", { ascending: true }),
-            sb.from("extrator_admins").select("user_id,created_at").order("created_at", { ascending: true }),
+            sb.from("extrator_admins").select("user_id,created_at,is_master,acesso_full,adicionar_remover_carater,gerenciar_membros,gerenciar_admins,download_lista,visualizar_historico,gerenciar_mensagens").order("created_at", { ascending: true }),
             sb.from("extrator_historico_aprovados").select("*").order("aprovado_em", { ascending: true })
         ]);
 
@@ -4925,7 +4937,17 @@ async function lerEValidarBackupUsuarios(arquivo) {
     }).filter(u => u.id && u.re && u.nome_completo && u.unidade && u.email_funcional);
     if (!registros.length) throw new Error("O backup não contém cadastros válidos.");
     const admins = Array.isArray(backup.administradores)
-        ? backup.administradores.filter(a => a?.user_id).map(a => ({ user_id:a.user_id, ...(a.created_at ? {created_at:a.created_at} : {}) }))
+        ? backup.administradores.filter(a => a?.user_id).map(a => {
+            const admin = { user_id: a.user_id };
+            [
+                "created_at","is_master","acesso_full","adicionar_remover_carater",
+                "gerenciar_membros","gerenciar_admins","download_lista",
+                "visualizar_historico","gerenciar_mensagens"
+            ].forEach(c => {
+                if (Object.prototype.hasOwnProperty.call(a, c)) admin[c] = a[c];
+            });
+            return admin;
+        })
         : [];
     return {backup, registros, admins};
 }
@@ -5050,8 +5072,8 @@ async function restaurarBackupUsuarios(event) {
 }
 
 async function alterarStatusUsuario(id, novoStatus) {
-    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.gerenciar_membros || adminPermissoes.is_master)) {
-        alert("Você não possui permissão para aceitar ou excluir membros.");
+    if (!souAdmin || !adminPermissoes.is_master) {
+        alert("Somente o usuário MASTER pode aprovar ou rejeitar membros.");
         return;
     }
 
@@ -5180,7 +5202,9 @@ async function salvarPermissoesAdministrador() {
         p_adicionar_remover_carater: permissoes.adicionar_remover_carater,
         p_gerenciar_membros: permissoes.gerenciar_membros,
         p_gerenciar_admins: permissoes.gerenciar_admins,
-        p_download_lista: permissoes.download_lista
+        p_download_lista: permissoes.download_lista,
+        p_visualizar_historico: false,
+        p_gerenciar_mensagens: false
     });
     if (error) {
         console.error(error);
