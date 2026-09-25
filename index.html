@@ -187,17 +187,9 @@
 .lista-toolbar input{flex:1;min-width:0;box-sizing:border-box;padding:12px 13px;border-radius:7px;border:1px solid #555;background:#101010;color:#eee;font-size:15px}
 .lista-toolbar button{margin:0;padding:9px 13px;min-width:42px;background:#333;color:#eee;border:1px solid #555}
 .item-salvo{position:relative;padding-bottom:46px;cursor:default}
-.emplacamento-destaque{display:inline-flex;align-items:center;justify-content:center;margin:0 0 9px 0;padding:6px 12px;min-width:110px;box-sizing:border-box;border:3px solid #00d4ff;border-radius:7px;background:#0d1b20;color:#fff;font-size:19px;font-weight:900;letter-spacing:2px;line-height:1.15;box-shadow:0 0 9px rgba(0,212,255,.22)}
-.emplacamento-destaque::before{content:'🚘 ';font-size:14px;letter-spacing:0}
-.emplacamento-destaque.emplacamento-roubo{border-color:#e53935;background:#2a1111;box-shadow:0 0 9px rgba(229,57,53,.25)}
-.emplacamento-destaque.emplacamento-furto{border-color:#2e7d32;background:#102516;box-shadow:0 0 9px rgba(46,125,50,.25)}
-.emplacamento-destaque.emplacamento-acao{border-color:#fbc02d;background:#2a240d;color:#fff8c7;box-shadow:0 0 9px rgba(251,192,45,.25)}
-.emplacamento-destaque.emplacamento-outros{border-color:#f57c00;background:#2a190d;box-shadow:0 0 9px rgba(245,124,50,.25)}
-.emplacamento-invalido{display:block;margin:0 0 9px 0;padding:7px 9px;border:2px solid #e53935;border-radius:7px;background:#2a1111;color:#ffb3b3;font-weight:700}
-.item-salvo.carater-roubo{border:2px solid #e53935 !important}
-.item-salvo.carater-furto{border:2px solid #2e7d32 !important}
-.item-salvo.carater-acao{border:2px solid #fbc02d !important}
-.item-salvo.carater-outros{border:2px solid #f57c00 !important}
+.item-salvo.carater-roubo{border:2px solid #e53935}
+.item-salvo.carater-furto{border:2px solid #2e7d32}
+.item-salvo.carater-outros{border:2px solid #f57c00}
 .item-salvo:hover{border-color:#666}
 .item-salvo .item-conteudo{line-height:1.28}
 .btn-copiar-registro{position:absolute;right:10px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#333;color:#eee;border:1px solid #555}
@@ -2152,43 +2144,223 @@ function corrigirPlacaMercosul(valor) {
 
 function encontrarPlaca(texto) {
 
-    if (!texto) return null;
+    if (!texto)
+        return null;
 
-    const textoMaiusculo = String(texto).toUpperCase();
 
-    const campo = textoMaiusculo.match(
-        /CADASTRO\s+VE[ÍI1]CULO\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s\-]{5,14})/
-    );
+    const textoMaiusculo =
+        texto.toUpperCase();
+
+
+    /*
+     * Primeiro procura especificamente
+     * depois de CADASTRO VEÍCULO.
+     */
+
+    const campo =
+        textoMaiusculo.match(
+            /CADASTRO\s+VE[ÍI1]CULO\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s\-]{5,14})/
+        );
+
 
     if (campo) {
-        const limpo = campo[1].replace(/[^A-Z0-9]/g, '');
-        for (let i = 0; i <= limpo.length - 7; i++) {
-            const candidato = limpo.substring(i, i + 7);
+
+        const trecho =
+            campo[1];
+
+
+        const limpo =
+            trecho.replace(
+                /[^A-Z0-9]/g,
+                ""
+            );
+
+
+        /*
+         * Testa sequências de 7.
+         */
+
+        for (
+            let i = 0;
+            i <= limpo.length - 7;
+            i++
+        ) {
+
+            const candidato =
+                limpo.substring(
+                    i,
+                    i + 7
+                );
+
             const variantes = gerarVariantesPlaca(candidato);
+
             for (const variante of variantes) {
-                const mercosul = corrigirPlacaMercosul(variante);
-                if (mercosul) return mercosul;
-                const antiga = corrigirPlacaAntiga(variante);
-                if (antiga) return antiga;
+
+                /*
+                 * Primeiro Mercosul.
+                 */
+
+                const mercosul =
+                    corrigirPlacaMercosul(
+                        variante
+                    );
+
+                if (mercosul)
+                    return mercosul;
+
+
+                /*
+                 * Depois placa antiga.
+                 */
+
+                const antiga =
+                    corrigirPlacaAntiga(
+                        variante
+                    );
+
+                if (antiga)
+                    return antiga;
             }
         }
     }
 
-    const geral = textoMaiusculo.replace(/[^A-Z0-9]/g, ' ');
-    const candidatos = geral.match(/[A-Z0-9]{7}/g) || [];
+
+    /*
+     * Procura no texto inteiro.
+     */
+
+    const geral =
+        textoMaiusculo.replace(
+            /[^A-Z0-9]/g,
+            " "
+        );
+
+
+    const candidatos =
+        geral.match(
+            /[A-Z0-9]{7}/g
+        ) || [];
+
 
     for (const candidato of candidatos) {
-        const mercosul = corrigirPlacaMercosul(candidato);
-        if (mercosul) return mercosul;
+
+        const mercosul =
+            corrigirPlacaMercosul(
+                candidato
+            );
+
+
+        if (mercosul)
+            return mercosul;
+
+
         const variantes = gerarVariantesPlaca(candidato);
+
         for (const variante of variantes) {
-            const antiga = corrigirPlacaAntiga(variante);
-            if (antiga) return antiga;
+            const antiga =
+                corrigirPlacaAntiga(
+                    variante
+                );
+
+            if (antiga)
+                return antiga;
         }
     }
 
+
     return null;
 }
+
+
+/* =========================================================
+   CORRIGIR ANO
+========================================================= */
+
+function corrigirAno(texto) {
+
+    /*
+     * Só mexe no campo ANO.
+     */
+
+    const regex =
+        /(ANO\s*[:\-]?\s*)([0-9A-ZIOBS]{4})\s*[\/\-]\s*([0-9A-ZIOBS]{4})/i;
+
+
+    const encontrado =
+        texto.match(regex);
+
+
+    if (!encontrado)
+        return texto;
+
+
+    function converter(valor) {
+
+        const mapa = {
+
+            "O": "0",
+            "Q": "0",
+
+            "I": "1",
+            "L": "1",
+
+            "S": "5",
+
+            "B": "8",
+
+            "G": "6"
+        };
+
+
+        return valor
+            .toUpperCase()
+            .split("")
+            .map(c => mapa[c] || c)
+            .join("");
+    }
+
+
+    const ano1 =
+        converter(encontrado[2]);
+
+
+    const ano2 =
+        converter(encontrado[3]);
+
+
+    const n1 =
+        parseInt(ano1);
+
+
+    const n2 =
+        parseInt(ano2);
+
+
+    /*
+     * Só altera se forem anos plausíveis.
+     */
+
+    if (
+        n1 >= 1900 &&
+        n1 <= 2100 &&
+        n2 >= 1900 &&
+        n2 <= 2100
+    ) {
+
+        texto =
+            texto.replace(
+                regex,
+                "$1" +
+                ano1 +
+                "/" +
+                ano2
+            );
+    }
+
+
+    return texto;
+}
+
 
 
 /* =========================================================
@@ -2512,57 +2684,218 @@ async function extrairSomenteCarater() {
         document.getElementById("status").innerText =
             "Lendo imagem e extraindo caráter...";
 
-        // Faz a leitura diretamente da imagem inteira, sem exigir
-        // qualquer seleção da área vermelha e sem mostrar o OCR completo.
+        /*
+         * CORREÇÃO ESPECÍFICA DO CARÁTER:
+         * A versão anterior usava executarOCR(), que também incluía
+         * leituras focadas exclusivamente em placa. Em algumas imagens,
+         * uma dessas leituras obtinha confiança maior e acabava sendo
+         * escolhida como "melhor", mesmo sem conter CADASTRO VEÍCULO
+         * e SITUAÇÃO. O resultado era a mensagem de que o caráter não
+         * havia sido encontrado.
+         *
+         * Aqui mantemos o restante do programa intacto e fazemos uma
+         * leitura própria para o caráter, priorizando as leituras que
+         * realmente contenham os marcadores do cadastro.
+         */
+
         const canvas = document.createElement("canvas");
         canvas.width = imagemOriginal.naturalWidth;
         canvas.height = imagemOriginal.naturalHeight;
+
         const ctx = canvas.getContext("2d");
         ctx.drawImage(imagemOriginal, 0, 0);
 
-        const dados = await executarOCR(canvas, true);
-        const texto = processarTexto((dados && dados.text) ? dados.text : "");
+        const leituras = [];
 
-        if (!texto.trim()) {
+        // Leitura normal — bloco de texto.
+        document.getElementById("status").innerText =
+            "Reconhecendo caráter... 1/4";
+        leituras.push(await fazerOCR(canvas, 0, 6, false));
+
+        // Leitura com tratamento de imagem.
+        document.getElementById("status").innerText =
+            "Reconhecendo caráter... 2/4";
+        leituras.push(await fazerOCR(canvas, 1, 6, false));
+
+        // Leitura automática de blocos/linhas.
+        document.getElementById("status").innerText =
+            "Reconhecendo caráter... 3/4";
+        leituras.push(await fazerOCR(canvas, 0, 11, false));
+
+        // Segunda leitura tratada com segmentação automática.
+        document.getElementById("status").innerText =
+            "Reconhecendo caráter... 4/4";
+        leituras.push(await fazerOCR(canvas, 1, 11, false));
+
+        function normalizarOCRParaBusca(valor) {
+            return String(valor || "")
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .toUpperCase()
+                .replace(/[|]/g, "I")
+                .replace(/\s+/g, " ")
+                .trim();
+        }
+
+        function possuiCadastro(valor) {
+            const t = normalizarOCRParaBusca(valor)
+                .replace(/CADASTRO\s+VEICULO/g, "CADASTRO VEICULO");
+            return /CADASTRO\s+VE[I1]CULO\s*:??/i.test(t) ||
+                   /CADASTRO\s+VEICULO/i.test(t);
+        }
+
+        function possuiSituacao(valor) {
+            const t = normalizarOCRParaBusca(valor);
+            return /SITUACAO\s*:/i.test(t) ||
+                   /SITUA[CÇ]A?O\s*:/i.test(String(valor || ""));
+        }
+
+        function pontuarLeituraCarater(leitura) {
+            const texto = (leitura?.data?.text || "").trim();
+            if (!texto) return -999999;
+
+            const cadastro = possuiCadastro(texto);
+            const situacao = possuiSituacao(texto);
+            const confianca = Number(leitura?.data?.confidence || 0);
+
+            let pontos = confianca;
+
+            // Os marcadores do formulário são mais importantes que
+            // uma pequena diferença de confiança do OCR.
+            if (cadastro) pontos += 120;
+            if (situacao) pontos += 120;
+
+            // Se tiver os dois marcadores, esta é claramente a leitura
+            // adequada para a função "Extrair somente o caráter".
+            if (cadastro && situacao) pontos += 250;
+
+            return pontos;
+        }
+
+        let melhor = null;
+        let maiorPontuacao = -Infinity;
+
+        for (const leitura of leituras) {
+            const pontos = pontuarLeituraCarater(leitura);
+            if (pontos > maiorPontuacao) {
+                maiorPontuacao = pontos;
+                melhor = leitura;
+            }
+        }
+
+        const textoBruto = (melhor?.data?.text || "").trim();
+
+        if (!textoBruto) {
             throw new Error("OCR não retornou texto.");
         }
 
-        // Procura CADASTRO VEÍCULO: e extrai até o final do valor de SITUAÇÃO.
-        const inicioRegex = /CADASTRO\s+VE[ÍIÌÎÏI]?CULO\s*:/i;
-        const inicioMatch = inicioRegex.exec(texto);
+        /*
+         * Normaliza somente para localizar os marcadores, mas preserva
+         * o texto original para que o resultado continue com a aparência
+         * original do extrator.
+         */
+        const textoBusca = textoBruto
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toUpperCase();
+
+        /*
+         * Aceita as principais variações que o OCR costuma produzir:
+         * CADASTRO VEÍCULO / CADASTRO VEICULO
+         * SITUAÇÃO / SITUACAO
+         */
+        const inicioRegex =
+            /CADASTRO\s+VE(?:[ÍIÌÎÏ]|I|1)CULO\s*:/i;
+
+        let inicioMatch = inicioRegex.exec(textoBruto);
+
+        // Fallback para OCR que remove o acento e/ou perde o ":".
+        if (!inicioMatch) {
+            const idx = textoBusca.search(/CADASTRO\s+VE[I1]CULO\s*:??/i);
+            if (idx >= 0) {
+                const trecho = textoBruto.slice(idx);
+                const m = trecho.match(/CADASTRO\s+VE[I1]CULO\s*:??/i);
+                if (m) {
+                    inicioMatch = {
+                        index: idx,
+                        0: m[0]
+                    };
+                }
+            }
+        }
 
         if (!inicioMatch) {
             alert('Não foi encontrado "CADASTRO VEÍCULO:" no texto lido.');
+            document.getElementById("status").innerText =
+                "Leitura concluída, mas o marcador CADASTRO VEÍCULO não foi localizado.";
             return;
         }
 
         const inicio = inicioMatch.index + inicioMatch[0].length;
-        const restante = texto.slice(inicio);
+        const restante = textoBruto.slice(inicio);
 
-        const situacaoRegex = /SITUA[CÇC]?[AÃA]?O\s*:/i;
-        const situacaoMatch = situacaoRegex.exec(restante);
+        /*
+         * SITUAÇÃO pode aparecer como:
+         * SITUAÇÃO:
+         * SITUACAO:
+         * SITUAÇAO:
+         * e, em alguns OCRs, sem o acento no último A.
+         */
+        let situacaoRegex =
+            /SITUA(?:ÇÃO|CAO|ÇAO|CÃO)\s*:/i;
+
+        let situacaoMatch = situacaoRegex.exec(restante);
+
+        // Fallback mais tolerante para pequenas variações do OCR.
+        if (!situacaoMatch) {
+            const restanteBusca = restante
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .toUpperCase();
+
+            const idxSituacao = restanteBusca.search(/SITUACAO\s*:??/i);
+
+            if (idxSituacao >= 0) {
+                const trecho = restante.slice(idxSituacao);
+                const m = trecho.match(/SITU[AÃÁÀÂÄ]?[CÇ]?[AÃÁÀÂÄ]?O\s*:??/i);
+
+                if (m) {
+                    situacaoMatch = {
+                        index: idxSituacao,
+                        0: m[0]
+                    };
+                }
+            }
+        }
 
         if (!situacaoMatch) {
             alert('Não foi encontrado "SITUAÇÃO:" no texto lido.');
+            document.getElementById("status").innerText =
+                "Leitura concluída, mas o marcador SITUAÇÃO não foi localizado.";
             return;
         }
 
+        /*
+         * O caráter começa depois de CADASTRO VEÍCULO:
+         * e termina no final do valor de SITUAÇÃO.
+         *
+         * Primeiro tentamos respeitar os separadores usados pelo
+         * formulário. Se não houver separador, mantemos somente até
+         * o final da linha/valor reconhecido.
+         */
         const fimMarcador = situacaoMatch.index + situacaoMatch[0].length;
         const depoisSituacao = restante.slice(fimMarcador);
 
-        // Mantém somente o valor da situação, encerrando no próximo ; ou quebra de linha.
-        const fimValor = depoisSituacao.search(/[;\n\r]/);
+        const fimValor = depoisSituacao.search(/[;\r\n]/);
         const fim = fimValor >= 0
             ? fimMarcador + fimValor
             : restante.length;
 
         let resultado = restante.slice(0, fim).trim();
 
-        // Mantém o conteúdo reconhecido, apenas removendo quebras de linha
-        // para que o caráter seja apresentado em uma única linha.
         resultado = resultado
-            .replace(/[\\r\\n]+/g, " ")
-            .replace(/[ \\t]{2,}/g, " ")
+            .replace(/[\r\n]+/g, " ")
+            .replace(/[ \t]{2,}/g, " ")
             .trim();
 
         if (!resultado) {
@@ -2570,10 +2903,12 @@ async function extrairSomenteCarater() {
             return;
         }
 
-        // Mostra somente o resultado final, sem exigir seleção e sem
-        // substituir a imagem ou alterar a lista de textos salvos.
-        document.getElementById("resultado").value = resultado.toUpperCase();
-        document.getElementById("placa").innerText = encontrarPlaca(resultado) || "---";
+        document.getElementById("resultado").value =
+            resultado.toUpperCase();
+
+        document.getElementById("placa").innerText =
+            encontrarPlaca(resultado) || "---";
+
         document.getElementById("status").innerText =
             "Caráter extraído com sucesso.";
 
@@ -2630,31 +2965,8 @@ function classeCorCarater(texto) {
     const normalizado = String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
     if (/\bROUBO\b/.test(normalizado)) return "carater-roubo";
     if (/\bFURTO\b/.test(normalizado)) return "carater-furto";
-    if (/ACAO\s+CRIMINOSA/.test(normalizado)) return "carater-acao";
-    if (/\bOUTROS\b/.test(normalizado) || /\bSUSPEITO\b/.test(normalizado)) return "carater-outros";
+    if (/ACAO\s+CRIMINOSA/.test(normalizado) || /\bOUTROS\b/.test(normalizado) || /\bSUSPEITO\b/.test(normalizado)) return "carater-outros";
     return "";
-}
-
-function obterEmplacamentoParaDestaque(texto) {
-    const encontrado = encontrarPlaca(texto || '');
-    if (!encontrado) return null;
-    const placa = String(encontrado).replace(/[^A-Z0-9]/gi, '').toUpperCase();
-    return placa.length === 7 ? placa : null;
-}
-
-function obterTokenEmplacamento(texto) {
-    const valor = String(texto || '').toUpperCase();
-    const m = valor.match(/CADASTRO\s+VE[ÍI1]CULO\s*[:\-]?\s*([A-Z0-9-]+)/i);
-    if (!m) return null;
-    return String(m[1] || '').replace(/[^A-Z0-9]/g, '');
-}
-
-function validarLimiteEmplacamento(texto) {
-    const token = obterTokenEmplacamento(texto);
-    if (token && token.length > 7) return {ok:false, valor:token};
-    const placa = encontrarPlaca(texto || '');
-    if (placa && String(placa).replace(/[^A-Z0-9]/gi, '').length > 7) return {ok:false, valor:placa};
-    return {ok:true, valor:token || placa || null};
 }
 
 function renderizarLista() {
@@ -2703,20 +3015,6 @@ function renderizarLista() {
         });
 
         item.appendChild(numero);
-
-        const placaRegistro = obterEmplacamentoParaDestaque(registro.texto || "");
-        if (placaRegistro) {
-            const placaBadge = document.createElement("div");
-            placaBadge.className = "emplacamento-destaque";
-            const classeOcorrencia = classeCorCarater(registro.texto || "");
-            if (classeOcorrencia === "carater-roubo") placaBadge.classList.add("emplacamento-roubo");
-            else if (classeOcorrencia === "carater-furto") placaBadge.classList.add("emplacamento-furto");
-            else if (classeOcorrencia === "carater-acao") placaBadge.classList.add("emplacamento-acao");
-            else if (classeOcorrencia === "carater-outros") placaBadge.classList.add("emplacamento-outros");
-            placaBadge.textContent = placaRegistro;
-            item.appendChild(placaBadge);
-        }
-
         item.appendChild(conteudo);
         item.appendChild(botaoCopiar);
 
@@ -2777,14 +3075,6 @@ async function salvarTextoLista() {
 
     if (!texto) {
         alert("Não há texto para salvar.");
-        return;
-    }
-
-    // Regra: emplacamento com no máximo 7 caracteres.
-    const validacaoEmplacamento = validarLimiteEmplacamento(texto);
-    if (!validacaoEmplacamento.ok) {
-        alert("ERRO: o emplacamento não pode ter mais de 7 caracteres.\n\nEmplacamento identificado: " + validacaoEmplacamento.valor);
-        document.getElementById("status").innerText = "Emplacamento inválido: máximo de 7 caracteres.";
         return;
     }
 
