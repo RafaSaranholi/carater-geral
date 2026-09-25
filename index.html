@@ -3420,13 +3420,13 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
         }
     }
 
-    function montarFolha(nome, esquerda, direita, paginaInicial) {
+    function montarFolha(nome, esquerda, direita) {
         const ws = wb.addWorksheet(nome, {
             pageSetup: {
                 orientation: "landscape",
                 fitToPage: true,
                 fitToWidth: 1,
-                fitToHeight: 1,
+                fitToHeight: 0,
                 paperSize: 9,
                 horizontalDpi: 300,
                 verticalDpi: 300
@@ -3438,12 +3438,38 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
         });
 
         configurarLarguras(ws);
-        for (let r = 1; r <= 38; r++) ws.getRow(r).height = 18;
+
+        // =========================================================
+        // TAMANHO DINÂMICO DOS BLOCOS
+        // =========================================================
+        // Cada número (0 a 9) possui no mínimo 7 linhas, como no modelo.
+        // Se houver mais de 7 veículos para determinado 4º caractere,
+        // o bloco cresce automaticamente NO MESMO LUGAR. Assim, nenhum
+        // veículo é deslocado para outro bloco ou perdido por falta de espaço.
+        // Como os blocos são lado a lado, a altura de cada par é o maior
+        // número de veículos entre os dois dígitos, sempre com mínimo de 7.
+        const tamanhoMinimo = 7;
+        const alturasPares = [];
+        for (let g = 0; g < 5; g++) {
+            const dl = esquerda[g];
+            const dr = direita[g];
+            const qtdL = (porDigito[dl] || []).length;
+            const qtdR = (porDigito[dr] || []).length;
+            alturasPares.push(Math.max(tamanhoMinimo, qtdL, qtdR));
+        }
+
+        const ultimaLinha = 3 + alturasPares.reduce(function(total, altura) {
+            return total + altura;
+        }, 0);
+
+        // =========================================================
+        // CABEÇALHO
+        // =========================================================
+        for (let r = 1; r <= ultimaLinha; r++) ws.getRow(r).height = 18;
         ws.getRow(1).height = 22;
         ws.getRow(2).height = 8;
         ws.getRow(3).height = 20;
 
-        // Título e data.
         ws.mergeCells("A1:M1");
         const titulo = ws.getCell("A1");
         titulo.value = "CARÁTER GERAL";
@@ -3456,7 +3482,6 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
         dataCell.font = {name:"Arial", size:11, bold:true};
         dataCell.alignment = {horizontal:"center", vertical:"center"};
 
-        // Cabeçalhos.
         ws.mergeCells("B3:G3");
         ws.getCell("B3").value = "PLACA";
         ws.mergeCells("H3:J3");
@@ -3473,6 +3498,10 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
         ws.getCell("Z3").value = "R";
         ws.getCell("AA3").value = "A";
 
+        // Toda a grade, inclusive as novas linhas criadas automaticamente,
+        // recebe contorno antes das mesclagens.
+        applyGrid(ws, ultimaLinha, 27);
+
         ["B3","H3","K3","L3","M3","P3","V3","Y3","Z3","AA3"].forEach(function(ref){
             const c = ws.getCell(ref);
             c.font = {name:"Arial", size:8, bold:true};
@@ -3481,15 +3510,18 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
             applyBorder(c, thinBorder);
         });
 
-        // Preenche a grade inteira antes das mesclas, garantindo que células vazias
-        // também possuam contorno. Depois as mesclas tornam os campos compostos.
-        applyGrid(ws, 38, 27);
-
+        // =========================================================
+        // BLOCOS 0–9 COM ALTURA AUTOMÁTICA
+        // =========================================================
         let row = 4;
         for (let g = 0; g < 5; g++) {
-            const dl = esquerda[g], dr = direita[g];
+            const dl = esquerda[g];
+            const dr = direita[g];
+            const qtdL = (porDigito[dl] || []).length;
+            const qtdR = (porDigito[dr] || []).length;
+            const altura = alturasPares[g];
             const start = row;
-            const end = row + linhasPorGrupo - 1;
+            const end = row + altura - 1;
 
             ws.mergeCells(start, 1, end, 1);
             ws.mergeCells(start, 15, end, 15);
@@ -3508,45 +3540,63 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
             rightDigit.fill = {type:"pattern", pattern:"solid", fgColor:{argb:"FFD9D9D9"}};
             applyBorder(rightDigit, mediumBorder);
 
-            for (let i = 0; i < linhasPorGrupo; i++) {
+            for (let i = 0; i < altura; i++) {
                 const rl = start + i;
-                const dlData = (porDigito[dl] || [])[paginaInicial + i];
-                const drData = (porDigito[dr] || [])[paginaInicial + i];
+                const dlData = (porDigito[dl] || [])[i] || null;
+                const drData = (porDigito[dr] || [])[i] || null;
 
                 preencherBloco(ws, rl, 2, dlData || {placa:"",modeloAno:"",cor:"",r:"",a:""}, String(dl));
                 preencherBloco(ws, rl, 16, drData || {placa:"",modeloAno:"",cor:"",r:"",a:""}, String(dr));
             }
 
-            // Separador inferior mais forte em cada conjunto de 7 linhas.
+            // Separador inferior mais forte no fim de cada bloco dinâmico.
             for (let c = 1; c <= 13; c++) applyBorder(ws.getCell(end, c), mediumBorder);
             for (let c = 15; c <= 27; c++) applyBorder(ws.getCell(end, c), mediumBorder);
 
             row = end + 1;
         }
 
-        // Reforça contorno exterior do quadro principal.
-        for (let r = 4; r <= 38; r++) {
-            applyBorder(ws.getCell(r, 1), {
+        // Reforça o contorno exterior do quadro inteiro, incluindo todas as
+        // linhas adicionais criadas automaticamente.
+        for (let r = 4; r <= ultimaLinha; r++) {
+            const left = ws.getCell(r, 1);
+            left.border = {
                 left: mediumBorder.left,
-                top: ws.getCell(r,1).border.top,
-                bottom: ws.getCell(r,1).border.bottom,
-                right: ws.getCell(r,1).border.right
-            });
-            applyBorder(ws.getCell(r, 15), {
-                left: ws.getCell(r,15).border.left,
-                top: ws.getCell(r,15).border.top,
-                bottom: ws.getCell(r,15).border.bottom,
+                top: left.border?.top || thinBorder.top,
+                bottom: left.border?.bottom || thinBorder.bottom,
+                right: left.border?.right || thinBorder.right
+            };
+
+            const middle = ws.getCell(r, 14);
+            middle.border = {
+                left: mediumBorder.left,
+                top: middle.border?.top || thinBorder.top,
+                bottom: middle.border?.bottom || thinBorder.bottom,
                 right: mediumBorder.right
-            });
-            applyBorder(ws.getCell(r, 14), mediumBorder);
-            applyBorder(ws.getCell(r, 27), mediumBorder);
+            };
+
+            const right = ws.getCell(r, 27);
+            right.border = {
+                left: right.border?.left || thinBorder.left,
+                top: right.border?.top || thinBorder.top,
+                bottom: right.border?.bottom || thinBorder.bottom,
+                right: mediumBorder.right
+            };
         }
 
+        // Limites de impressão acompanham o tamanho real da planilha.
+        ws.pageSetup.printArea = "A1:AA" + ultimaLinha;
         ws.pageMargins = {
             left:0.15, right:0.15, top:0.25, bottom:0.25,
             header:0.10, footer:0.10
         };
         ws.headerFooter.oddFooter = "";
+
+        return {
+            worksheet: ws,
+            ultimaLinha: ultimaLinha,
+            alturasPares: alturasPares
+        };
     }
 
     // Guarda a quantidade real de registros que foram distribuídos para a grade.
@@ -3565,13 +3615,10 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
         return { placa: dados.placa || "(sem placa)", area: dados.a || "(sem área)" };
     });
 
-    montarFolha("Caráter Geral", esquerdas, direitas, 0);
-    let pagina = 1;
-    while (Object.values(porDigito).some(function(arr) { return arr.length > pagina * linhasPorGrupo; })) {
-        montarFolha("Caráter Geral " + (pagina + 1), esquerdas, direitas, pagina * linhasPorGrupo);
-        pagina++;
-        if (pagina > 50) break;
-    }
+    // Uma única folha dinâmica contém todos os veículos das áreas selecionadas.
+    // Quando um dígito ultrapassa as 7 linhas originais, novas linhas são
+    // criadas automaticamente exatamente dentro daquele bloco.
+    montarFolha("Caráter Geral", esquerdas, direitas);
 
     // Metadados internos usados pela rotina de validação antes do download.
     // Assim a validação confere exatamente os registros que a rotina de
