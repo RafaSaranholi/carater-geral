@@ -190,6 +190,10 @@
 .item-salvo.carater-roubo{border:2px solid #e53935}
 .item-salvo.carater-furto{border:2px solid #2e7d32}
 .item-salvo.carater-outros{border:2px solid #f57c00}
+.emplacamento-destaque{display:inline-block;padding:2px 8px;margin:1px 2px;border:2px solid #ffd54a;border-radius:5px;background:#111;color:#fff;font-size:1.08em;font-weight:900;letter-spacing:1.5px;line-height:1.2;box-shadow:0 0 0 1px rgba(255,213,74,.22),0 2px 8px rgba(0,0,0,.35);vertical-align:middle}
+.item-salvo.carater-roubo .emplacamento-destaque{border-color:#e53935;box-shadow:0 0 0 1px rgba(229,57,53,.22),0 2px 8px rgba(0,0,0,.35)}
+.item-salvo.carater-furto .emplacamento-destaque{border-color:#2e7d32;box-shadow:0 0 0 1px rgba(46,125,50,.22),0 2px 8px rgba(0,0,0,.35)}
+.item-salvo.carater-outros .emplacamento-destaque{border-color:#f57c00;box-shadow:0 0 0 1px rgba(245,124,0,.22),0 2px 8px rgba(0,0,0,.35)}
 .item-salvo:hover{border-color:#666}
 .item-salvo .item-conteudo{line-height:1.28}
 .btn-copiar-registro{position:absolute;right:10px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#333;color:#eee;border:1px solid #555}
@@ -2798,6 +2802,26 @@ function obterTextoPesquisaLista() {
     return textoNormalizadoPesquisa(document.getElementById("buscaLista")?.value || "");
 }
 
+function escaparHtmlLista(valor) {
+    return String(valor || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function destacarEmplacamento(texto) {
+    const seguro = escaparHtmlLista(texto);
+    const placa = encontrarPlaca(texto);
+    if (!placa || String(placa).length > 7) return seguro;
+
+    const placaSegura = escaparHtmlLista(placa);
+    const placaEscapada = placaSegura.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp("(^|[^A-Z0-9])(" + placaEscapada + ")(?![A-Z0-9])", "gi");
+    return seguro.replace(regex, '$1<span class="emplacamento-destaque">$2</span>');
+}
+
 function classeCorCarater(texto) {
     const normalizado = String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
     if (/\bROUBO\b/.test(normalizado)) return "carater-roubo";
@@ -2840,7 +2864,7 @@ function renderizarLista() {
 
         const conteudo = document.createElement("div");
         conteudo.className = "item-conteudo";
-        conteudo.textContent = registro.texto || "";
+        conteudo.innerHTML = destacarEmplacamento(registro.texto || "");
 
         const botaoCopiar = document.createElement("button");
         botaoCopiar.type = "button";
@@ -2901,6 +2925,24 @@ function limparBuscaLista() {
 }
 
 
+function extrairTrechoEmplacamento(texto) {
+    const normalizado = String(texto || "").toUpperCase();
+    const campo = normalizado.match(/CADASTRO\s+VE[ÍI1]CULO\s*[:\-]?\s*([^\r\n]+)/);
+    if (!campo) return null;
+    return campo[1].trim();
+}
+
+function emplacamentoMaiorQueSete(texto) {
+    const trecho = extrairTrechoEmplacamento(texto);
+    if (!trecho) return null;
+    const candidatos = trecho.match(/[A-Z0-9][A-Z0-9\s\-]{7,}/g) || [];
+    for (const item of candidatos) {
+        const limpo = item.replace(/[^A-Z0-9]/g, "");
+        if (limpo.length > 7) return limpo;
+    }
+    return null;
+}
+
 async function salvarTextoLista() {
     if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.adicionar_remover_carater || adminPermissoes.is_master)) {
         alert("Você não possui permissão para adicionar registros à lista online.");
@@ -2912,6 +2954,15 @@ async function salvarTextoLista() {
 
     if (!texto) {
         alert("Não há texto para salvar.");
+        return;
+    }
+
+    // Regra: o emplacamento deve ter no máximo 7 caracteres.
+    const placaExcedente = emplacamentoMaiorQueSete(texto);
+    if (placaExcedente) {
+        alert("ERRO: o emplacamento não pode ter mais de 7 caracteres.\n\nFoi identificado: " + placaExcedente);
+        document.getElementById("status").innerText =
+            "Emplacamento inválido: máximo de 7 caracteres.";
         return;
     }
 
@@ -5129,11 +5180,7 @@ async function salvarPermissoesAdministrador() {
         p_adicionar_remover_carater: permissoes.adicionar_remover_carater,
         p_gerenciar_membros: permissoes.gerenciar_membros,
         p_gerenciar_admins: permissoes.gerenciar_admins,
-        p_download_lista: permissoes.download_lista,
-        // As duas permissões abaixo existem na função SQL atual,
-        // mas ainda não possuem opções visuais neste modal.
-        p_visualizar_historico: false,
-        p_gerenciar_mensagens: false
+        p_download_lista: permissoes.download_lista
     });
     if (error) {
         console.error(error);
