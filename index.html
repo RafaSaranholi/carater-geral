@@ -192,13 +192,6 @@
 .item-salvo.carater-outros{border:2px solid #f57c00}
 .item-salvo:hover{border-color:#666}
 .item-salvo .item-conteudo{line-height:1.28}
-.placa-destaque{display:inline-flex;align-items:center;justify-content:center;min-width:92px;margin:0 0 8px;padding:5px 10px;border:2px solid currentColor;border-radius:6px;background:#111;font-size:19px;font-weight:800;letter-spacing:2px;line-height:1.1;box-sizing:border-box;box-shadow:0 0 0 1px rgba(255,255,255,.06),0 2px 8px rgba(0,0,0,.25)}
-.placa-destaque.placa-roubo{color:#ff4d4d;border-color:#e53935}
-.placa-destaque.placa-furto{color:#55d66f;border-color:#2e7d32}
-.placa-destaque.placa-acao-criminosa{color:#ffd54f;border-color:#f9a825}
-.placa-destaque.placa-outros{color:#ff9d3d;border-color:#f57c00}
-.item-salvo.carater-acao-criminosa{border:2px solid #f9a825}
-
 .btn-copiar-registro{position:absolute;right:10px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#333;color:#eee;border:1px solid #555}
 .btn-copiar-registro:hover{background:#454545}
 .btn-excluir-registro{position:absolute;right:82px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#6b2525;color:#fff;border:1px solid #8f4444}
@@ -341,10 +334,6 @@
 .admin-section-title .admin-count-secundario { display:block; font-size:11px; font-weight:500; opacity:.75; margin-top:2px; }
 
 .permissao-admin-opcao{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;background:#101010;border:1px solid #444;border-radius:8px;cursor:pointer}.permissao-admin-opcao:hover{border-color:#666}.permissao-admin-opcao input{margin-top:3px;accent-color:#2f80ed}.permissao-admin-opcao span{display:flex;flex-direction:column;gap:3px}.permissao-admin-opcao small{color:#aaa;font-size:11px;line-height:1.35}.admin-permissao-resumo{color:#aaa;font-size:11px;margin-top:4px;line-height:1.35}.admin-master-badge{display:inline-block;padding:3px 7px;border-radius:999px;border:1px solid #d4af37;color:#f0d878;font-size:10px;font-weight:700;margin-left:5px}
-
-/* GARANTIA DE EXIBIÇÃO DA LISTA DE CARÁTER GERAL */
-#appPrincipal .painel-lista{display:block !important;visibility:visible !important}
-#appPrincipal.readonly-user .painel-lista{display:block !important;visibility:visible !important}
 </style>
 
 <link rel="manifest" href="./manifest.json">
@@ -2813,17 +2802,7 @@ function classeCorCarater(texto) {
     const normalizado = String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
     if (/\bROUBO\b/.test(normalizado)) return "carater-roubo";
     if (/\bFURTO\b/.test(normalizado)) return "carater-furto";
-    if (/ACAO\s+CRIMINOSA/.test(normalizado)) return "carater-acao-criminosa";
-    if (/\bOUTROS\b/.test(normalizado) || /\bSUSPEITO\b/.test(normalizado)) return "carater-outros";
-    return "";
-}
-
-function classeDestaquePlaca(texto) {
-    const classe = classeCorCarater(texto);
-    if (classe === "carater-roubo") return "placa-roubo";
-    if (classe === "carater-furto") return "placa-furto";
-    if (classe === "carater-acao-criminosa") return "placa-acao-criminosa";
-    if (classe === "carater-outros") return "placa-outros";
+    if (/ACAO\s+CRIMINOSA/.test(normalizado) || /\bOUTROS\b/.test(normalizado) || /\bSUSPEITO\b/.test(normalizado)) return "carater-outros";
     return "";
 }
 
@@ -2863,20 +2842,6 @@ function renderizarLista() {
         conteudo.className = "item-conteudo";
         conteudo.textContent = registro.texto || "";
 
-        const placa = encontrarPlaca(registro.texto || "");
-        if (placa && placa.length <= 7) {
-            const badgePlaca = document.createElement("div");
-            badgePlaca.className = "placa-destaque " + classeDestaquePlaca(registro.texto || "");
-            badgePlaca.textContent = placa;
-            badgePlaca.title = "Emplacamento identificado";
-            item.appendChild(numero);
-            item.appendChild(badgePlaca);
-            item.appendChild(conteudo);
-        } else {
-            item.appendChild(numero);
-            item.appendChild(conteudo);
-        }
-
         const botaoCopiar = document.createElement("button");
         botaoCopiar.type = "button";
         botaoCopiar.className = "btn-copiar-registro";
@@ -2886,6 +2851,8 @@ function renderizarLista() {
             copiarRegistroLista(registro.texto || "", numeroRegistro);
         });
 
+        item.appendChild(numero);
+        item.appendChild(conteudo);
         item.appendChild(botaoCopiar);
 
         // Administradores podem excluir individualmente qualquer registro.
@@ -2934,15 +2901,6 @@ function limparBuscaLista() {
 }
 
 
-function validarTamanhoEmplacamento(texto) {
-    const bruto = String(texto || "").toUpperCase();
-    const marcador = bruto.match(/CADASTRO\s+VE[ÍI1]CULO\s*[:\-]?\s*([^\r\n;]+)/);
-    if (!marcador) return { valido: true, placa: null };
-    const campo = marcador[1].replace(/[^A-Z0-9]/g, "");
-    if (campo.length > 7) return { valido: false, placa: campo };
-    return { valido: true, placa: campo || null };
-}
-
 async function salvarTextoLista() {
     if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.adicionar_remover_carater || adminPermissoes.is_master)) {
         alert("Você não possui permissão para adicionar registros à lista online.");
@@ -2954,13 +2912,6 @@ async function salvarTextoLista() {
 
     if (!texto) {
         alert("Não há texto para salvar.");
-        return;
-    }
-
-    const validacaoPlaca = validarTamanhoEmplacamento(texto);
-    if (!validacaoPlaca.valido) {
-        alert("ERRO: o emplacamento não pode ter mais de 7 caracteres.\n\nEmplacamento lido: " + validacaoPlaca.placa);
-        document.getElementById("status").innerText = "Emplacamento inválido: máximo de 7 caracteres.";
         return;
     }
 
@@ -4307,14 +4258,14 @@ async function atualizarIndicadoresAcesso() {
     const botoesUsuarioLista = document.getElementById("botoesUsuarioLista");
     const botoesEditor = document.getElementById("botoesEditorLista");
 
-    if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
+    if (btnAdmin) btnAdmin.style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
     if (badgeAprovacoes) {
-        badgeAprovacoes.style.display = souAdmin ? "inline-flex" : "none";
+        badgeAprovacoes.style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-flex" : "none";
         badgeAprovacoes.textContent = "0";
     }
     if (btnMensagemAdmin) btnMensagemAdmin.style.display = souAdmin ? "inline-block" : "none";
 
-    if (souAdmin && badgeAprovacoes) {
+    if (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master) && badgeAprovacoes) {
         try {
             const { count, error: pendentesError } = await sb
                 .from("extrator_usuarios")
@@ -4347,7 +4298,7 @@ async function atualizarIndicadoresAcesso() {
     const btnDownloadLista = document.getElementById("btnDownloadLista");
     if (btnAddCarater) btnAddCarater.style.display = podeEditar ? "inline-block" : "none";
     if (btnDownloadLista) btnDownloadLista.style.display = podeDownload ? "inline-block" : "none";
-    if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
+    if (btnAdmin) btnAdmin.style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
     if (document.getElementById("btnMensagemAdmin")) document.getElementById("btnMensagemAdmin").style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
     if (document.getElementById("btnCapturarTelaAdmin")) document.getElementById("btnCapturarTelaAdmin").style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
     const btnAdmins = document.querySelector('#adminArea .auth-actions .btn-info');
@@ -4524,7 +4475,10 @@ async function carregarGerenciadorAdministradores() {
 }
 
 async function abrirAdmin() {
-    if (!souAdmin) return;
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) {
+        alert("Somente administradores com Acesso Full podem acessar a tela de aprovações.");
+        return;
+    }
     fecharMensagemAdmin();
     document.getElementById("appPrincipal").style.display = "none";
     document.getElementById("adminArea").style.display = "block";
@@ -4564,7 +4518,7 @@ function escapeHtml(valor) {
 }
 
 async function carregarAdmin() {
-    if (!souAdmin) return;
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) return;
     await carregarMensagemAdmin();
     await carregarAdminUsuarios();
 }
