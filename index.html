@@ -3148,6 +3148,23 @@ function extrairAreaDaSituacao(situacao) {
     return "";
 }
 
+// Converte a área detalhada para a área-base usada na tela de seleção.
+// Exemplos: 1/35M, 2/35M, 3/35M e /35M -> 35M.
+// Assim, uma única opção "35M" seleciona todos os veículos dessa área-base,
+// mas a coluna A da planilha continua recebendo a área detalhada original.
+function normalizarGrupoAreaPlanilha(area) {
+    const normalizada = normalizarArea(area);
+    if (!normalizada) return "";
+
+    const comSubarea = normalizada.match(/^\d+\/(\d+M)$/i);
+    if (comSubarea) return comSubarea[1].toUpperCase();
+
+    const somenteArea = normalizada.match(/^(\d+M)$/i);
+    if (somenteArea) return somenteArea[1].toUpperCase();
+
+    return normalizada.replace(/^\/+/, "").toUpperCase();
+}
+
 function extrairDadosPlanilha(registro) {
     const texto = String(registro?.texto || "").toUpperCase();
     const placa = encontrarPlaca(texto) || campoCarater(texto, ["PLACA", "EMPLACAMENTO"]);
@@ -3225,11 +3242,12 @@ function criarPlanilhaCaraterGeral(areasSelecionadas) {
 
     // Aceita uma área única por compatibilidade e também múltiplas áreas.
     const areas = Array.isArray(areasSelecionadas) ? areasSelecionadas : [areasSelecionadas];
-    const areasNormalizadas = new Set(areas.map(normalizarArea).filter(Boolean));
+    const areasNormalizadas = new Set(areas.map(normalizarGrupoAreaPlanilha).filter(Boolean));
 
     const registrosFiltrados = listaTextos.filter(function(registro) {
         if (!areasNormalizadas.size) return false;
-        const areaRegistro = normalizarArea(extrairDadosPlanilha(registro).a);
+        const dados = extrairDadosPlanilha(registro);
+        const areaRegistro = normalizarGrupoAreaPlanilha(dados.a);
         return areasNormalizadas.has(areaRegistro);
     });
 
@@ -3367,13 +3385,16 @@ function listarAreasParaPlanilha() {
     const mapa = new Map();
     listaTextos.forEach(function(registro) {
         const dados = extrairDadosPlanilha(registro);
-        const areaOriginal = String(dados.a || "").trim();
-        const chave = normalizarArea(areaOriginal);
-        if (!chave) return;
-        const item = mapa.get(chave) || {area: areaOriginal.toUpperCase(), quantidade: 0};
+        const areaDetalhada = String(dados.a || "").trim();
+        const grupo = normalizarGrupoAreaPlanilha(areaDetalhada);
+        if (!grupo) return;
+
+        // Uma única opção por área-base. Ex.: 1/35M + 2/35M + 3/35M -> 35M.
+        const item = mapa.get(grupo) || {area: grupo, quantidade: 0};
         item.quantidade++;
-        mapa.set(chave, item);
+        mapa.set(grupo, item);
     });
+
     return Array.from(mapa.values()).sort(function(a,b) {
         return a.area.localeCompare(b.area, "pt-BR", {numeric:true, sensitivity:"base"});
     });
@@ -6197,3 +6218,4 @@ document.addEventListener("visibilitychange", function() {
 
 </body>
 </html>
+Hadassa26&
