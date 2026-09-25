@@ -359,19 +359,25 @@
 
 .area-planilha-overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:310000;padding:20px;box-sizing:border-box}
 .area-planilha-overlay.open{display:flex}
-.area-planilha-modal{width:min(520px,96vw);max-height:86vh;overflow:auto;background:#202020;border:1px solid #555;border-radius:12px;padding:22px;box-sizing:border-box;box-shadow:0 20px 60px rgba(0,0,0,.65)}
+.area-planilha-modal{width:min(560px,96vw);max-height:86vh;overflow:auto;background:#202020;border:1px solid #555;border-radius:12px;padding:22px;box-sizing:border-box;box-shadow:0 20px 60px rgba(0,0,0,.65)}
 .area-planilha-modal h3{margin:0 0 7px;font-size:20px}
 .area-planilha-modal p{margin:0 0 14px;color:#aaa;font-size:13px;line-height:1.45}
+.area-planilha-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 0 8px}
+.area-planilha-toolbar .area-planilha-contagem{color:#aaa;font-size:12px}
+.area-planilha-toolbar button{margin:0;padding:7px 10px;font-size:12px}
 .area-planilha-lista{display:grid;gap:8px;margin-top:10px}
-.area-planilha-item{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;margin:0;padding:12px 14px;background:#101010;color:#eee;border:1px solid #444;border-radius:8px;text-align:left;cursor:pointer}
-.area-planilha-item:hover{border-color:#777;background:#171717}
-.area-planilha-item:disabled{opacity:.55;cursor:wait}
-.area-planilha-item strong{font-size:16px}
-.area-planilha-item span{font-size:12px;color:#aaa}
+.area-planilha-check{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;margin:0;padding:11px 13px;background:#101010;color:#eee;border:1px solid #444;border-radius:8px;text-align:left;cursor:pointer;box-sizing:border-box}
+.area-planilha-check:hover{border-color:#777;background:#171717}
+.area-planilha-check input{margin:0;accent-color:#2f80ed;transform:scale(1.12);flex:0 0 auto}
+.area-planilha-check .area-planilha-info{display:flex;align-items:center;justify-content:space-between;gap:12px;flex:1;min-width:0}
+.area-planilha-check .area-planilha-info strong{font-size:16px}
+.area-planilha-check .area-planilha-info span{font-size:12px;color:#aaa;white-space:nowrap}
+.area-planilha-check.selecionada{border-color:#2f80ed;background:#141d2a}
 .area-planilha-vazio{color:#aaa;padding:10px 0}
-.area-planilha-status{margin-top:12px;padding:10px 12px;border:1px solid #444;border-radius:7px;background:#151515;color:#bbb;font-size:12px;display:none}
-.area-planilha-acoes{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.area-planilha-status{margin-top:12px;padding:10px 12px;border:1px solid #444;border-radius:7px;background:#151515;color:#bbb;font-size:12px;line-height:1.45;display:none}
+.area-planilha-acoes{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap}
 .area-planilha-acoes button{margin:0}
+
 
 </style>
 
@@ -3078,9 +3084,33 @@ function baixarListaTxtEscolha() {
 
 function campoCarater(texto, nomes) {
     const bruto = String(texto || "");
-    const normalizado = bruto.replace(/\r/g, "").replace(/\n+/g, " ").replace(/[ \t]+/g, " ").trim();
+    const normalizado = bruto
+        .replace(/\r/g, "")
+        .replace(/\n+/g, " ")
+        .replace(/[ \t]+/g, " ")
+        .trim();
+
+    // Primeiro trata o formato mais comum do caráter geral, em que os campos
+    // vêm separados por ponto e vírgula:
+    // PLACA: ...; TIPO: ...; MARCA: ...; COR: ...; ANO: ...; SITUAÇÃO: ...
+    const partes = normalizado.split(/\s*;\s*/);
     for (const nome of nomes) {
-        const re = new RegExp("(?:^|[ ;])" + nome + "\\s*[:\\-]?\\s*([^;]+?)(?=\\s+(?:TIPO|MARCA|MODELO|COR|ANO|MUNIC[IÍ]PIO|SITUA[CÇ]?[AÃ]O)\\s*[:\\-]|$)", "i");
+        const nomeEscapado = String(nome).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const reParte = new RegExp("^\\s*" + nomeEscapado + "\\s*[:\\-]?\\s*(.*?)\\s*$", "i");
+        for (const parte of partes) {
+            const m = parte.match(reParte);
+            if (m && m[1]) return m[1].trim();
+        }
+    }
+
+    // Fallback para OCR que tenha removido os ponto e vírgula e deixado tudo
+    // em uma única linha. Mantém a compatibilidade com o extrator original.
+    for (const nome of nomes) {
+        const nomeEscapado = String(nome).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const re = new RegExp(
+            "(?:^|[ ;])" + nomeEscapado + "\\s*[:\\-]?\\s*([^;]+?)(?=\\s*;\\s*(?:TIPO|MARCA|MODELO|COR|ANO|MUNIC[IÍ]PIO|SITUA[CÇ]?[AÃ]O)\\s*[:\\-]|\\s+(?:TIPO|MARCA|MODELO|COR|ANO|MUNIC[IÍ]PIO|SITUA[CÇ]?[AÃ]O)\\s*[:\\-]|$)",
+            "i"
+        );
         const m = normalizado.match(re);
         if (m && m[1]) return m[1].trim();
     }
@@ -3184,7 +3214,7 @@ function extrairDadosPlanilha(registro) {
     };
 }
 
-function criarPlanilhaCaraterGeral(areaSelecionada) {
+function criarPlanilhaCaraterGeral(areasSelecionadas) {
     if (typeof XLSX === "undefined") {
         throw new Error("A biblioteca de planilha não foi carregada. Verifique sua conexão com a internet e tente novamente.");
     }
@@ -3193,14 +3223,18 @@ function criarPlanilhaCaraterGeral(areaSelecionada) {
     const porDigito = {};
     for (let i = 0; i <= 9; i++) porDigito[i] = [];
 
-    const alvo = normalizarArea(areaSelecionada);
+    // Aceita uma área única por compatibilidade e também múltiplas áreas.
+    const areas = Array.isArray(areasSelecionadas) ? areasSelecionadas : [areasSelecionadas];
+    const areasNormalizadas = new Set(areas.map(normalizarArea).filter(Boolean));
+
     const registrosFiltrados = listaTextos.filter(function(registro) {
-        if (!alvo) return true;
-        return normalizarArea(extrairDadosPlanilha(registro).a) === alvo;
+        if (!areasNormalizadas.size) return false;
+        const areaRegistro = normalizarArea(extrairDadosPlanilha(registro).a);
+        return areasNormalizadas.has(areaRegistro);
     });
 
     if (!registrosFiltrados.length) {
-        throw new Error("Nenhum veículo foi encontrado para a área " + (areaSelecionada || "selecionada") + ".");
+        throw new Error("Nenhum veículo foi encontrado para as áreas selecionadas.");
     }
 
     registrosFiltrados.forEach(function(registro) {
@@ -3313,6 +3347,8 @@ function criarPlanilhaCaraterGeral(areaSelecionada) {
         ws["!pageSetup"]={orientation:"landscape",fitToWidth:1,fitToHeight:1,paperSize:9};
         ws["!sheetPr"]={pageSetUpPr:{fitToPage:true}};
         ws["!margins"]={left:0.2,right:0.2,top:0.3,bottom:0.3,header:0.1,footer:0.1};
+        // Define a área utilizada para garantir que todos os veículos preenchidos sejam exportados.
+        ws["!ref"] = "A1:U38";
         XLSX.utils.book_append_sheet(wb,ws,nome);
     }
 
@@ -3343,6 +3379,45 @@ function listarAreasParaPlanilha() {
     });
 }
 
+let areasSelecionadasPlanilha = [];
+
+function atualizarResumoAreasPlanilha() {
+    const resumo = document.getElementById("areaPlanilhaContagem");
+    const botaoGerar = document.getElementById("btnGerarPlanilhaAreas");
+    const marcados = document.querySelectorAll('input[name="areaPlanilhaCheckbox"]:checked');
+    const quantidade = marcados.length;
+    areasSelecionadasPlanilha = Array.from(marcados).map(function(input) { return input.value; });
+
+    if (resumo) {
+        resumo.textContent = quantidade === 0
+            ? "Nenhuma área selecionada"
+            : quantidade === 1
+                ? "1 área selecionada"
+                : quantidade + " áreas selecionadas";
+    }
+
+    if (botaoGerar) botaoGerar.disabled = quantidade === 0;
+
+    document.querySelectorAll(".area-planilha-check").forEach(function(item) {
+        const input = item.querySelector('input[name="areaPlanilhaCheckbox"]');
+        item.classList.toggle("selecionada", !!input && input.checked);
+    });
+}
+
+function selecionarTodasAreasPlanilha() {
+    document.querySelectorAll('input[name="areaPlanilhaCheckbox"]').forEach(function(input) {
+        input.checked = true;
+    });
+    atualizarResumoAreasPlanilha();
+}
+
+function limparTodasAreasPlanilha() {
+    document.querySelectorAll('input[name="areaPlanilhaCheckbox"]').forEach(function(input) {
+        input.checked = false;
+    });
+    atualizarResumoAreasPlanilha();
+}
+
 function abrirEscolhaAreaPlanilha() {
     fecharEscolhaDownload();
     if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.download_lista || adminPermissoes.is_master)) {
@@ -3360,20 +3435,36 @@ function abrirEscolhaAreaPlanilha() {
     if (!overlay || !lista) return;
 
     const areas = listarAreasParaPlanilha();
+    areasSelecionadasPlanilha = [];
     lista.innerHTML = "";
 
     if (!areas.length) {
         lista.innerHTML = '<div class="area-planilha-vazio">Nenhuma área foi identificada nos registros da lista.</div>';
     } else {
-        areas.forEach(function(item) {
-            const botao = document.createElement("button");
-            botao.type = "button";
-            botao.className = "area-planilha-item";
-            botao.innerHTML = '<strong>' + item.area + '</strong><span>' + item.quantidade + (item.quantidade === 1 ? ' veículo' : ' veículos') + '</span>';
-            botao.addEventListener("click", function() {
-                gerarPlanilhaDaArea(item.area);
-            });
-            lista.appendChild(botao);
+        areas.forEach(function(item, indice) {
+            const rotulo = document.createElement("label");
+            rotulo.className = "area-planilha-check";
+            rotulo.setAttribute("for", "areaPlanilhaCheckbox_" + indice);
+
+            const input = document.createElement("input");
+            input.type = "checkbox";
+            input.name = "areaPlanilhaCheckbox";
+            input.value = item.area;
+            input.id = "areaPlanilhaCheckbox_" + indice;
+            input.addEventListener("change", atualizarResumoAreasPlanilha);
+
+            const info = document.createElement("div");
+            info.className = "area-planilha-info";
+            const nome = document.createElement("strong");
+            nome.textContent = item.area;
+            const quantidade = document.createElement("span");
+            quantidade.textContent = item.quantidade + (item.quantidade === 1 ? " veículo" : " veículos");
+            info.appendChild(nome);
+            info.appendChild(quantidade);
+
+            rotulo.appendChild(input);
+            rotulo.appendChild(info);
+            lista.appendChild(rotulo);
         });
     }
 
@@ -3383,6 +3474,7 @@ function abrirEscolhaAreaPlanilha() {
     }
     overlay.classList.add("open");
     overlay.setAttribute("aria-hidden", "false");
+    atualizarResumoAreasPlanilha();
 }
 
 function fecharEscolhaAreaPlanilha() {
@@ -3393,34 +3485,52 @@ function fecharEscolhaAreaPlanilha() {
     }
 }
 
-function gerarPlanilhaDaArea(areaSelecionada) {
+function gerarPlanilhaDasAreas() {
     const status = document.getElementById("areaPlanilhaStatus");
-    const botoes = document.querySelectorAll(".area-planilha-item");
-    botoes.forEach(function(btn) { btn.disabled = true; });
+    const botaoGerar = document.getElementById("btnGerarPlanilhaAreas");
+    const elementos = document.querySelectorAll(".area-planilha-acoes button, .area-planilha-toolbar button, .area-planilha-check input");
+    const areas = Array.from(document.querySelectorAll('input[name="areaPlanilhaCheckbox"]:checked')).map(function(input) { return input.value; });
+
+    if (!areas.length) {
+        alert("Selecione pelo menos uma área para montar a planilha.");
+        return;
+    }
+
+    areasSelecionadasPlanilha = areas.slice();
+    elementos.forEach(function(el) { el.disabled = true; });
 
     if (status) {
         status.style.display = "block";
-        status.textContent = "Localizando os veículos da área " + areaSelecionada + " e montando a tabela...";
+        status.textContent = "Localizando os veículos das " + areas.length + (areas.length === 1 ? " área selecionada" : " áreas selecionadas") + ", preenchendo a planilha e preparando o arquivo...";
     }
+    if (botaoGerar) botaoGerar.textContent = "⏳ Montando planilha...";
 
     setTimeout(function() {
         try {
-            const wb = criarPlanilhaCaraterGeral(areaSelecionada);
+            // O workbook é montado primeiro, já preenchido com os veículos das áreas escolhidas.
+            const wb = criarPlanilhaCaraterGeral(areas);
+
+            // Só depois da montagem da planilha acontece o download.
             const agora = new Date();
             const data = String(agora.getDate()).padStart(2,"0") + "-" + String(agora.getMonth()+1).padStart(2,"0") + "-" + agora.getFullYear();
-            const nomeArea = normalizarArea(areaSelecionada).replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-            XLSX.writeFile(wb, "carater_geral_" + (nomeArea || "area") + "_" + data + ".xlsx");
+            const nomesAreas = areas.map(normalizarArea).filter(Boolean).join("_").replace(/[^A-Z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+            XLSX.writeFile(wb, "carater_geral" + (nomesAreas ? "_" + nomesAreas : "") + "_" + data + ".xlsx");
 
-            if (status) status.textContent = "Planilha da área " + areaSelecionada + " gerada com sucesso.";
-            document.getElementById("status").innerText = "Planilha Excel da área " + areaSelecionada + " gerada no modelo de caráter geral.";
-            setTimeout(fecharEscolhaAreaPlanilha, 500);
+            if (status) status.textContent = "Planilha preenchida com os veículos das áreas selecionadas e baixada com sucesso.";
+            document.getElementById("status").innerText = "Planilha Excel preenchida com os veículos das áreas: " + areas.join(", ") + ".";
+            setTimeout(fecharEscolhaAreaPlanilha, 700);
         } catch (erro) {
             console.error(erro);
             if (status) status.textContent = "Não foi possível gerar a planilha: " + (erro.message || erro);
             alert("Não foi possível gerar a planilha. " + (erro.message || erro));
-            botoes.forEach(function(btn) { btn.disabled = false; });
+            elementos.forEach(function(el) { el.disabled = false; });
+            if (botaoGerar) {
+                botaoGerar.disabled = false;
+                botaoGerar.textContent = "📊 Preencher e baixar planilha";
+            }
+            atualizarResumoAreasPlanilha();
         }
-    }, 40);
+    }, 80);
 }
 
 function baixarListaPlanilha() {
@@ -5759,11 +5869,21 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 
 <div id="areaPlanilhaOverlay" class="area-planilha-overlay" aria-hidden="true" onclick="if(event.target===this) fecharEscolhaAreaPlanilha()">
     <div class="area-planilha-modal" role="dialog" aria-modal="true" aria-labelledby="areaPlanilhaTitulo">
-        <h3 id="areaPlanilhaTitulo">📊 Selecionar área da planilha</h3>
-        <p>As áreas abaixo foram identificadas automaticamente na lista atual. Escolha a área desejada; o sistema localizará os veículos dessa área, preencherá a tabela e fará o download da planilha.</p>
+        <h3 id="areaPlanilhaTitulo">📊 Selecionar áreas da planilha</h3>
+        <p>Marque uma ou mais áreas. O sistema vai localizar todos os veículos das áreas marcadas, preencher a planilha no modelo de Caráter Geral e só depois iniciar o download.</p>
+
+        <div class="area-planilha-toolbar">
+            <span id="areaPlanilhaContagem" class="area-planilha-contagem">Nenhuma área selecionada</span>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button type="button" class="btn-secondary" onclick="selecionarTodasAreasPlanilha()">☑️ Selecionar todas</button>
+                <button type="button" class="btn-secondary" onclick="limparTodasAreasPlanilha()">⬜ Limpar</button>
+            </div>
+        </div>
+
         <div id="areaPlanilhaLista" class="area-planilha-lista"></div>
         <div id="areaPlanilhaStatus" class="area-planilha-status"></div>
         <div class="area-planilha-acoes">
+            <button id="btnGerarPlanilhaAreas" type="button" class="btn-success" onclick="gerarPlanilhaDasAreas()" disabled>📊 Preencher e baixar planilha</button>
             <button type="button" class="btn-secondary" onclick="fecharEscolhaAreaPlanilha()">Cancelar</button>
         </div>
     </div>
