@@ -709,7 +709,7 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
 
         <div class="backup-box">
             <h3>💾 Backup dos usuários</h3>
-            <p>Gera um arquivo JSON com os cadastros, dados de aprovação, selfie e quais usuários são administradores. As senhas não são exportadas, pois o Supabase não permite recuperar senhas.</p>
+            <p>Gera um arquivo JSON com os cadastros, dados de aprovação, selfie e as permissões dos administradores. As senhas não são exportadas, pois o Supabase não permite recuperar senhas.</p>
             <div class="backup-actions">
                 <button class="btn-success" type="button" onclick="baixarBackupUsuarios()">💾 Fazer backup agora</button>
                 <button class="btn-info" type="button" onclick="document.getElementById('arquivoBackupUsuarios').click()">♻️ Restaurar backup</button>
@@ -1518,76 +1518,6 @@ function pontuarTexto(texto, confianca) {
 /* =========================================================
    OCR PRINCIPAL
 ========================================================= */
-
-/* =========================================================
-   OCR RÁPIDO DA SELEÇÃO
-   Faz OCR somente na área selecionada.
-   Normalmente usa 1 leitura; só faz a segunda se a confiança
-   da primeira estiver baixa.
-========================================================= */
-
-async function executarOCRSelecionadoRapido(canvas) {
-
-    document.getElementById("status").innerText =
-        "Reconhecendo seleção...";
-
-    const leituras = [];
-
-    // Leitura principal: imagem normal, PSM 6.
-    const r1 = await fazerOCR(canvas, 0, 6);
-    leituras.push(r1);
-
-    const texto1 = (r1?.data?.text || "").trim();
-    const conf1 = Number(r1?.data?.confidence || 0);
-
-    // Se a primeira leitura estiver boa, não fazemos as outras leituras.
-    if (texto1 && conf1 >= 65) {
-        return {
-            text: texto1,
-            confidence: conf1,
-            lines: r1.data.lines || [],
-            words: r1.data.words || [],
-            data: r1.data
-        };
-    }
-
-    // Recuperação: somente se a primeira leitura não estiver confiável.
-    document.getElementById("status").innerText =
-        "Aprimorando reconhecimento...";
-
-    const r2 = await fazerOCR(canvas, 1, 6);
-    leituras.push(r2);
-
-    let melhor = leituras[0];
-    let melhorPontuacao = pontuarTexto(
-        (melhor?.data?.text || "").trim(),
-        melhor?.data?.confidence
-    );
-
-    for (let i = 1; i < leituras.length; i++) {
-        const item = leituras[i];
-        const pontos = pontuarTexto(
-            (item?.data?.text || "").trim(),
-            item?.data?.confidence
-        );
-
-        if (pontos > melhorPontuacao) {
-            melhor = item;
-            melhorPontuacao = pontos;
-        }
-    }
-
-    if (!melhor?.data) return null;
-
-    return {
-        text: (melhor.data.text || "").trim(),
-        confidence: melhor.data.confidence,
-        lines: melhor.data.lines || [],
-        words: melhor.data.words || [],
-        data: melhor.data
-    };
-}
-
 
 async function executarOCRSelecionado(canvas) {
 
@@ -2480,60 +2410,115 @@ async function extrairSelecionado() {
 
     try {
         document.getElementById("status").innerText =
-            "Preparando seleção...";
+            "Preparando área selecionada...";
 
         /*
-         * CORREÇÃO DE VELOCIDADE:
-         * Antes o sistema fazia OCR da IMAGEM INTEIRA e depois filtrava
-         * a seleção. Agora o Tesseract recebe somente o recorte selecionado.
-         * Isso evita processar todo o print desnecessariamente.
+         * IMPORTANTE:
+         * O OCR é feito na IMAGEM INTEIRA usando exatamente a mesma
+         * rotina do botão "Extrair imagem inteira". Depois filtramos
+         * somente as linhas cujo centro está dentro da área vermelha.
+         *
+         * Assim a seleção não perde qualidade por reduzir/cortar a
+         * resolução da imagem antes do Tesseract.
          */
-        const escalaX =
-            imagemOriginal.naturalWidth / imgTela.clientWidth;
+        const canvasCompleto = document.createElement("canvas");
+        canvasCompleto.width = imagemOriginal.naturalWidth;
+        canvasCompleto.height = imagemOriginal.naturalHeight;
+        const ctxCompleto = canvasCompleto.getContext("2d");
+        ctxCompleto.drawImage(imagemOriginal, 0, 0);
 
-        const escalaY =
-            imagemOriginal.naturalHeight / imgTela.clientHeight;
-
-        const x = Math.max(0, Math.round(selecaoX * escalaX));
-        const y = Math.max(0, Math.round(selecaoY * escalaY));
-        const largura = Math.min(
-            imagemOriginal.naturalWidth - x,
-            Math.max(1, Math.round(selecaoW * escalaX))
-        );
-        const altura = Math.min(
-            imagemOriginal.naturalHeight - y,
-            Math.max(1, Math.round(selecaoH * escalaY))
-        );
-
-        const canvasSelecao = document.createElement("canvas");
-        canvasSelecao.width = largura;
-        canvasSelecao.height = altura;
-
-        const ctx = canvasSelecao.getContext("2d");
-        ctx.drawImage(
-            imagemOriginal,
-            x,
-            y,
-            largura,
-            altura,
-            0,
-            0,
-            largura,
-            altura
-        );
-
-        const dados = await executarOCRSelecionadoRapido(canvasSelecao);
+        const dados = await executarOCR(canvasCompleto, true);
 
         if (!dados) {
             throw new Error("Não foi possível obter os dados do OCR.");
         }
 
-        const texto = (dados.text || "").trim();
+        const escalaX = imagemOriginal.naturalWidth / imgTela.clientWidth;
+        const escalaY = imagemOriginal.naturalHeight / imgTela.clientHeight;
+
+        const x1 = selecaoX * escalaX;
+        const y1 = selecaoY * escalaY;
+        const x2 = (selecaoX + selecaoW) * escalaX;
+        const y2 = (selecaoY + selecaoH) * escalaY;
+
+        /*
+         * ATENÇÃO: prepararImagem() aumenta a imagem 4x antes do Tesseract.
+         * Portanto, os bbox retornados pelo OCR estão em coordenadas 4x.
+         * A seleção, porém, está em coordenadas da imagem original.
+         * A V9 comparava essas duas escalas diferentes, causando exatamente
+         * o sintoma de aparecer só a primeira palavra ou não aparecer nada.
+         */
+        const ESCALA_OCR = 4;
+
+        function bboxOriginal(b) {
+            return {
+                x0: b.x0 / ESCALA_OCR,
+                y0: b.y0 / ESCALA_OCR,
+                x1: b.x1 / ESCALA_OCR,
+                y1: b.y1 / ESCALA_OCR
+            };
+        }
+
+        function cruzaSelecao(b) {
+            return b.x1 >= x1 && b.x0 <= x2 &&
+                   b.y1 >= y1 && b.y0 <= y2;
+        }
+
+        const linhas = (dados.lines || [])
+            .map(linha => {
+                if (!linha.bbox) return null;
+                return { ...linha, bboxOriginal: bboxOriginal(linha.bbox) };
+            })
+            .filter(linha => linha && cruzaSelecao(linha.bboxOriginal))
+            .sort((a, b) => a.bboxOriginal.y0 - b.bboxOriginal.y0);
+
+        let texto = linhas
+            .map(l => (l.text || "").trim())
+            .filter(Boolean)
+            .join("\n");
+
+        /*
+         * Para seleções menores ou que cortem uma linha, usa as palavras
+         * individualmente. Também corrige a escala dos bbox.
+         */
+        if (!texto || linhas.length === 0) {
+            const palavras = (dados.words || [])
+                .map(palavra => {
+                    if (!palavra.bbox) return null;
+                    return { ...palavra, bboxOriginal: bboxOriginal(palavra.bbox) };
+                })
+                .filter(palavra => palavra && cruzaSelecao(palavra.bboxOriginal))
+                .sort((a, b) => {
+                    const ya = a.bboxOriginal.y0;
+                    const yb = b.bboxOriginal.y0;
+                    if (Math.abs(ya - yb) > 8) return ya - yb;
+                    return a.bboxOriginal.x0 - b.bboxOriginal.x0;
+                });
+
+            const grupos = [];
+            for (const palavra of palavras) {
+                const centroY = (palavra.bboxOriginal.y0 + palavra.bboxOriginal.y1) / 2;
+                let grupo = grupos.find(g => Math.abs(g.y - centroY) <= 8);
+                if (!grupo) {
+                    grupo = { y: centroY, palavras: [] };
+                    grupos.push(grupo);
+                }
+                grupo.palavras.push(palavra);
+            }
+
+            grupos.sort((a, b) => a.y - b.y);
+            texto = grupos.map(g =>
+                g.palavras
+                    .sort((a, b) => a.bboxOriginal.x0 - b.bboxOriginal.x0)
+                    .map(p => (p.text || "").trim())
+                    .filter(Boolean)
+                    .join(" ")
+            ).filter(Boolean).join("\n");
+        }
+
         const final = processarTexto(texto);
 
-        document.getElementById("resultado").value =
-            final.toUpperCase();
-
+        document.getElementById("resultado").value = final.toUpperCase();
         document.getElementById("status").innerText =
             "Texto selecionado extraído com sucesso.";
 
@@ -2544,6 +2529,7 @@ async function extrairSelecionado() {
         alert("Não foi possível reconhecer o texto.");
     }
 }
+
 
 /* =========================================================
    EXTRAIR IMAGEM INTEIRA
@@ -4818,7 +4804,7 @@ async function baixarBackupUsuarios() {
 
         const [{ data: usuarios, error: usuariosError }, { data: admins, error: adminsError }, { data: historico, error: historicoError }] = await Promise.all([
             sb.from("extrator_usuarios").select("*").order("created_at", { ascending: true }),
-            sb.from("extrator_admins").select("user_id,created_at").order("created_at", { ascending: true }),
+            sb.from("extrator_admins").select("user_id,created_at,is_master,acesso_full,adicionar_remover_carater,gerenciar_membros,gerenciar_admins,download_lista,visualizar_historico,gerenciar_mensagens").order("created_at", { ascending: true }),
             sb.from("extrator_historico_aprovados").select("*").order("aprovado_em", { ascending: true })
         ]);
 
@@ -4831,7 +4817,7 @@ async function baixarBackupUsuarios() {
             formato: "extrator-carater-geral-backup",
             versao: 1,
             gerado_em: new Date().toISOString(),
-            observacao: "Backup dos perfis do Extrator de Caráter Geral. Senhas do Supabase Auth não podem ser exportadas.",
+            observacao: "Backup dos perfis do Extrator de Caráter Geral, incluindo permissões administrativas. Senhas do Supabase Auth não podem ser exportadas.",
             usuarios: usuarios || [],
             administradores: admins || [],
             historico_aprovados: historicoSeguro
@@ -4874,7 +4860,18 @@ async function lerEValidarBackupUsuarios(arquivo) {
     }).filter(u => u.id && u.re && u.nome_completo && u.unidade && u.email_funcional);
     if (!registros.length) throw new Error("O backup não contém cadastros válidos.");
     const admins = Array.isArray(backup.administradores)
-        ? backup.administradores.filter(a => a?.user_id).map(a => ({ user_id:a.user_id, ...(a.created_at ? {created_at:a.created_at} : {}) }))
+        ? backup.administradores.filter(a => a?.user_id).map(a => ({
+            user_id: a.user_id,
+            ...(a.created_at ? {created_at:a.created_at} : {}),
+            is_master: a.is_master === true,
+            acesso_full: a.acesso_full === true,
+            adicionar_remover_carater: a.adicionar_remover_carater === true,
+            gerenciar_membros: a.gerenciar_membros === true,
+            gerenciar_admins: a.gerenciar_admins === true,
+            download_lista: a.download_lista === true,
+            visualizar_historico: a.visualizar_historico === true,
+            gerenciar_mensagens: a.gerenciar_mensagens === true
+        }))
         : [];
     return {backup, registros, admins};
 }
@@ -5114,12 +5111,15 @@ async function salvarPermissoesAdministrador() {
     const userId = document.getElementById("permissaoAdminUserId")?.value;
     if (!userId) return;
     const full = document.getElementById("permAcessoFull")?.checked === true;
+    const adminAtual = adminPermissoesCache.get(userId) || {};
     const permissoes = {
         acesso_full: full,
         adicionar_remover_carater: full || document.getElementById("permAdicionarRemover")?.checked === true,
         gerenciar_membros: full || document.getElementById("permGerenciarMembros")?.checked === true,
         gerenciar_admins: full || document.getElementById("permGerenciarAdmins")?.checked === true,
-        download_lista: full || document.getElementById("permDownloadLista")?.checked === true
+        download_lista: full || document.getElementById("permDownloadLista")?.checked === true,
+        visualizar_historico: full || adminAtual.visualizar_historico === true,
+        gerenciar_mensagens: full || adminAtual.gerenciar_mensagens === true
     };
     const aviso = document.getElementById("permissaoAdminAviso");
     if (aviso) { aviso.style.display = "block"; aviso.className = "auth-msg warn"; aviso.textContent = "Salvando permissões..."; }
@@ -5129,7 +5129,9 @@ async function salvarPermissoesAdministrador() {
         p_adicionar_remover_carater: permissoes.adicionar_remover_carater,
         p_gerenciar_membros: permissoes.gerenciar_membros,
         p_gerenciar_admins: permissoes.gerenciar_admins,
-        p_download_lista: permissoes.download_lista
+        p_download_lista: permissoes.download_lista,
+        p_visualizar_historico: permissoes.visualizar_historico,
+        p_gerenciar_mensagens: permissoes.gerenciar_mensagens
     });
     if (error) {
         console.error(error);
@@ -5174,13 +5176,13 @@ async function excluirUsuario(userId, re, nome) {
         return;
     }
 
-    if (!confirm("Excluir permanentemente o usuário RE " + re + " (" + nome + ")?\n\nEssa ação remove o acesso à conta e não pode ser desfeita.")) return;
+    if (!confirm("Desativar o usuário RE " + re + " (" + nome + ")?\n\nO cadastro será desativado, mas a conta do Supabase Auth será PRESERVADA.\nA senha e o ID da conta não serão apagados.\nO usuário poderá ser restaurado posteriormente pelo backup.")) return;
 
     const { error } = await sb.rpc("extrator_excluir_usuario", { p_user_id: userId });
 
     if (error) {
         console.error(error);
-        alert("Não foi possível excluir o usuário. Verifique se a migração de administração foi executada no Supabase.");
+        alert("Não foi possível desativar o usuário.\n\n" + (error.message || "Erro desconhecido no Supabase."));
         return;
     }
 
