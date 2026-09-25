@@ -2684,218 +2684,57 @@ async function extrairSomenteCarater() {
         document.getElementById("status").innerText =
             "Lendo imagem e extraindo caráter...";
 
-        /*
-         * CORREÇÃO ESPECÍFICA DO CARÁTER:
-         * A versão anterior usava executarOCR(), que também incluía
-         * leituras focadas exclusivamente em placa. Em algumas imagens,
-         * uma dessas leituras obtinha confiança maior e acabava sendo
-         * escolhida como "melhor", mesmo sem conter CADASTRO VEÍCULO
-         * e SITUAÇÃO. O resultado era a mensagem de que o caráter não
-         * havia sido encontrado.
-         *
-         * Aqui mantemos o restante do programa intacto e fazemos uma
-         * leitura própria para o caráter, priorizando as leituras que
-         * realmente contenham os marcadores do cadastro.
-         */
-
+        // Faz a leitura diretamente da imagem inteira, sem exigir
+        // qualquer seleção da área vermelha e sem mostrar o OCR completo.
         const canvas = document.createElement("canvas");
         canvas.width = imagemOriginal.naturalWidth;
         canvas.height = imagemOriginal.naturalHeight;
-
         const ctx = canvas.getContext("2d");
         ctx.drawImage(imagemOriginal, 0, 0);
 
-        const leituras = [];
+        const dados = await executarOCR(canvas, true);
+        const texto = processarTexto((dados && dados.text) ? dados.text : "");
 
-        // Leitura normal — bloco de texto.
-        document.getElementById("status").innerText =
-            "Reconhecendo caráter... 1/4";
-        leituras.push(await fazerOCR(canvas, 0, 6, false));
-
-        // Leitura com tratamento de imagem.
-        document.getElementById("status").innerText =
-            "Reconhecendo caráter... 2/4";
-        leituras.push(await fazerOCR(canvas, 1, 6, false));
-
-        // Leitura automática de blocos/linhas.
-        document.getElementById("status").innerText =
-            "Reconhecendo caráter... 3/4";
-        leituras.push(await fazerOCR(canvas, 0, 11, false));
-
-        // Segunda leitura tratada com segmentação automática.
-        document.getElementById("status").innerText =
-            "Reconhecendo caráter... 4/4";
-        leituras.push(await fazerOCR(canvas, 1, 11, false));
-
-        function normalizarOCRParaBusca(valor) {
-            return String(valor || "")
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .toUpperCase()
-                .replace(/[|]/g, "I")
-                .replace(/\s+/g, " ")
-                .trim();
-        }
-
-        function possuiCadastro(valor) {
-            const t = normalizarOCRParaBusca(valor)
-                .replace(/CADASTRO\s+VEICULO/g, "CADASTRO VEICULO");
-            return /CADASTRO\s+VE[I1]CULO\s*:??/i.test(t) ||
-                   /CADASTRO\s+VEICULO/i.test(t);
-        }
-
-        function possuiSituacao(valor) {
-            const t = normalizarOCRParaBusca(valor);
-            return /SITUACAO\s*:/i.test(t) ||
-                   /SITUA[CÇ]A?O\s*:/i.test(String(valor || ""));
-        }
-
-        function pontuarLeituraCarater(leitura) {
-            const texto = (leitura?.data?.text || "").trim();
-            if (!texto) return -999999;
-
-            const cadastro = possuiCadastro(texto);
-            const situacao = possuiSituacao(texto);
-            const confianca = Number(leitura?.data?.confidence || 0);
-
-            let pontos = confianca;
-
-            // Os marcadores do formulário são mais importantes que
-            // uma pequena diferença de confiança do OCR.
-            if (cadastro) pontos += 120;
-            if (situacao) pontos += 120;
-
-            // Se tiver os dois marcadores, esta é claramente a leitura
-            // adequada para a função "Extrair somente o caráter".
-            if (cadastro && situacao) pontos += 250;
-
-            return pontos;
-        }
-
-        let melhor = null;
-        let maiorPontuacao = -Infinity;
-
-        for (const leitura of leituras) {
-            const pontos = pontuarLeituraCarater(leitura);
-            if (pontos > maiorPontuacao) {
-                maiorPontuacao = pontos;
-                melhor = leitura;
-            }
-        }
-
-        const textoBruto = (melhor?.data?.text || "").trim();
-
-        if (!textoBruto) {
+        if (!texto.trim()) {
             throw new Error("OCR não retornou texto.");
         }
 
-        /*
-         * Normaliza somente para localizar os marcadores, mas preserva
-         * o texto original para que o resultado continue com a aparência
-         * original do extrator.
-         */
-        const textoBusca = textoBruto
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .toUpperCase();
-
-        /*
-         * Aceita as principais variações que o OCR costuma produzir:
-         * CADASTRO VEÍCULO / CADASTRO VEICULO
-         * SITUAÇÃO / SITUACAO
-         */
-        const inicioRegex =
-            /CADASTRO\s+VE(?:[ÍIÌÎÏ]|I|1)CULO\s*:/i;
-
-        let inicioMatch = inicioRegex.exec(textoBruto);
-
-        // Fallback para OCR que remove o acento e/ou perde o ":".
-        if (!inicioMatch) {
-            const idx = textoBusca.search(/CADASTRO\s+VE[I1]CULO\s*:??/i);
-            if (idx >= 0) {
-                const trecho = textoBruto.slice(idx);
-                const m = trecho.match(/CADASTRO\s+VE[I1]CULO\s*:??/i);
-                if (m) {
-                    inicioMatch = {
-                        index: idx,
-                        0: m[0]
-                    };
-                }
-            }
-        }
+        // Procura CADASTRO VEÍCULO: e extrai até o final do valor de SITUAÇÃO.
+        const inicioRegex = /CADASTRO\s+VE[ÍIÌÎÏI]?CULO\s*:/i;
+        const inicioMatch = inicioRegex.exec(texto);
 
         if (!inicioMatch) {
             alert('Não foi encontrado "CADASTRO VEÍCULO:" no texto lido.');
-            document.getElementById("status").innerText =
-                "Leitura concluída, mas o marcador CADASTRO VEÍCULO não foi localizado.";
             return;
         }
 
         const inicio = inicioMatch.index + inicioMatch[0].length;
-        const restante = textoBruto.slice(inicio);
+        const restante = texto.slice(inicio);
 
-        /*
-         * SITUAÇÃO pode aparecer como:
-         * SITUAÇÃO:
-         * SITUACAO:
-         * SITUAÇAO:
-         * e, em alguns OCRs, sem o acento no último A.
-         */
-        let situacaoRegex =
-            /SITUA(?:ÇÃO|CAO|ÇAO|CÃO)\s*:/i;
-
-        let situacaoMatch = situacaoRegex.exec(restante);
-
-        // Fallback mais tolerante para pequenas variações do OCR.
-        if (!situacaoMatch) {
-            const restanteBusca = restante
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .toUpperCase();
-
-            const idxSituacao = restanteBusca.search(/SITUACAO\s*:??/i);
-
-            if (idxSituacao >= 0) {
-                const trecho = restante.slice(idxSituacao);
-                const m = trecho.match(/SITU[AÃÁÀÂÄ]?[CÇ]?[AÃÁÀÂÄ]?O\s*:??/i);
-
-                if (m) {
-                    situacaoMatch = {
-                        index: idxSituacao,
-                        0: m[0]
-                    };
-                }
-            }
-        }
+        const situacaoRegex = /SITUA[CÇC]?[AÃA]?O\s*:/i;
+        const situacaoMatch = situacaoRegex.exec(restante);
 
         if (!situacaoMatch) {
             alert('Não foi encontrado "SITUAÇÃO:" no texto lido.');
-            document.getElementById("status").innerText =
-                "Leitura concluída, mas o marcador SITUAÇÃO não foi localizado.";
             return;
         }
 
-        /*
-         * O caráter começa depois de CADASTRO VEÍCULO:
-         * e termina no final do valor de SITUAÇÃO.
-         *
-         * Primeiro tentamos respeitar os separadores usados pelo
-         * formulário. Se não houver separador, mantemos somente até
-         * o final da linha/valor reconhecido.
-         */
         const fimMarcador = situacaoMatch.index + situacaoMatch[0].length;
         const depoisSituacao = restante.slice(fimMarcador);
 
-        const fimValor = depoisSituacao.search(/[;\r\n]/);
+        // Mantém somente o valor da situação, encerrando no próximo ; ou quebra de linha.
+        const fimValor = depoisSituacao.search(/[;\n\r]/);
         const fim = fimValor >= 0
             ? fimMarcador + fimValor
             : restante.length;
 
         let resultado = restante.slice(0, fim).trim();
 
+        // Mantém o conteúdo reconhecido, apenas removendo quebras de linha
+        // para que o caráter seja apresentado em uma única linha.
         resultado = resultado
-            .replace(/[\r\n]+/g, " ")
-            .replace(/[ \t]{2,}/g, " ")
+            .replace(/[\\r\\n]+/g, " ")
+            .replace(/[ \\t]{2,}/g, " ")
             .trim();
 
         if (!resultado) {
@@ -2903,12 +2742,10 @@ async function extrairSomenteCarater() {
             return;
         }
 
-        document.getElementById("resultado").value =
-            resultado.toUpperCase();
-
-        document.getElementById("placa").innerText =
-            encontrarPlaca(resultado) || "---";
-
+        // Mostra somente o resultado final, sem exigir seleção e sem
+        // substituir a imagem ou alterar a lista de textos salvos.
+        document.getElementById("resultado").value = resultado.toUpperCase();
+        document.getElementById("placa").innerText = encontrarPlaca(resultado) || "---";
         document.getElementById("status").innerText =
             "Caráter extraído com sucesso.";
 
