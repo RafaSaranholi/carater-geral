@@ -375,6 +375,10 @@
 .area-planilha-check.selecionada{border-color:#2f80ed;background:#141d2a}
 .area-planilha-vazio{color:#aaa;padding:10px 0}
 .area-planilha-status{margin-top:12px;padding:10px 12px;border:1px solid #444;border-radius:7px;background:#151515;color:#bbb;font-size:12px;line-height:1.45;display:none}
+.area-planilha-status.ok{border-color:#1f7a4d;color:#ccebdc;background:#132219}
+.area-planilha-status.err{border-color:#8d2834;color:#ffd5d9;background:#281719}
+.area-planilha-resumo{display:none;margin-top:10px;padding:10px 12px;border:1px solid #444;border-radius:7px;background:#101010;color:#ddd;font-size:12px;line-height:1.5}
+.area-planilha-resumo strong{color:#fff}
 .area-planilha-acoes{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap}
 .area-planilha-acoes button{margin:0}
 
@@ -3561,6 +3565,9 @@ function listarAreasParaPlanilha() {
 }
 
 let areasSelecionadasPlanilha = [];
+let planilhaCaraterPronta = null;
+let planilhaCaraterQuantidade = 0;
+let planilhaCaraterAreas = [];
 
 function atualizarResumoAreasPlanilha() {
     const resumo = document.getElementById("areaPlanilhaContagem");
@@ -3568,6 +3575,22 @@ function atualizarResumoAreasPlanilha() {
     const marcados = document.querySelectorAll('input[name="areaPlanilhaCheckbox"]:checked');
     const quantidade = marcados.length;
     areasSelecionadasPlanilha = Array.from(marcados).map(function(input) { return input.value; });
+
+    // Qualquer mudança de seleção invalida a planilha que já estava pronta.
+    planilhaCaraterPronta = null;
+    planilhaCaraterQuantidade = 0;
+    planilhaCaraterAreas = [];
+
+    const btnDownload = document.getElementById("btnBaixarPlanilhaPronta");
+    const resumoPronto = document.getElementById("areaPlanilhaResumo");
+    if (btnDownload) {
+        btnDownload.disabled = true;
+        btnDownload.textContent = "⬇️ Baixar planilha preenchida";
+    }
+    if (resumoPronto) {
+        resumoPronto.style.display = "none";
+        resumoPronto.innerHTML = "";
+    }
 
     if (resumo) {
         resumo.textContent = quantidade === 0
@@ -3577,7 +3600,10 @@ function atualizarResumoAreasPlanilha() {
                 : quantidade + " áreas selecionadas";
     }
 
-    if (botaoGerar) botaoGerar.disabled = quantidade === 0;
+    if (botaoGerar) {
+        botaoGerar.disabled = quantidade === 0;
+        botaoGerar.textContent = "📊 Preencher planilha";
+    }
 
     document.querySelectorAll(".area-planilha-check").forEach(function(item) {
         const input = item.querySelector('input[name="areaPlanilhaCheckbox"]');
@@ -3613,10 +3639,15 @@ function abrirEscolhaAreaPlanilha() {
     const overlay = document.getElementById("areaPlanilhaOverlay");
     const lista = document.getElementById("areaPlanilhaLista");
     const status = document.getElementById("areaPlanilhaStatus");
+    const resumoPronto = document.getElementById("areaPlanilhaResumo");
+    const btnDownload = document.getElementById("btnBaixarPlanilhaPronta");
     if (!overlay || !lista) return;
 
     const areas = listarAreasParaPlanilha();
     areasSelecionadasPlanilha = [];
+    planilhaCaraterPronta = null;
+    planilhaCaraterQuantidade = 0;
+    planilhaCaraterAreas = [];
     lista.innerHTML = "";
 
     if (!areas.length) {
@@ -3651,8 +3682,18 @@ function abrirEscolhaAreaPlanilha() {
 
     if (status) {
         status.style.display = "none";
+        status.className = "area-planilha-status";
         status.textContent = "";
     }
+    if (resumoPronto) {
+        resumoPronto.style.display = "none";
+        resumoPronto.innerHTML = "";
+    }
+    if (btnDownload) {
+        btnDownload.disabled = true;
+        btnDownload.textContent = "⬇️ Baixar planilha preenchida";
+    }
+
     overlay.classList.add("open");
     overlay.setAttribute("aria-hidden", "false");
     atualizarResumoAreasPlanilha();
@@ -3666,9 +3707,58 @@ function fecharEscolhaAreaPlanilha() {
     }
 }
 
+function contarBlocosComVeiculo(workbook) {
+    if (!workbook || !Array.isArray(workbook.SheetNames)) return 0;
+    let total = 0;
+    workbook.SheetNames.forEach(function(nome) {
+        const ws = workbook.Sheets[nome];
+        if (!ws) return;
+        for (let r = 4; r <= 38; r++) {
+            // Ignora o 4º caractere fixo (E/S), pois ele existe em todas as linhas.
+            // Um bloco só conta como veículo quando há pelo menos um dos demais
+            // caracteres da placa realmente preenchido.
+            const esquerda = [2,3,4,6,7].some(function(c) {
+                const cell = ws[XLSX.utils.encode_cell({r:r-1,c:c-1})];
+                return !!cell && String(cell.v ?? "").trim() !== "";
+            });
+            const direita = [16,17,18,20,21].some(function(c) {
+                const cell = ws[XLSX.utils.encode_cell({r:r-1,c:c-1})];
+                return !!cell && String(cell.v ?? "").trim() !== "";
+            });
+            if (esquerda) total++;
+            if (direita) total++;
+        }
+    });
+    return total;
+}
+
+function garantirGradeCompletaCaraterGeral(ws, maxRow, maxCol) {
+    // Cria/estiliza TODAS as células da área da tabela, inclusive vazias,
+    // para que a planilha saia completamente quadriculada e com contorno.
+    const thin = {
+        top:{style:"thin",color:{rgb:"000000"}},
+        bottom:{style:"thin",color:{rgb:"000000"}},
+        left:{style:"thin",color:{rgb:"000000"}},
+        right:{style:"thin",color:{rgb:"000000"}}
+    };
+    for (let r = 1; r <= maxRow; r++) {
+        for (let c = 1; c <= maxCol; c++) {
+            const ref = XLSX.utils.encode_cell({r:r-1,c:c-1});
+            if (!ws[ref]) ws[ref] = {t:"s",v:""};
+            // Mantém bordas especiais já definidas (ex.: média/grossa nos separadores).
+            const estiloAtual = ws[ref].s || {};
+            if (!estiloAtual.border) {
+                ws[ref].s = Object.assign({}, estiloAtual, {border:thin});
+            }
+        }
+    }
+}
+
 function gerarPlanilhaDasAreas() {
     const status = document.getElementById("areaPlanilhaStatus");
     const botaoGerar = document.getElementById("btnGerarPlanilhaAreas");
+    const btnDownload = document.getElementById("btnBaixarPlanilhaPronta");
+    const resumoPronto = document.getElementById("areaPlanilhaResumo");
     const elementos = document.querySelectorAll(".area-planilha-acoes button, .area-planilha-toolbar button, .area-planilha-check input");
     const areas = Array.from(document.querySelectorAll('input[name="areaPlanilhaCheckbox"]:checked')).map(function(input) { return input.value; });
 
@@ -3677,41 +3767,144 @@ function gerarPlanilhaDasAreas() {
         return;
     }
 
+    // Nunca permite baixar um arquivo antigo de outra seleção.
+    planilhaCaraterPronta = null;
+    planilhaCaraterQuantidade = 0;
+    planilhaCaraterAreas = [];
+    if (btnDownload) btnDownload.disabled = true;
+
     areasSelecionadasPlanilha = areas.slice();
     elementos.forEach(function(el) { el.disabled = true; });
 
     if (status) {
+        status.className = "area-planilha-status";
         status.style.display = "block";
-        status.textContent = "Localizando os veículos das " + areas.length + (areas.length === 1 ? " área selecionada" : " áreas selecionadas") + ", preenchendo a planilha e preparando o arquivo...";
+        status.textContent = "Localizando os veículos, criando TODA a grade da planilha e preenchendo os dados...";
     }
-    if (botaoGerar) botaoGerar.textContent = "⏳ Montando planilha...";
+    if (botaoGerar) botaoGerar.textContent = "⏳ Preenchendo planilha...";
+    if (resumoPronto) {
+        resumoPronto.style.display = "none";
+        resumoPronto.innerHTML = "";
+    }
 
     setTimeout(function() {
         try {
-            // O workbook é montado primeiro, já preenchido com os veículos das áreas escolhidas.
+            // 1) Monta a planilha completamente em memória.
             const wb = criarPlanilhaCaraterGeral(areas);
 
-            // Só depois da montagem da planilha acontece o download.
-            const agora = new Date();
-            const data = String(agora.getDate()).padStart(2,"0") + "-" + String(agora.getMonth()+1).padStart(2,"0") + "-" + agora.getFullYear();
-            const nomesAreas = areas.map(normalizarArea).filter(Boolean).join("_").replace(/[^A-Z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
-            XLSX.writeFile(wb, "carater_geral" + (nomesAreas ? "_" + nomesAreas : "") + "_" + data + ".xlsx");
+            // 2) Garante grade/contorno em todas as células das folhas.
+            wb.SheetNames.forEach(function(nome) {
+                garantirGradeCompletaCaraterGeral(wb.Sheets[nome], 38, 27);
+                wb.Sheets[nome]["!ref"] = "A1:AA38";
+            });
 
-            if (status) status.textContent = "Planilha preenchida com os veículos das áreas selecionadas e baixada com sucesso.";
-            document.getElementById("status").innerText = "Planilha Excel preenchida com os veículos das áreas: " + areas.join(", ") + ".";
-            setTimeout(fecharEscolhaAreaPlanilha, 700);
+            // 3) Valida que a planilha foi realmente preenchida antes de liberar o download.
+            const quantidadeEsperada = listaTextos.filter(function(registro) {
+                const dados = extrairDadosPlanilha(registro);
+                return areas.map(normalizarGrupoAreaPlanilha).includes(normalizarGrupoAreaPlanilha(dados.a));
+            }).length;
+            const quantidadePlanilha = contarBlocosComVeiculo(wb);
+
+            if (!wb.SheetNames.length) throw new Error("A planilha não criou nenhuma folha.");
+            if (quantidadeEsperada <= 0) throw new Error("Nenhum veículo foi localizado nas áreas selecionadas.");
+            if (quantidadePlanilha <= 0) throw new Error("A planilha foi criada, mas não contém veículos preenchidos.");
+            if (quantidadePlanilha < quantidadeEsperada) {
+                throw new Error("A planilha ficou incompleta (" + quantidadePlanilha + " de " + quantidadeEsperada + " veículos). O download foi bloqueado.");
+            }
+
+            // 4) Só agora armazenamos o workbook como PRONTO. Nenhum download ocorre aqui.
+            planilhaCaraterPronta = wb;
+            planilhaCaraterQuantidade = quantidadePlanilha;
+            planilhaCaraterAreas = areas.slice();
+
+            if (status) {
+                status.className = "area-planilha-status ok";
+                status.style.display = "block";
+                status.textContent = "✅ Planilha preenchida e validada. O download só foi liberado depois de confirmar os " + quantidadePlanilha + " veículos.";
+            }
+            if (resumoPronto) {
+                resumoPronto.style.display = "block";
+                resumoPronto.innerHTML = "<strong>Planilha pronta:</strong> " + quantidadePlanilha + " veículo(s) preenchido(s) em " + wb.SheetNames.length + " folha(s).<br><strong>Áreas:</strong> " + areas.join(", ") + ".<br>Todos os campos da grade estão com contorno e o arquivo ainda não foi baixado.";
+            }
+
+            if (botaoGerar) {
+                botaoGerar.disabled = true;
+                botaoGerar.textContent = "✅ Planilha preenchida";
+            }
+            if (btnDownload) {
+                btnDownload.disabled = false;
+                btnDownload.textContent = "⬇️ Baixar planilha preenchida (" + quantidadePlanilha + " veículos)";
+            }
+
+            elementos.forEach(function(el) {
+                if (el !== btnDownload && el !== botaoGerar) el.disabled = false;
+            });
+            if (btnDownload) btnDownload.disabled = false;
+
+            document.getElementById("status").innerText = "Planilha preenchida e validada com " + quantidadePlanilha + " veículos. O download está liberado.";
         } catch (erro) {
             console.error(erro);
-            if (status) status.textContent = "Não foi possível gerar a planilha: " + (erro.message || erro);
-            alert("Não foi possível gerar a planilha. " + (erro.message || erro));
+            planilhaCaraterPronta = null;
+            planilhaCaraterQuantidade = 0;
+            planilhaCaraterAreas = [];
+            if (status) {
+                status.className = "area-planilha-status err";
+                status.style.display = "block";
+                status.textContent = "❌ " + (erro.message || erro);
+            }
+            alert("A planilha não foi liberada para download. " + (erro.message || erro));
             elementos.forEach(function(el) { el.disabled = false; });
             if (botaoGerar) {
                 botaoGerar.disabled = false;
-                botaoGerar.textContent = "📊 Preencher e baixar planilha";
+                botaoGerar.textContent = "📊 Preencher planilha";
+            }
+            if (btnDownload) {
+                btnDownload.disabled = true;
+                btnDownload.textContent = "⬇️ Baixar planilha preenchida";
             }
             atualizarResumoAreasPlanilha();
         }
     }, 80);
+}
+
+function baixarPlanilhaPreenchida() {
+    if (!planilhaCaraterPronta || !planilhaCaraterQuantidade) {
+        alert("O download está bloqueado porque a planilha ainda não foi preenchida e validada.");
+        return;
+    }
+    if (typeof XLSX === "undefined" || typeof XLSX.writeFile !== "function") {
+        alert("A biblioteca de planilha não está disponível.");
+        return;
+    }
+
+    const btnDownload = document.getElementById("btnBaixarPlanilhaPronta");
+    if (btnDownload) {
+        btnDownload.disabled = true;
+        btnDownload.textContent = "⏳ Baixando planilha preenchida...";
+    }
+
+    try {
+        const agora = new Date();
+        const data = String(agora.getDate()).padStart(2,"0") + "-" + String(agora.getMonth()+1).padStart(2,"0") + "-" + agora.getFullYear();
+        const nomesAreas = planilhaCaraterAreas.map(normalizarArea).filter(Boolean).join("_").replace(/[^A-Z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+        XLSX.writeFile(planilhaCaraterPronta, "carater_geral" + (nomesAreas ? "_" + nomesAreas : "") + "_" + data + ".xlsx");
+
+        const status = document.getElementById("areaPlanilhaStatus");
+        if (status) {
+            status.className = "area-planilha-status ok";
+            status.textContent = "✅ Download concluído. O arquivo foi gerado somente depois de a planilha estar preenchida e validada.";
+        }
+        const resumoPronto = document.getElementById("areaPlanilhaResumo");
+        if (resumoPronto) resumoPronto.innerHTML += "<br><strong>Download:</strong> concluído.";
+        setTimeout(fecharEscolhaAreaPlanilha, 700);
+    } catch (erro) {
+        console.error(erro);
+        alert("Não foi possível baixar a planilha preenchida. " + (erro.message || erro));
+        if (btnDownload) {
+            btnDownload.disabled = false;
+            btnDownload.textContent = "⬇️ Baixar planilha preenchida (" + planilhaCaraterQuantidade + " veículos)";
+        }
+    }
 }
 
 function baixarListaPlanilha() {
@@ -6063,8 +6256,10 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 
         <div id="areaPlanilhaLista" class="area-planilha-lista"></div>
         <div id="areaPlanilhaStatus" class="area-planilha-status"></div>
+        <div id="areaPlanilhaResumo" class="area-planilha-resumo"></div>
         <div class="area-planilha-acoes">
-            <button id="btnGerarPlanilhaAreas" type="button" class="btn-success" onclick="gerarPlanilhaDasAreas()" disabled>📊 Preencher e baixar planilha</button>
+            <button id="btnGerarPlanilhaAreas" type="button" class="btn-success" onclick="gerarPlanilhaDasAreas()" disabled>📊 Preencher planilha</button>
+            <button id="btnBaixarPlanilhaPronta" type="button" class="btn-primary" onclick="baixarPlanilhaPreenchida()" disabled>⬇️ Baixar planilha preenchida</button>
             <button type="button" class="btn-secondary" onclick="fecharEscolhaAreaPlanilha()">Cancelar</button>
         </div>
     </div>
