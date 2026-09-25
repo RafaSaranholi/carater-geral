@@ -190,6 +190,10 @@
 .item-salvo.carater-roubo{border:2px solid #e53935}
 .item-salvo.carater-furto{border:2px solid #2e7d32}
 .item-salvo.carater-outros{border:2px solid #f57c00}
+.placa-destaque{display:inline-block;padding:1px 7px;margin:0 2px;border:2px solid #888;border-radius:5px;font-weight:800;letter-spacing:2px;line-height:1.2;background:#111}
+.placa-destaque.carater-roubo{border-color:#e53935}
+.placa-destaque.carater-furto{border-color:#2e7d32}
+.placa-destaque.carater-outros{border-color:#f57c00}
 .item-salvo:hover{border-color:#666}
 .item-salvo .item-conteudo{line-height:1.28}
 .btn-copiar-registro{position:absolute;right:10px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#333;color:#eee;border:1px solid #555}
@@ -2840,7 +2844,17 @@ function renderizarLista() {
 
         const conteudo = document.createElement("div");
         conteudo.className = "item-conteudo";
-        conteudo.textContent = registro.texto || "";
+        const textoRegistro = registro.texto || "";
+        const placaRegistro = encontrarPlaca(textoRegistro);
+        if (placaRegistro) {
+            const classePlaca = classeCorCarater(textoRegistro);
+            const textoSeguro = escapeHtml(textoRegistro);
+            const placaSegura = escapeHtml(placaRegistro);
+            const regexPlaca = new RegExp(placaSegura.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+            conteudo.innerHTML = textoSeguro.replace(regexPlaca, '<span class="placa-destaque ' + classePlaca + '">' + placaSegura + '</span>');
+        } else {
+            conteudo.textContent = textoRegistro;
+        }
 
         const botaoCopiar = document.createElement("button");
         botaoCopiar.type = "button";
@@ -4258,14 +4272,14 @@ async function atualizarIndicadoresAcesso() {
     const botoesUsuarioLista = document.getElementById("botoesUsuarioLista");
     const botoesEditor = document.getElementById("botoesEditorLista");
 
-    if (btnAdmin) btnAdmin.style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
+    if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
     if (badgeAprovacoes) {
-        badgeAprovacoes.style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-flex" : "none";
+        badgeAprovacoes.style.display = souAdmin ? "inline-flex" : "none";
         badgeAprovacoes.textContent = "0";
     }
     if (btnMensagemAdmin) btnMensagemAdmin.style.display = souAdmin ? "inline-block" : "none";
 
-    if (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master) && badgeAprovacoes) {
+    if (souAdmin && badgeAprovacoes) {
         try {
             const { count, error: pendentesError } = await sb
                 .from("extrator_usuarios")
@@ -4298,7 +4312,7 @@ async function atualizarIndicadoresAcesso() {
     const btnDownloadLista = document.getElementById("btnDownloadLista");
     if (btnAddCarater) btnAddCarater.style.display = podeEditar ? "inline-block" : "none";
     if (btnDownloadLista) btnDownloadLista.style.display = podeDownload ? "inline-block" : "none";
-    if (btnAdmin) btnAdmin.style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
+    if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
     if (document.getElementById("btnMensagemAdmin")) document.getElementById("btnMensagemAdmin").style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
     if (document.getElementById("btnCapturarTelaAdmin")) document.getElementById("btnCapturarTelaAdmin").style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
     const btnAdmins = document.querySelector('#adminArea .auth-actions .btn-info');
@@ -4475,10 +4489,7 @@ async function carregarGerenciadorAdministradores() {
 }
 
 async function abrirAdmin() {
-    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) {
-        alert("Somente administradores com Acesso Full podem acessar a tela de aprovações.");
-        return;
-    }
+    if (!souAdmin) return;
     fecharMensagemAdmin();
     document.getElementById("appPrincipal").style.display = "none";
     document.getElementById("adminArea").style.display = "block";
@@ -4518,7 +4529,7 @@ function escapeHtml(valor) {
 }
 
 async function carregarAdmin() {
-    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) return;
+    if (!souAdmin) return;
     await carregarMensagemAdmin();
     await carregarAdminUsuarios();
 }
