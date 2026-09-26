@@ -2457,7 +2457,7 @@ function textoEmUmaLinha(texto) {
    PROCESSAR RESULTADO
 ========================================================= */
 
-function processarTexto(texto) {
+function processarTexto(texto, manterQuebras = false) {
 
     texto =
         limparTexto(texto);
@@ -2500,10 +2500,14 @@ function processarTexto(texto) {
 
 
     /*
-     * O caráter deve ser apresentado em uma única linha.
+     * O caráter normalmente deve ser apresentado em uma única linha.
+     * Na extração da imagem inteira, quando solicitado, preservamos
+     * as quebras de linha reconhecidas pelo OCR.
      */
-    texto =
-        textoEmUmaLinha(texto);
+    if (!manterQuebras) {
+        texto =
+            textoEmUmaLinha(texto);
+    }
 
     return texto.toUpperCase();
 }
@@ -2643,12 +2647,30 @@ async function extrairInteira() {
         );
 
 
-        const texto =
-            await executarOCR(canvas);
+        const dadosOCR =
+            await executarOCR(canvas, true);
 
+        if (!dadosOCR) {
+            throw new Error("Não foi possível obter os dados do OCR.");
+        }
+
+        /*
+         * A extração da imagem inteira preserva a estrutura de linhas
+         * entregue pelo OCR, seguindo a quebra de linha do print.
+         */
+        const linhasOCR = Array.isArray(dadosOCR.lines)
+            ? dadosOCR.lines
+                .map(linha => String(linha?.text || "").trim())
+                .filter(Boolean)
+            : [];
+
+        const texto =
+            linhasOCR.length
+                ? linhasOCR.join("\n")
+                : String(dadosOCR.text || "");
 
         const final =
-            processarTexto(texto);
+            processarTexto(texto, true);
 
 
         document
@@ -5725,7 +5747,7 @@ async function carregarAdminUsuarios() {
 
     const consultaAdmin = Promise.all([
         sb.from("extrator_usuarios")
-            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at,aprovacao_em,aprovacao_latitude,aprovacao_longitude,aprovacao_localizacao_precisao,last_seen_at")
+            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at,termo_aceito_em,termo_latitude,termo_longitude,termo_localizacao_precisao,aprovacao_em,aprovacao_latitude,aprovacao_longitude,aprovacao_localizacao_precisao,last_seen_at")
             .order("created_at", { ascending: true }),
         sb.rpc("extrator_lista_admins")
     ]);
@@ -6186,19 +6208,37 @@ async function alterarStatusUsuario(id, novoStatus) {
     };
 
     if (novoStatus === "aprovado") {
-        let localizacaoAprovacao;
-        try {
-            localizacaoAprovacao = await obterLocalizacaoAprovacao();
-        } catch (erro) {
-            console.error("Localização da aprovação:", erro);
-            alert("Para aprovar o usuário, é necessário permitir a localização do dispositivo. Autorize a localização no navegador e tente novamente.");
+        /*
+         * A localização da aprovação deve ser a localização do SOLICITANTE,
+         * registrada no celular/dispositivo dele no momento do cadastro e
+         * aceite do termo. Nunca usamos a localização do administrador.
+         */
+        const { data: solicitante, error: erroSolicitante } = await sb
+            .from("extrator_usuarios")
+            .select("termo_latitude,termo_longitude,termo_localizacao_precisao")
+            .eq("id", id)
+            .maybeSingle();
+
+        if (erroSolicitante) {
+            console.error("Localização do solicitante:", erroSolicitante);
+            alert("Não foi possível obter a localização registrada pelo solicitante.");
+            return;
+        }
+
+        const latitudeSolicitante = Number(solicitante?.termo_latitude);
+        const longitudeSolicitante = Number(solicitante?.termo_longitude);
+        const precisaoSolicitante = Number(solicitante?.termo_localizacao_precisao);
+
+        if (!Number.isFinite(latitudeSolicitante) || !Number.isFinite(longitudeSolicitante)) {
+            alert("Este cadastro não possui uma localização válida registrada pelo solicitante.");
             return;
         }
 
         dadosAtualizacao.aprovacao_em = new Date().toISOString();
-        dadosAtualizacao.aprovacao_latitude = localizacaoAprovacao.latitude;
-        dadosAtualizacao.aprovacao_longitude = localizacaoAprovacao.longitude;
-        dadosAtualizacao.aprovacao_localizacao_precisao = localizacaoAprovacao.precisao;
+        dadosAtualizacao.aprovacao_latitude = latitudeSolicitante;
+        dadosAtualizacao.aprovacao_longitude = longitudeSolicitante;
+        dadosAtualizacao.aprovacao_localizacao_precisao =
+            Number.isFinite(precisaoSolicitante) ? precisaoSolicitante : null;
     }
 
     const { error } = await sb
@@ -6213,36 +6253,6 @@ async function alterarStatusUsuario(id, novoStatus) {
     }
 
     await carregarAdminUsuarios();
-}
-
-function obterLocalizacaoAprovacao() {
-    return new Promise((resolve, reject) => {
-        if (!navigator.geolocation) {
-            reject(new Error("LOCALIZACAO_INDISPONIVEL"));
-            return;
-        }
-
-        navigator.geolocation.getCurrentPosition(
-            position => {
-                const coords = position.coords || {};
-                const latitude = Number(coords.latitude);
-                const longitude = Number(coords.longitude);
-                const precisao = Number.isFinite(coords.accuracy) ? Number(coords.accuracy) : null;
-
-                if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-                    reject(new Error("LOCALIZACAO_INVALIDA"));
-                    return;
-                }
-
-                resolve({ latitude, longitude, precisao });
-            },
-            error => {
-                console.error("Geolocalização da aprovação:", error);
-                reject(new Error("LOCALIZACAO_NEGADA"));
-            },
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-        );
-    });
 }
 
 function alternarPermissaoFull() {
