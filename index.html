@@ -8,7 +8,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 
 <style>
     body {
@@ -112,7 +113,7 @@
         margin-top: 8px;
     }
 
-.conteudo-principal{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:start}
+.conteudo-principal{display:grid;grid-template-columns:minmax(0,1fr) 600px;gap:20px;align-items:start} /* LARGURA LISTA DE CARATER GERAL SALVO */
 .painel-lista{background:#202020;border:1px solid #444;border-radius:8px;padding:15px;position:sticky;top:15px}
 .painel-lista h3{margin-top:0}
 #listaSalvos{max-height:600px;overflow-y:auto;margin-bottom:10px}
@@ -192,6 +193,13 @@
 .item-salvo.carater-outros{border:2px solid #f57c00}
 .item-salvo:hover{border-color:#666}
 .item-salvo .item-conteudo{line-height:1.28}
+.placa-destaque{display:inline-flex;align-items:center;justify-content:center;min-width:92px;margin:0 0 8px;padding:5px 10px;border:2px solid currentColor;border-radius:6px;background:#111;font-size:19px;font-weight:800;letter-spacing:2px;line-height:1.1;box-sizing:border-box;box-shadow:0 0 0 1px rgba(255,255,255,.06),0 2px 8px rgba(0,0,0,.25)}
+.placa-destaque.placa-roubo{color:#ff4d4d;border-color:#e53935}
+.placa-destaque.placa-furto{color:#55d66f;border-color:#2e7d32}
+.placa-destaque.placa-acao-criminosa{color:#ffd54f;border-color:#f9a825}
+.placa-destaque.placa-outros{color:#ff9d3d;border-color:#f57c00}
+.item-salvo.carater-acao-criminosa{border:2px solid #f9a825}
+
 .btn-copiar-registro{position:absolute;right:10px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#333;color:#eee;border:1px solid #555}
 .btn-copiar-registro:hover{background:#454545}
 .btn-excluir-registro{position:absolute;right:82px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#6b2525;color:#fff;border:1px solid #8f4444}
@@ -334,6 +342,47 @@
 .admin-section-title .admin-count-secundario { display:block; font-size:11px; font-weight:500; opacity:.75; margin-top:2px; }
 
 .permissao-admin-opcao{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;background:#101010;border:1px solid #444;border-radius:8px;cursor:pointer}.permissao-admin-opcao:hover{border-color:#666}.permissao-admin-opcao input{margin-top:3px;accent-color:#2f80ed}.permissao-admin-opcao span{display:flex;flex-direction:column;gap:3px}.permissao-admin-opcao small{color:#aaa;font-size:11px;line-height:1.35}.admin-permissao-resumo{color:#aaa;font-size:11px;margin-top:4px;line-height:1.35}.admin-master-badge{display:inline-block;padding:3px 7px;border-radius:999px;border:1px solid #d4af37;color:#f0d878;font-size:10px;font-weight:700;margin-left:5px}
+
+/* GARANTIA DE EXIBIÇÃO DA LISTA DE CARÁTER GERAL */
+#appPrincipal .painel-lista{display:block !important;visibility:visible !important}
+#appPrincipal.readonly-user .painel-lista{display:block !important;visibility:visible !important}
+
+
+/* ESCOLHA DE DOWNLOAD */
+.download-escolha-overlay{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;align-items:center;justify-content:center;z-index:300000;padding:20px;box-sizing:border-box}
+.download-escolha-overlay.open{display:flex}
+.download-escolha-modal{width:min(430px,94vw);background:#202020;border:1px solid #555;border-radius:12px;padding:22px;box-sizing:border-box;box-shadow:0 20px 60px rgba(0,0,0,.65);text-align:center}
+.download-escolha-modal h3{margin:0 0 8px;font-size:20px}
+.download-escolha-modal p{margin:0 0 18px;color:#aaa;font-size:13px;line-height:1.45}
+.download-escolha-acoes{display:grid;grid-template-columns:1fr;gap:9px}
+.download-escolha-acoes button{width:100%;margin:0}
+
+.area-planilha-overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:310000;padding:20px;box-sizing:border-box}
+.area-planilha-overlay.open{display:flex}
+.area-planilha-modal{width:min(560px,96vw);max-height:86vh;overflow:auto;background:#202020;border:1px solid #555;border-radius:12px;padding:22px;box-sizing:border-box;box-shadow:0 20px 60px rgba(0,0,0,.65)}
+.area-planilha-modal h3{margin:0 0 7px;font-size:20px}
+.area-planilha-modal p{margin:0 0 14px;color:#aaa;font-size:13px;line-height:1.45}
+.area-planilha-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 0 8px}
+.area-planilha-toolbar .area-planilha-contagem{color:#aaa;font-size:12px}
+.area-planilha-toolbar button{margin:0;padding:7px 10px;font-size:12px}
+.area-planilha-lista{display:grid;gap:8px;margin-top:10px}
+.area-planilha-check{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;margin:0;padding:11px 13px;background:#101010;color:#eee;border:1px solid #444;border-radius:8px;text-align:left;cursor:pointer;box-sizing:border-box}
+.area-planilha-check:hover{border-color:#777;background:#171717}
+.area-planilha-check input{margin:0;accent-color:#2f80ed;transform:scale(1.12);flex:0 0 auto}
+.area-planilha-check .area-planilha-info{display:flex;align-items:center;justify-content:space-between;gap:12px;flex:1;min-width:0}
+.area-planilha-check .area-planilha-info strong{font-size:16px}
+.area-planilha-check .area-planilha-info span{font-size:12px;color:#aaa;white-space:nowrap}
+.area-planilha-check.selecionada{border-color:#2f80ed;background:#141d2a}
+.area-planilha-vazio{color:#aaa;padding:10px 0}
+.area-planilha-status{margin-top:12px;padding:10px 12px;border:1px solid #444;border-radius:7px;background:#151515;color:#bbb;font-size:12px;line-height:1.45;display:none}
+.area-planilha-status.ok{border-color:#1f7a4d;color:#ccebdc;background:#132219}
+.area-planilha-status.err{border-color:#8d2834;color:#ffd5d9;background:#281719}
+.area-planilha-resumo{display:none;margin-top:10px;padding:10px 12px;border:1px solid #444;border-radius:7px;background:#101010;color:#ddd;font-size:12px;line-height:1.5}
+.area-planilha-resumo strong{color:#fff}
+.area-planilha-acoes{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap}
+.area-planilha-acoes button{margin:0}
+
+
 </style>
 
 <link rel="manifest" href="./manifest.json">
@@ -766,7 +815,6 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
             <label class="permissao-admin-opcao"><input id="permAdicionarRemover" type="checkbox"><span><strong>Adicionar e remover caráter</strong><small>Salvar novos registros e excluir registros da lista.</small></span></label>
             <label class="permissao-admin-opcao"><input id="permGerenciarMembros" type="checkbox"><span><strong>Aceitar e excluir membros</strong><small>Aprovar, rejeitar e excluir usuários.</small></span></label>
             <label class="permissao-admin-opcao"><input id="permGerenciarAdmins" type="checkbox"><span><strong>Tornar membros administradores</strong><small>Conceder, alterar e retirar permissões administrativas.</small></span></label>
-            <label class="permissao-admin-opcao"><input id="permDownloadLista" type="checkbox"><span><strong>Download da lista de caráter geral</strong><small>Baixar a lista em arquivo TXT.</small></span></label>
         </div>
         <div id="permissaoAdminAviso" class="auth-msg" style="display:none"></div>
         <div class="auth-actions">
@@ -968,7 +1016,6 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
 
 <div class="botoes-salvar-abaixo" id="botoesEditorLista">
 <button id="btnAdicionarCarater" onclick="salvarTextoLista()">💾 Salvar texto na lista</button>
-<button id="btnDownloadLista" onclick="baixarListaTxt()">📥 Salvar lista TXT</button>
 </div>
 
 <script>
@@ -2802,7 +2849,17 @@ function classeCorCarater(texto) {
     const normalizado = String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
     if (/\bROUBO\b/.test(normalizado)) return "carater-roubo";
     if (/\bFURTO\b/.test(normalizado)) return "carater-furto";
-    if (/ACAO\s+CRIMINOSA/.test(normalizado) || /\bOUTROS\b/.test(normalizado) || /\bSUSPEITO\b/.test(normalizado)) return "carater-outros";
+    if (/ACAO\s+CRIMINOSA/.test(normalizado)) return "carater-acao-criminosa";
+    if (/\bOUTROS\b/.test(normalizado) || /\bSUSPEITO\b/.test(normalizado) || /\bSUSPEIO\b/.test(normalizado)) return "carater-outros";
+    return "";
+}
+
+function classeDestaquePlaca(texto) {
+    const classe = classeCorCarater(texto);
+    if (classe === "carater-roubo") return "placa-roubo";
+    if (classe === "carater-furto") return "placa-furto";
+    if (classe === "carater-acao-criminosa") return "placa-acao-criminosa";
+    if (classe === "carater-outros") return "placa-outros";
     return "";
 }
 
@@ -2842,6 +2899,20 @@ function renderizarLista() {
         conteudo.className = "item-conteudo";
         conteudo.textContent = registro.texto || "";
 
+        const placa = encontrarPlaca(registro.texto || "");
+        if (placa && placa.length <= 7) {
+            const badgePlaca = document.createElement("div");
+            badgePlaca.className = "placa-destaque " + classeDestaquePlaca(registro.texto || "");
+            badgePlaca.textContent = placa;
+            badgePlaca.title = "Emplacamento identificado";
+            item.appendChild(numero);
+            item.appendChild(badgePlaca);
+            item.appendChild(conteudo);
+        } else {
+            item.appendChild(numero);
+            item.appendChild(conteudo);
+        }
+
         const botaoCopiar = document.createElement("button");
         botaoCopiar.type = "button";
         botaoCopiar.className = "btn-copiar-registro";
@@ -2851,8 +2922,6 @@ function renderizarLista() {
             copiarRegistroLista(registro.texto || "", numeroRegistro);
         });
 
-        item.appendChild(numero);
-        item.appendChild(conteudo);
         item.appendChild(botaoCopiar);
 
         // Administradores podem excluir individualmente qualquer registro.
@@ -2901,6 +2970,15 @@ function limparBuscaLista() {
 }
 
 
+function validarTamanhoEmplacamento(texto) {
+    const bruto = String(texto || "").toUpperCase();
+    const marcador = bruto.match(/CADASTRO\s+VE[ÍI1]CULO\s*[:\-]?\s*([^\r\n;]+)/);
+    if (!marcador) return { valido: true, placa: null };
+    const campo = marcador[1].replace(/[^A-Z0-9]/g, "");
+    if (campo.length > 7) return { valido: false, placa: campo };
+    return { valido: true, placa: campo || null };
+}
+
 async function salvarTextoLista() {
     if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.adicionar_remover_carater || adminPermissoes.is_master)) {
         alert("Você não possui permissão para adicionar registros à lista online.");
@@ -2912,6 +2990,13 @@ async function salvarTextoLista() {
 
     if (!texto) {
         alert("Não há texto para salvar.");
+        return;
+    }
+
+    const validacaoPlaca = validarTamanhoEmplacamento(texto);
+    if (!validacaoPlaca.valido) {
+        alert("ERRO: o emplacamento não pode ter mais de 7 caracteres.\n\nEmplacamento lido: " + validacaoPlaca.placa);
+        document.getElementById("status").innerText = "Emplacamento inválido: máximo de 7 caracteres.";
         return;
     }
 
@@ -2971,9 +3056,1092 @@ async function salvarTextoLista() {
     await carregarLista();
 }
 
+function abrirEscolhaDownload() {
+    if (!usuarioAtual) {
+        alert("Faça login para baixar a lista de caráter geral.");
+        return;
+    }
+    if (!listaTextos.length) {
+        alert("A lista está vazia.");
+        return;
+    }
+    const overlay = document.getElementById("downloadEscolhaOverlay");
+    if (overlay) {
+        overlay.classList.add("open");
+        overlay.setAttribute("aria-hidden", "false");
+    }
+}
+
+function fecharEscolhaDownload() {
+    const overlay = document.getElementById("downloadEscolhaOverlay");
+    if (overlay) {
+        overlay.classList.remove("open");
+        overlay.setAttribute("aria-hidden", "true");
+    }
+}
+
+function baixarListaTxtEscolha() {
+    fecharEscolhaDownload();
+    baixarListaTxt();
+}
+
+function campoCarater(texto, nomes) {
+    const bruto = String(texto || "");
+    const normalizado = bruto
+        .replace(/\r/g, "")
+        .replace(/\n+/g, " ")
+        .replace(/[ \t]+/g, " ")
+        .trim();
+
+    // Primeiro trata o formato mais comum do caráter geral, em que os campos
+    // vêm separados por ponto e vírgula:
+    // PLACA: ...; TIPO: ...; MARCA: ...; COR: ...; ANO: ...; SITUAÇÃO: ...
+    const partes = normalizado.split(/\s*;\s*/);
+    for (const nome of nomes) {
+        const nomeEscapado = String(nome).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const reParte = new RegExp("^\\s*" + nomeEscapado + "\\s*[:\\-]?\\s*(.*?)\\s*$", "i");
+        for (const parte of partes) {
+            const m = parte.match(reParte);
+            if (m && m[1]) return m[1].trim();
+        }
+    }
+
+    // Fallback para OCR que tenha removido os ponto e vírgula e deixado tudo
+    // em uma única linha. Mantém a compatibilidade com o extrator original.
+    for (const nome of nomes) {
+        const nomeEscapado = String(nome).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const re = new RegExp(
+            "(?:^|[ ;])" + nomeEscapado + "\\s*[:\\-]?\\s*([^;]+?)(?=\\s*;\\s*(?:TIPO|MARCA|MODELO|COR|ANO|MUNIC[IÍ]PIO|SITUA[CÇ]?[AÃ]O)\\s*[:\\-]|\\s+(?:TIPO|MARCA|MODELO|COR|ANO|MUNIC[IÍ]PIO|SITUA[CÇ]?[AÃ]O)\\s*[:\\-]|$)",
+            "i"
+        );
+        const m = normalizado.match(re);
+        if (m && m[1]) return m[1].trim();
+    }
+    return "";
+}
+
+function normalizarArea(area) {
+    return String(area || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, "")
+        .toUpperCase()
+        .replace(/^\/+/, "");
+}
+
+function extrairAreaDaSituacao(situacao) {
+    const s = String(situacao || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toUpperCase();
+
+    // Primeiro tenta o formato completo 1/1M, 2/15M etc.
+    // (não reduz 1/1M para /1M).
+    let m = s.match(/\b\d+\s*\/\s*\d+\s*M\b/i);
+    if (m) return m[0].replace(/\s+/g, "").toUpperCase();
+
+    // Depois aceita os formatos /9M, /35M, /36M.
+    m = s.match(/\/\s*\d+\s*M\b/i);
+    if (m) return m[0].replace(/\s+/g, "").toUpperCase();
+
+    // Fallback para número + M, se vier sem a barra.
+    m = s.match(/\b\d+\s*M\b/i);
+    if (m) return m[0].replace(/\s+/g, "").toUpperCase();
+
+    return "";
+}
+
+// Converte a área detalhada para a área-base usada na tela de seleção.
+// Exemplos: 1/35M, 2/35M, 3/35M e /35M -> 35M.
+// Assim, uma única opção "35M" seleciona todos os veículos dessa área-base,
+// mas a coluna A da planilha continua recebendo a área detalhada original.
+function normalizarGrupoAreaPlanilha(area) {
+    const normalizada = normalizarArea(area);
+    if (!normalizada) return "";
+
+    const comSubarea = normalizada.match(/^\d+\/(\d+M)$/i);
+    if (comSubarea) return comSubarea[1].toUpperCase();
+
+    const somenteArea = normalizada.match(/^(\d+M)$/i);
+    if (somenteArea) return somenteArea[1].toUpperCase();
+
+    return normalizada.replace(/^\/+/, "").toUpperCase();
+}
+
+function extrairDadosPlanilha(registro) {
+    const texto = String(registro?.texto || "").toUpperCase();
+    const placa = encontrarPlaca(texto) || campoCarater(texto, ["PLACA", "EMPLACAMENTO"]);
+    const modelo = campoCarater(texto, ["MODELO"]);
+    const marca = campoCarater(texto, ["MARCA"]);
+    const tipo = campoCarater(texto, ["TIPO"]);
+    const anoMatch = texto.match(/\bANO\s*[:\-]?\s*([0-9]{4})(?:\s*[\/\-]\s*([0-9]{4}))?/i);
+    const anos = anoMatch ? (anoMatch[1] + (anoMatch[2] ? "/" + anoMatch[2] : "")) : "";
+    const cor = campoCarater(texto, ["COR"]);
+    const situacao = campoCarater(texto, ["SITUAÇÃO", "SITUACAO"]);
+
+    // A coluna MODELO/ANO da folha recebe preferencialmente o conteúdo de MODELO.
+    // Nos registros em que o OCR traz o veículo em MARCA (ex.: HONDA/POP 110I),
+    // usamos MARCA; se ambos estiverem ausentes, usamos TIPO.
+    let modeloBase = modelo || marca || tipo || "";
+    let modeloAno = modeloBase;
+    if (modeloAno && anos) modeloAno += " / " + anos;
+    else if (anos) modeloAno = anos;
+
+    // =========================================================
+    // COLUNAS R e A DA PLANILHA
+    // =========================================================
+    // Exemplo do usuário:
+    // SITUAÇÃO: FURTO 1/1M
+    //        -> R = F
+    //        -> A = 1/1M
+    //
+    // Regras:
+    // ROUBO            -> R = R
+    // FURTO            -> R = F
+    // AÇÃO CRIMINOSA   -> R = C05
+    // OUTROS           -> R = C05
+    // SUSPEITO/SUSPEIO -> R = C05
+    //
+    // A coluna A recebe SOMENTE a área que vem depois da situação.
+    // Assim, "FURTO 1/1M" nunca coloca "FURTO" na coluna A.
+    const situacaoLimpa = String(situacao || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toUpperCase();
+
+    let r = "";
+    let a = "";
+
+    if (/\bROUBO\b/.test(situacaoLimpa)) {
+        r = "R";
+    } else if (/\bFURTO\b/.test(situacaoLimpa)) {
+        r = "F";
+    } else if (/\bAÇÃO\s+CRIMINOSA\b|\bACAO\s+CRIMINOSA\b/.test(situacaoLimpa)) {
+        r = "C05";
+    } else if (/\bOUTROS\b/.test(situacaoLimpa)) {
+        r = "C05";
+    } else if (/\bSUSPEITO\b|\bSUSPEIO\b/.test(situacaoLimpa)) {
+        // SUSPEITO também deve compor a tabela de caráter geral.
+        // Considera-se C05 para a coluna R, assim como OUTROS/AÇÃO CRIMINOSA.
+        r = "C05";
+    }
+
+    // Localiza o código da área dentro da SITUAÇÃO.
+    a = extrairAreaDaSituacao(situacaoLimpa);
+
+    // Veículos destacados em LARANJA na lista (OUTROS / SUSPEITO / SUSPEIO)
+    // também pertencem à planilha quando a área estiver entre as selecionadas.
+    // Para eles, a coluna R deve receber C05, mesmo que o OCR tenha trazido a
+    // situação em uma grafia incompleta.
+    const classeCarater = classeCorCarater(texto);
+    const ehLaranja = classeCarater === "carater-outros";
+    if (ehLaranja && !r) r = "C05";
+
+    // Em alguns registros o OCR pode colocar a área fora do campo SITUAÇÃO.
+    // Fazemos um segundo passe no texto inteiro para não deixar esses veículos
+    // laranjas fora da planilha quando a área existir no registro.
+    if (!a) {
+        const areaNoTexto = texto.match(/\b\d+\s*\/\s*\d+\s*M\b|\/\s*\d+\s*M\b/i);
+        if (areaNoTexto) {
+            a = areaNoTexto[0].replace(/\s+/g, "").toUpperCase();
+        }
+    }
+
+    return {
+        placa: String(placa || "").trim(),
+        modeloAno: String(modeloAno || "").trim(),
+        cor: String(cor || "").trim(),
+        r,
+        a,
+        situacao: String(situacao || "").trim(),
+        classeCarater,
+        ehLaranja
+    };
+}
+
+function criarPlanilhaCaraterGeral(areasSelecionadas) {
+    if (typeof ExcelJS === "undefined") {
+        throw new Error("A biblioteca de planilha não foi carregada. Verifique sua conexão com a internet e tente novamente.");
+    }
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "Extrator de Caráter Geral";
+    wb.created = new Date();
+    wb.modified = new Date();
+
+    const porDigito = {};
+    for (let i = 0; i <= 9; i++) porDigito[i] = [];
+
+    const areas = Array.isArray(areasSelecionadas) ? areasSelecionadas : [areasSelecionadas];
+    const areasNormalizadas = new Set(areas.map(normalizarGrupoAreaPlanilha).filter(Boolean));
+
+    const registrosFiltrados = listaTextos.filter(function(registro) {
+        if (!areasNormalizadas.size) return false;
+        const dados = extrairDadosPlanilha(registro);
+        const areaRegistro = normalizarGrupoAreaPlanilha(dados.a);
+
+        // Inclui TODOS os veículos da área selecionada, inclusive os que estão
+        // destacados em LARANJA na lista (OUTROS / SUSPEITO / SUSPEIO).
+        // A cor visual não elimina o registro da planilha; a coluna R recebe C05.
+        return areasNormalizadas.has(areaRegistro);
+    });
+
+    if (!registrosFiltrados.length) {
+        throw new Error("Nenhum veículo foi encontrado para as áreas selecionadas.");
+    }
+
+    function extrairQuartoCaracterePlaca(placa) {
+        const placaLimpa = String(placa || "")
+            .replace(/[^A-Z0-9]/gi, "")
+            .toUpperCase();
+        const quarto = placaLimpa.charAt(3);
+        return /^[0-9]$/.test(quarto) ? quarto : null;
+    }
+
+    registrosFiltrados.forEach(function(registro) {
+        const dados = extrairDadosPlanilha(registro);
+        const digitoQuarto = extrairQuartoCaracterePlaca(dados.placa);
+        if (digitoQuarto !== null) porDigito[digitoQuarto].push(dados);
+    });
+
+    // Registros sem 4º caractere numérico não podem ser distribuídos corretamente
+    // no modelo 0–9 e, portanto, não entram silenciosamente em outro bloco.
+    if (Object.values(porDigito).every(function(arr) { return arr.length === 0; })) {
+        throw new Error("Nenhum veículo com 4º caractere numérico válido foi encontrado para as áreas selecionadas.");
+    }
+
+    const esquerdas = [0,2,4,6,8];
+    const direitas = [1,3,5,7,9];
+    const linhasPorGrupo = 7;
+
+    const thinBorder = {
+        top:    {style:"thin", color:{argb:"FF000000"}},
+        bottom: {style:"thin", color:{argb:"FF000000"}},
+        left:   {style:"thin", color:{argb:"FF000000"}},
+        right:  {style:"thin", color:{argb:"FF000000"}}
+    };
+    const mediumBorder = {
+        top:    {style:"medium", color:{argb:"FF000000"}},
+        bottom: {style:"medium", color:{argb:"FF000000"}},
+        left:   {style:"medium", color:{argb:"FF000000"}},
+        right:  {style:"medium", color:{argb:"FF000000"}}
+    };
+
+    function applyBorder(cell, border) {
+        cell.border = {
+            top: border.top ? {...border.top} : undefined,
+            bottom: border.bottom ? {...border.bottom} : undefined,
+            left: border.left ? {...border.left} : undefined,
+            right: border.right ? {...border.right} : undefined
+        };
+    }
+
+    function applyGrid(ws, maxRow, maxCol) {
+        for (let r = 1; r <= maxRow; r++) {
+            for (let c = 1; c <= maxCol; c++) {
+                const cell = ws.getCell(r, c);
+                applyBorder(cell, thinBorder);
+                cell.alignment = {
+                    horizontal:"center",
+                    vertical:"center",
+                    wrapText:true
+                };
+                cell.font = {
+                    name:"Arial",
+                    size:8
+                };
+            }
+        }
+    }
+
+    function configurarLarguras(ws) {
+        const larguras = [
+            4,
+            3.3,3.3,3.3,3.3,3.3,3.3,
+            8.5,8.5,8.5,8,
+            5,7,
+            2.5,
+            4,
+            3.3,3.3,3.3,3.3,3.3,3.3,
+            8.5,8.5,8.5,8,
+            5,7
+        ];
+        larguras.forEach(function(width, idx) {
+            ws.getColumn(idx + 1).width = width;
+        });
+    }
+
+    function definirValorTexto(cell, valor) {
+        cell.value = String(valor || "");
+        cell.font = {name:"Arial", size:8};
+        cell.alignment = {horizontal:"center", vertical:"center", wrapText:true};
+    }
+
+    function preencherBloco(ws, row, base, dados, digito) {
+        const placaLimpa = String(dados?.placa || "")
+            .replace(/[^A-Z0-9]/gi, "")
+            .toUpperCase();
+
+        const primeirosTres = placaLimpa.slice(0,3).split("");
+        const quarto = digito || placaLimpa.charAt(3) || "";
+        const finais = placaLimpa.length > 4 ? placaLimpa.slice(4) : "";
+
+        // PLACA = 4 lacunas visuais:
+        // [1] [1] [1] [4J49]
+        // A 4ª lacuna é uma única célula mesclada. O 4º caractere fica
+        // fixado pelo bloco e em negrito; o restante segue normal.
+        for (let i = 0; i < 3; i++) {
+            const cell = ws.getCell(row, base + i);
+            definirValorTexto(cell, primeirosTres[i] || "");
+            cell.font = {name:"Arial", size:9, bold:false};
+        }
+
+        const quartaStart = base + 3;
+        const quartaEnd = base + 5;
+        ws.mergeCells(row, quartaStart, row, quartaEnd);
+        const quartaCell = ws.getCell(row, quartaStart);
+        quartaCell.value = {
+            richText: [
+                {text: quarto, font:{name:"Arial", size:10, bold:true}},
+                {text: finais, font:{name:"Arial", size:10, bold:false}}
+            ]
+        };
+        quartaCell.alignment = {horizontal:"center", vertical:"center"};
+        applyBorder(quartaCell, thinBorder);
+
+        const modelCol = base + 6;
+        const corCol = base + 9;
+        const rCol = base + 10;
+        const aCol = base + 11;
+
+        // MODELO/ANO: coluna visual única, agrupando as 3 colunas internas.
+        ws.mergeCells(row, modelCol, row, modelCol + 2);
+        const modelCell = ws.getCell(row, modelCol);
+        definirValorTexto(modelCell, dados?.modeloAno || "");
+        modelCell.font = {name:"Arial", size:8};
+        applyBorder(modelCell, thinBorder);
+
+        const corCell = ws.getCell(row, corCol);
+        definirValorTexto(corCell, dados?.cor || "");
+
+        const rCell = ws.getCell(row, rCol);
+        definirValorTexto(rCell, dados?.r || "");
+
+        const aCell = ws.getCell(row, aCol);
+        definirValorTexto(aCell, dados?.a || "");
+
+        // Reaplica a borda da área do bloco após as mesclas.
+        for (let c = base; c <= aCol; c++) {
+            const cell = ws.getCell(row, c);
+            if (c === quartaStart) {
+                applyBorder(cell, thinBorder);
+            } else if (c > quartaStart && c <= quartaEnd) {
+                // Células mescladas pertencem ao mesmo campo visual; não criamos
+                // divisórias internas nesse campo.
+            } else if (c === modelCol) {
+                applyBorder(cell, thinBorder);
+            } else if (c > modelCol && c <= modelCol + 2) {
+                // Sem divisórias internas no campo MODELO/ANO agrupado.
+            } else {
+                applyBorder(cell, thinBorder);
+            }
+        }
+    }
+
+    function montarFolha(nome, esquerda, direita) {
+        const ws = wb.addWorksheet(nome, {
+            pageSetup: {
+                orientation: "landscape",
+                fitToPage: true,
+                fitToWidth: 1,
+                fitToHeight: 0,
+                paperSize: 9,
+                horizontalDpi: 300,
+                verticalDpi: 300,
+                horizontalCentered: true,
+                verticalCentered: true
+            },
+            properties: {
+                defaultRowHeight: 18
+            },
+            views: [{state:"frozen", ySplit:3}]
+        });
+
+        configurarLarguras(ws);
+
+        // =========================================================
+        // TAMANHO DINÂMICO DOS BLOCOS
+        // =========================================================
+        // Cada número (0 a 9) possui no mínimo 7 linhas, como no modelo.
+        // Se houver mais de 7 veículos para determinado 4º caractere,
+        // o bloco cresce automaticamente NO MESMO LUGAR. Assim, nenhum
+        // veículo é deslocado para outro bloco ou perdido por falta de espaço.
+        // Como os blocos são lado a lado, a altura de cada par é o maior
+        // número de veículos entre os dois dígitos, sempre com mínimo de 7.
+        const tamanhoMinimo = 7;
+        const alturasPares = [];
+        for (let g = 0; g < 5; g++) {
+            const dl = esquerda[g];
+            const dr = direita[g];
+            const qtdL = (porDigito[dl] || []).length;
+            const qtdR = (porDigito[dr] || []).length;
+            alturasPares.push(Math.max(tamanhoMinimo, qtdL, qtdR));
+        }
+
+        const ultimaLinha = 3 + alturasPares.reduce(function(total, altura) {
+            return total + altura;
+        }, 0);
+
+        // =========================================================
+        // CABEÇALHO
+        // =========================================================
+        for (let r = 1; r <= ultimaLinha; r++) ws.getRow(r).height = 18;
+        ws.getRow(1).height = 22;
+        ws.getRow(2).height = 8;
+        ws.getRow(3).height = 20;
+
+        ws.mergeCells("A1:M1");
+        const titulo = ws.getCell("A1");
+        titulo.value = "CARÁTER GERAL";
+        titulo.font = {name:"Arial", size:14, bold:true};
+        titulo.alignment = {horizontal:"center", vertical:"center"};
+
+        ws.mergeCells("O1:AA1");
+        const dataCell = ws.getCell("O1");
+        dataCell.value = "DATA:     /     /";
+        dataCell.font = {name:"Arial", size:11, bold:true};
+        dataCell.alignment = {horizontal:"center", vertical:"center"};
+
+        ws.mergeCells("B3:G3");
+        ws.getCell("B3").value = "PLACA";
+        ws.mergeCells("H3:J3");
+        ws.getCell("H3").value = "MODELO/ANO";
+        ws.getCell("K3").value = "COR";
+        ws.getCell("L3").value = "R";
+        ws.getCell("M3").value = "A";
+
+        ws.mergeCells("P3:U3");
+        ws.getCell("P3").value = "PLACA";
+        ws.mergeCells("V3:X3");
+        ws.getCell("V3").value = "MODELO/ANO";
+        ws.getCell("Y3").value = "COR";
+        ws.getCell("Z3").value = "R";
+        ws.getCell("AA3").value = "A";
+
+        // Toda a grade, inclusive as novas linhas criadas automaticamente,
+        // recebe contorno antes das mesclagens.
+        applyGrid(ws, ultimaLinha, 27);
+
+        ["B3","H3","K3","L3","M3","P3","V3","Y3","Z3","AA3"].forEach(function(ref){
+            const c = ws.getCell(ref);
+            c.font = {name:"Arial", size:8, bold:true};
+            c.alignment = {horizontal:"center", vertical:"center", wrapText:true};
+            c.fill = {type:"pattern", pattern:"solid", fgColor:{argb:"FFD9D9D9"}};
+            applyBorder(c, thinBorder);
+        });
+
+        // =========================================================
+        // BLOCOS 0–9 COM ALTURA AUTOMÁTICA
+        // =========================================================
+        let row = 4;
+        for (let g = 0; g < 5; g++) {
+            const dl = esquerda[g];
+            const dr = direita[g];
+            const qtdL = (porDigito[dl] || []).length;
+            const qtdR = (porDigito[dr] || []).length;
+            const altura = alturasPares[g];
+            const start = row;
+            const end = row + altura - 1;
+
+            // Prepara toda a faixa cinza ANTES da mesclagem.
+            // Isso preserva o fundo e o contorno mesmo quando o bloco cresce.
+            for (let i = 0; i < altura; i++) {
+                const faixaL = ws.getCell(start + i, 1);
+                const faixaR = ws.getCell(start + i, 15);
+                faixaL.fill = {type:"pattern", pattern:"solid", fgColor:{argb:"FFD9D9D9"}};
+                faixaR.fill = {type:"pattern", pattern:"solid", fgColor:{argb:"FFD9D9D9"}};
+                applyBorder(faixaL, thinBorder);
+                applyBorder(faixaR, thinBorder);
+            }
+
+            ws.mergeCells(start, 1, end, 1);
+            ws.mergeCells(start, 15, end, 15);
+
+            for (let i = 0; i < altura; i++) {
+                const rl = start + i;
+                const dlData = (porDigito[dl] || [])[i] || null;
+                const drData = (porDigito[dr] || [])[i] || null;
+
+                preencherBloco(ws, rl, 2, dlData || {placa:"",modeloAno:"",cor:"",r:"",a:""}, String(dl));
+                preencherBloco(ws, rl, 16, drData || {placa:"",modeloAno:"",cor:"",r:"",a:""}, String(dr));
+            }
+
+            // Reaplica os números depois de preencher todas as linhas.
+            // Assim, nenhuma rotina de preenchimento pode apagar os prefixos 0–9.
+            const leftDigit = ws.getCell(start, 1);
+            leftDigit.value = String(dl);
+            leftDigit.font = {name:"Arial", size:26, bold:true, color:{argb:"FF000000"}};
+            leftDigit.alignment = {horizontal:"center", vertical:"center"};
+            leftDigit.fill = {type:"pattern", pattern:"solid", fgColor:{argb:"FFD9D9D9"}};
+            applyBorder(leftDigit, mediumBorder);
+
+            const rightDigit = ws.getCell(start, 15);
+            rightDigit.value = String(dr);
+            rightDigit.font = {name:"Arial", size:26, bold:true, color:{argb:"FF000000"}};
+            rightDigit.alignment = {horizontal:"center", vertical:"center"};
+            rightDigit.fill = {type:"pattern", pattern:"solid", fgColor:{argb:"FFD9D9D9"}};
+            applyBorder(rightDigit, mediumBorder);
+
+            // Separador inferior mais forte no fim de cada bloco dinâmico.
+            for (let c = 1; c <= 13; c++) applyBorder(ws.getCell(end, c), mediumBorder);
+            for (let c = 15; c <= 27; c++) applyBorder(ws.getCell(end, c), mediumBorder);
+
+            row = end + 1;
+        }
+
+        // Reforça o contorno exterior do quadro inteiro, incluindo todas as
+        // linhas adicionais criadas automaticamente.
+        for (let r = 4; r <= ultimaLinha; r++) {
+            const left = ws.getCell(r, 1);
+            left.border = {
+                left: mediumBorder.left,
+                top: left.border?.top || thinBorder.top,
+                bottom: left.border?.bottom || thinBorder.bottom,
+                right: left.border?.right || thinBorder.right
+            };
+
+            const middle = ws.getCell(r, 14);
+            middle.border = {
+                left: mediumBorder.left,
+                top: middle.border?.top || thinBorder.top,
+                bottom: middle.border?.bottom || thinBorder.bottom,
+                right: mediumBorder.right
+            };
+
+            const right = ws.getCell(r, 27);
+            right.border = {
+                left: right.border?.left || thinBorder.left,
+                top: right.border?.top || thinBorder.top,
+                bottom: right.border?.bottom || thinBorder.bottom,
+                right: mediumBorder.right
+            };
+        }
+
+        // =========================================================
+        // CENTRALIZAÇÃO FINAL DE TODAS AS CÉLULAS
+        // =========================================================
+        // Última etapa de formatação: força o conteúdo de TODA a tabela
+        // para o centro horizontal e vertical, inclusive células vazias,
+        // cabeçalhos, blocos cinza, linhas criadas automaticamente e
+        // células mescladas. O alinhamento é aplicado diretamente na célula
+        // e, quando houver mesclagem, também na célula-mestre.
+        function centralizarTodasCelulas(ws, maxRow, maxCol) {
+            const alinhamentoCentral = {
+                horizontal: "center",
+                vertical: "center",
+                wrapText: true,
+                textRotation: 0,
+                indent: 0,
+                shrinkToFit: false
+            };
+
+            for (let r = 1; r <= maxRow; r++) {
+                for (let c = 1; c <= maxCol; c++) {
+                    const cell = ws.getCell(r, c);
+
+                    try {
+                        cell.alignment = { ...alinhamentoCentral };
+                    } catch (e) {}
+
+                    try {
+                        if (cell && cell.master) {
+                            cell.master.alignment = { ...alinhamentoCentral };
+                        }
+                    } catch (e) {}
+                }
+            }
+
+            // Reforça especificamente todas as áreas mescladas utilizadas
+            // pelo modelo, pois no Excel a célula-mestre é quem determina
+            // o alinhamento visual do conjunto mesclado.
+            [
+                "A1:M1", "O1:AA1",
+                "B3:G3", "H3:J3", "P3:U3", "V3:X3"
+            ].forEach(function(ref) {
+                try {
+                    ws.getCell(ref.split(":")[0]).alignment = { ...alinhamentoCentral };
+                } catch (e) {}
+            });
+
+            for (let g = 0; g < 5; g++) {
+                const inicio = 4 + alturasPares.slice(0, g).reduce(function(a,b){ return a+b; }, 0);
+                const fim = inicio + alturasPares[g] - 1;
+
+                // Números gigantes 0–9 (células verticais mescladas)
+                [1, 15].forEach(function(col) {
+                    try {
+                        ws.getCell(inicio, col).alignment = { ...alinhamentoCentral };
+                    } catch (e) {}
+                });
+
+                for (let r = inicio; r <= fim; r++) {
+                    [5, 17, 22, 25].forEach(function(col) {
+                        if (col <= 27) {
+                            try { ws.getCell(r, col).alignment = { ...alinhamentoCentral }; } catch (e) {}
+                        }
+                    });
+                }
+            }
+        }
+
+        centralizarTodasCelulas(ws, ultimaLinha, 27);
+
+        // Garante também o alinhamento da própria página para impressão/exportação.
+        ws.pageSetup.horizontalCentered = true;
+        ws.pageSetup.verticalCentered = true;
+
+        // Limites de impressão acompanham o tamanho real da planilha.
+        ws.pageSetup.printArea = "A1:AA" + ultimaLinha;
+        ws.pageMargins = {
+            left:0.15, right:0.15, top:0.25, bottom:0.25,
+            header:0.10, footer:0.10
+        };
+        ws.headerFooter.oddFooter = "";
+
+        return {
+            worksheet: ws,
+            ultimaLinha: ultimaLinha,
+            alturasPares: alturasPares
+        };
+    }
+
+    // Guarda a quantidade real de registros que foram distribuídos para a grade.
+    // Essa contagem é feita a partir dos dados usados no preenchimento, e não
+    // relendo células mescladas do ExcelJS (o que pode subcontar algumas linhas).
+    const quantidadeDistribuida = Object.values(porDigito).reduce(function(total, arr) {
+        return total + arr.length;
+    }, 0);
+
+    const registrosSem4oDigitoNumerico = registrosFiltrados.filter(function(registro) {
+        const dados = extrairDadosPlanilha(registro);
+        const placaLimpa = String(dados.placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
+        return !/^\d$/.test(placaLimpa.charAt(3));
+    }).map(function(registro) {
+        const dados = extrairDadosPlanilha(registro);
+        return {
+            placa: dados.placa || "(sem placa)",
+            area: dados.a || "(sem área)",
+            situacao: dados.situacao || "",
+            ehLaranja: !!dados.ehLaranja
+        };
+    });
+
+    // Uma única folha dinâmica contém todos os veículos das áreas selecionadas.
+    // Quando um dígito ultrapassa as 7 linhas originais, novas linhas são
+    // criadas automaticamente exatamente dentro daquele bloco.
+    montarFolha("Caráter Geral", esquerdas, direitas);
+
+    // Metadados internos usados pela rotina de validação antes do download.
+    // Assim a validação confere exatamente os registros que a rotina de
+    // preenchimento colocou na grade.
+    wb.__caraterMeta = {
+        selecionados: registrosFiltrados.length,
+        distribuidos: quantidadeDistribuida,
+        naoDistribuidos: registrosSem4oDigitoNumerico
+    };
+
+    return wb;
+}
+
+function listarAreasParaPlanilha() {
+    const mapa = new Map();
+    listaTextos.forEach(function(registro) {
+        const dados = extrairDadosPlanilha(registro);
+        const areaDetalhada = String(dados.a || "").trim();
+        const grupo = normalizarGrupoAreaPlanilha(areaDetalhada);
+        if (!grupo) return;
+
+        // Uma única opção por área-base. Ex.: 1/35M + 2/35M + 3/35M -> 35M.
+        const item = mapa.get(grupo) || {area: grupo, quantidade: 0};
+        item.quantidade++;
+        mapa.set(grupo, item);
+    });
+
+    return Array.from(mapa.values()).sort(function(a,b) {
+        return a.area.localeCompare(b.area, "pt-BR", {numeric:true, sensitivity:"base"});
+    });
+}
+
+let areasSelecionadasPlanilha = [];
+let planilhaCaraterPronta = null;
+let planilhaCaraterQuantidade = 0;
+let planilhaCaraterAreas = [];
+
+function atualizarResumoAreasPlanilha() {
+    const resumo = document.getElementById("areaPlanilhaContagem");
+    const botaoGerar = document.getElementById("btnGerarPlanilhaAreas");
+    const marcados = document.querySelectorAll('input[name="areaPlanilhaCheckbox"]:checked');
+    const quantidade = marcados.length;
+    areasSelecionadasPlanilha = Array.from(marcados).map(function(input) { return input.value; });
+
+    // Qualquer mudança de seleção invalida a planilha que já estava pronta.
+    planilhaCaraterPronta = null;
+    planilhaCaraterQuantidade = 0;
+    planilhaCaraterAreas = [];
+
+    const btnDownload = document.getElementById("btnBaixarPlanilhaPronta");
+    const resumoPronto = document.getElementById("areaPlanilhaResumo");
+    if (btnDownload) {
+        btnDownload.disabled = true;
+        btnDownload.textContent = "⬇️ Baixar planilha preenchida";
+    }
+    if (resumoPronto) {
+        resumoPronto.style.display = "none";
+        resumoPronto.innerHTML = "";
+    }
+
+    if (resumo) {
+        resumo.textContent = quantidade === 0
+            ? "Nenhuma área selecionada"
+            : quantidade === 1
+                ? "1 área selecionada"
+                : quantidade + " áreas selecionadas";
+    }
+
+    if (botaoGerar) {
+        botaoGerar.disabled = quantidade === 0;
+        botaoGerar.textContent = "📊 Preencher planilha";
+    }
+
+    document.querySelectorAll(".area-planilha-check").forEach(function(item) {
+        const input = item.querySelector('input[name="areaPlanilhaCheckbox"]');
+        item.classList.toggle("selecionada", !!input && input.checked);
+    });
+}
+
+function selecionarTodasAreasPlanilha() {
+    document.querySelectorAll('input[name="areaPlanilhaCheckbox"]').forEach(function(input) {
+        input.checked = true;
+    });
+    atualizarResumoAreasPlanilha();
+}
+
+function limparTodasAreasPlanilha() {
+    document.querySelectorAll('input[name="areaPlanilhaCheckbox"]').forEach(function(input) {
+        input.checked = false;
+    });
+    atualizarResumoAreasPlanilha();
+}
+
+function abrirEscolhaAreaPlanilha() {
+    fecharEscolhaDownload();
+    if (!usuarioAtual) {
+        alert("Faça login para baixar a lista de caráter geral.");
+        return;
+    }
+    if (!listaTextos.length) {
+        alert("A lista está vazia.");
+        return;
+    }
+
+    const overlay = document.getElementById("areaPlanilhaOverlay");
+    const lista = document.getElementById("areaPlanilhaLista");
+    const status = document.getElementById("areaPlanilhaStatus");
+    const resumoPronto = document.getElementById("areaPlanilhaResumo");
+    const btnDownload = document.getElementById("btnBaixarPlanilhaPronta");
+    if (!overlay || !lista) return;
+
+    const areas = listarAreasParaPlanilha();
+    areasSelecionadasPlanilha = [];
+    planilhaCaraterPronta = null;
+    planilhaCaraterQuantidade = 0;
+    planilhaCaraterAreas = [];
+    lista.innerHTML = "";
+
+    if (!areas.length) {
+        lista.innerHTML = '<div class="area-planilha-vazio">Nenhuma área foi identificada nos registros da lista.</div>';
+    } else {
+        areas.forEach(function(item, indice) {
+            const rotulo = document.createElement("label");
+            rotulo.className = "area-planilha-check";
+            rotulo.setAttribute("for", "areaPlanilhaCheckbox_" + indice);
+
+            const input = document.createElement("input");
+            input.type = "checkbox";
+            input.name = "areaPlanilhaCheckbox";
+            input.value = item.area;
+            input.id = "areaPlanilhaCheckbox_" + indice;
+            input.addEventListener("change", atualizarResumoAreasPlanilha);
+
+            const info = document.createElement("div");
+            info.className = "area-planilha-info";
+            const nome = document.createElement("strong");
+            nome.textContent = item.area;
+            const quantidade = document.createElement("span");
+            quantidade.textContent = item.quantidade + (item.quantidade === 1 ? " veículo" : " veículos");
+            info.appendChild(nome);
+            info.appendChild(quantidade);
+
+            rotulo.appendChild(input);
+            rotulo.appendChild(info);
+            lista.appendChild(rotulo);
+        });
+    }
+
+    if (status) {
+        status.style.display = "none";
+        status.className = "area-planilha-status";
+        status.textContent = "";
+    }
+    if (resumoPronto) {
+        resumoPronto.style.display = "none";
+        resumoPronto.innerHTML = "";
+    }
+    if (btnDownload) {
+        btnDownload.disabled = true;
+        btnDownload.textContent = "⬇️ Baixar planilha preenchida";
+    }
+
+    overlay.classList.add("open");
+    overlay.setAttribute("aria-hidden", "false");
+    atualizarResumoAreasPlanilha();
+}
+
+function fecharEscolhaAreaPlanilha() {
+    const overlay = document.getElementById("areaPlanilhaOverlay");
+    if (overlay) {
+        overlay.classList.remove("open");
+        overlay.setAttribute("aria-hidden", "true");
+    }
+}
+
+function valorTextoCelulaExcelJS(cell) {
+    const value = cell ? cell.value : null;
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string" || typeof value === "number") return String(value);
+    if (value.richText) return value.richText.map(function(part) { return part.text || ""; }).join("");
+    if (typeof value === "object" && value.text !== undefined) return String(value.text);
+    return String(value);
+}
+
+function contarBlocosComVeiculo(workbook) {
+    if (!workbook) return 0;
+
+    // A contagem principal vem dos metadados gerados durante o preenchimento.
+    // Isso evita falsos "70 de 72" causados por células mescladas/richText do ExcelJS.
+    if (workbook.__caraterMeta && Number.isFinite(workbook.__caraterMeta.distribuidos)) {
+        return workbook.__caraterMeta.distribuidos;
+    }
+
+    // Fallback apenas para compatibilidade com workbooks antigos.
+    if (!workbook.worksheets) return 0;
+    let total = 0;
+    workbook.worksheets.forEach(function(ws) {
+        for (let r = 4; r <= 38; r++) {
+            const esquerda = [2,3,4,5,6,7].some(function(c) {
+                return valorTextoCelulaExcelJS(ws.getCell(r,c)).trim() !== "";
+            });
+            const direita = [16,17,18,19,20,21].some(function(c) {
+                return valorTextoCelulaExcelJS(ws.getCell(r,c)).trim() !== "";
+            });
+            if (esquerda) total++;
+            if (direita) total++;
+        }
+    });
+    return total;
+}
+
+function contarFolhasExcelJS(workbook) {
+    return workbook && workbook.worksheets ? workbook.worksheets.length : 0;
+}
+
+function gerarPlanilhaDasAreas() {
+    const status = document.getElementById("areaPlanilhaStatus");
+    const botaoGerar = document.getElementById("btnGerarPlanilhaAreas");
+    const btnDownload = document.getElementById("btnBaixarPlanilhaPronta");
+    const resumoPronto = document.getElementById("areaPlanilhaResumo");
+    const elementos = document.querySelectorAll(".area-planilha-acoes button, .area-planilha-toolbar button, .area-planilha-check input");
+    const areas = Array.from(document.querySelectorAll('input[name="areaPlanilhaCheckbox"]:checked')).map(function(input) { return input.value; });
+
+    if (!areas.length) {
+        alert("Selecione pelo menos uma área para montar a planilha.");
+        return;
+    }
+
+    planilhaCaraterPronta = null;
+    planilhaCaraterQuantidade = 0;
+    planilhaCaraterAreas = [];
+    if (btnDownload) btnDownload.disabled = true;
+
+    areasSelecionadasPlanilha = areas.slice();
+    elementos.forEach(function(el) { el.disabled = true; });
+
+    if (status) {
+        status.className = "area-planilha-status";
+        status.style.display = "block";
+        status.textContent = "Localizando os veículos, criando TODA a grade da planilha e preenchendo os dados...";
+    }
+    if (botaoGerar) botaoGerar.textContent = "⏳ Preenchendo planilha...";
+    if (resumoPronto) {
+        resumoPronto.style.display = "none";
+        resumoPronto.innerHTML = "";
+    }
+
+    setTimeout(async function() {
+        try {
+            if (typeof ExcelJS === "undefined") {
+                throw new Error("A biblioteca Excel não foi carregada. Recarregue a página e tente novamente.");
+            }
+
+            // 1) Monta a planilha completamente em memória.
+            const wb = criarPlanilhaCaraterGeral(areas);
+
+            // 2) Valida a quantidade esperada de registros antes do download.
+            // O esperado agora é exatamente a quantidade selecionada que foi
+            // distribuída pelos blocos 0–9 durante a criação da grade.
+            const quantidadeEsperada = wb.__caraterMeta ? wb.__caraterMeta.distribuidos : contarBlocosComVeiculo(wb);
+            const quantidadeSelecionada = wb.__caraterMeta ? wb.__caraterMeta.selecionados : quantidadeEsperada;
+            const naoDistribuidos = wb.__caraterMeta ? (wb.__caraterMeta.naoDistribuidos || []) : [];
+
+            const quantidadePlanilha = contarBlocosComVeiculo(wb);
+            const numeroFolhas = contarFolhasExcelJS(wb);
+
+            if (!numeroFolhas) throw new Error("A planilha não criou nenhuma folha.");
+            if (quantidadeSelecionada <= 0) throw new Error("Nenhum veículo foi localizado nas áreas selecionadas.");
+            if (naoDistribuidos.length) {
+                const detalhes = naoDistribuidos.slice(0, 5).map(function(item) { return item.placa + " (" + item.area + ")"; }).join(", ");
+                throw new Error("Existem " + naoDistribuidos.length + " veículo(s) selecionado(s) que não puderam ser posicionados pelo 4º caractere numérico da placa. Verifique: " + detalhes + (naoDistribuidos.length > 5 ? "..." : ""));
+            }
+            if (quantidadePlanilha <= 0) throw new Error("A planilha foi criada, mas não contém veículos preenchidos.");
+            if (quantidadePlanilha !== quantidadeEsperada || quantidadeEsperada !== quantidadeSelecionada) {
+                throw new Error("A planilha ficou incompleta (" + quantidadePlanilha + " de " + quantidadeSelecionada + " veículos). O download foi bloqueado.");
+            }
+
+            // 3) Faz uma validação adicional serializando em memória. Se houver
+            // problema estrutural, o download permanece bloqueado.
+            const buffer = await wb.xlsx.writeBuffer({useStyles:true, useSharedStrings:true});
+            if (!buffer || !buffer.byteLength || buffer.byteLength < 1000) {
+                throw new Error("A planilha não pôde ser preparada corretamente para download.");
+            }
+
+            // 4) Só agora armazenamos o workbook como PRONTO. Nenhum download ocorre aqui.
+            planilhaCaraterPronta = wb;
+            planilhaCaraterQuantidade = quantidadePlanilha;
+            planilhaCaraterAreas = areas.slice();
+
+            if (status) {
+                status.className = "area-planilha-status ok";
+                status.style.display = "block";
+                status.textContent = "✅ Planilha preenchida e validada. O download só foi liberado depois de confirmar os " + quantidadePlanilha + " veículos.";
+            }
+            if (resumoPronto) {
+                resumoPronto.style.display = "block";
+                resumoPronto.innerHTML = "<strong>Planilha pronta:</strong> " + quantidadePlanilha + " veículo(s) preenchido(s) em " + numeroFolhas + " folha(s).<br><strong>Áreas:</strong> " + areas.join(", ") + ".<br>Os campos MODELO/ANO foram agrupados e toda a grade recebeu contorno. O arquivo ainda não foi baixado.";
+            }
+
+            if (botaoGerar) {
+                botaoGerar.disabled = true;
+                botaoGerar.textContent = "✅ Planilha preenchida";
+            }
+            if (btnDownload) {
+                btnDownload.disabled = false;
+                btnDownload.textContent = "⬇️ Baixar planilha preenchida (" + quantidadePlanilha + " veículos)";
+            }
+
+            elementos.forEach(function(el) {
+                if (el !== btnDownload && el !== botaoGerar) el.disabled = false;
+            });
+            if (btnDownload) btnDownload.disabled = false;
+
+            document.getElementById("status").innerText = "Planilha preenchida e validada com " + quantidadePlanilha + " veículos. O download está liberado.";
+        } catch (erro) {
+            console.error(erro);
+            planilhaCaraterPronta = null;
+            planilhaCaraterQuantidade = 0;
+            planilhaCaraterAreas = [];
+            if (status) {
+                status.className = "area-planilha-status err";
+                status.style.display = "block";
+                status.textContent = "❌ " + (erro.message || erro);
+            }
+            alert("A planilha não foi liberada para download. " + (erro.message || erro));
+            elementos.forEach(function(el) { el.disabled = false; });
+            if (botaoGerar) {
+                botaoGerar.disabled = false;
+                botaoGerar.textContent = "📊 Preencher planilha";
+            }
+            if (btnDownload) {
+                btnDownload.disabled = true;
+                btnDownload.textContent = "⬇️ Baixar planilha preenchida";
+            }
+            atualizarResumoAreasPlanilha();
+        }
+    }, 80);
+}
+
+async function baixarPlanilhaPreenchida() {
+    if (!planilhaCaraterPronta || !planilhaCaraterQuantidade) {
+        alert("O download está bloqueado porque a planilha ainda não foi preenchida e validada.");
+        return;
+    }
+    if (typeof ExcelJS === "undefined") {
+        alert("A biblioteca Excel não está disponível.");
+        return;
+    }
+
+    const btnDownload = document.getElementById("btnBaixarPlanilhaPronta");
+    if (btnDownload) {
+        btnDownload.disabled = true;
+        btnDownload.textContent = "⏳ Baixando planilha preenchida...";
+    }
+
+    try {
+        // Confere novamente antes de permitir a gravação.
+        const quantidadeValidada = contarBlocosComVeiculo(planilhaCaraterPronta);
+        if (quantidadeValidada !== planilhaCaraterQuantidade) {
+            throw new Error("A quantidade de veículos mudou e a planilha precisa ser preenchida novamente.");
+        }
+
+        const agora = new Date();
+        const data = String(agora.getDate()).padStart(2,"0") + "-" + String(agora.getMonth()+1).padStart(2,"0") + "-" + agora.getFullYear();
+        const nomesAreas = planilhaCaraterAreas.map(normalizarArea).filter(Boolean).join("_").replace(/[^A-Z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+
+        const buffer = await planilhaCaraterPronta.xlsx.writeBuffer({useStyles:true, useSharedStrings:true});
+        const blob = new Blob([buffer], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "carater_geral" + (nomesAreas ? "_" + nomesAreas : "") + "_" + data + ".xlsx";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 1500);
+
+        const status = document.getElementById("areaPlanilhaStatus");
+        if (status) {
+            status.className = "area-planilha-status ok";
+            status.textContent = "✅ Download concluído. O arquivo foi gerado somente depois de a planilha estar preenchida e validada.";
+        }
+        const resumoPronto = document.getElementById("areaPlanilhaResumo");
+        if (resumoPronto) resumoPronto.innerHTML += "<br><strong>Download:</strong> concluído.";
+        setTimeout(fecharEscolhaAreaPlanilha, 700);
+    } catch (erro) {
+        console.error(erro);
+        alert("Não foi possível baixar a planilha preenchida. " + (erro.message || erro));
+        if (btnDownload) {
+            btnDownload.disabled = false;
+            btnDownload.textContent = "⬇️ Baixar planilha preenchida (" + planilhaCaraterQuantidade + " veículos)";
+        }
+    }
+}
+
+function baixarListaPlanilha() {
+    abrirEscolhaAreaPlanilha();
+}
+
 function baixarListaTxt() {
-    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.download_lista || adminPermissoes.is_master)) {
-        alert("Você não possui permissão para baixar a lista de caráter geral.");
+    if (!usuarioAtual) {
+        alert("Faça login para baixar a lista de caráter geral.");
         return;
     }
     if (!listaTextos.length) {
@@ -3109,8 +4277,9 @@ function pararRealtimeLista() {
    um dos botões de extração.
 ========================================================= */
 async function capturarTelaAdmin() {
-    if (!souAdmin) {
-        alert("Somente administradores podem capturar a tela.");
+    const podeEditar = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.adicionar_remover_carater || adminPermissoes.is_master);
+    if (!podeEditar) {
+        alert("Você não possui permissão para inserir caráter.");
         return;
     }
 
@@ -4258,9 +5427,10 @@ async function atualizarIndicadoresAcesso() {
     const botoesUsuarioLista = document.getElementById("botoesUsuarioLista");
     const botoesEditor = document.getElementById("botoesEditorLista");
 
-    if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
+    const podeAcessarAprovacoes = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master);
+    if (btnAdmin) btnAdmin.style.display = podeAcessarAprovacoes ? "inline-block" : "none";
     if (badgeAprovacoes) {
-        badgeAprovacoes.style.display = souAdmin ? "inline-flex" : "none";
+        badgeAprovacoes.style.display = podeAcessarAprovacoes ? "inline-flex" : "none";
         badgeAprovacoes.textContent = "0";
     }
     if (btnMensagemAdmin) btnMensagemAdmin.style.display = souAdmin ? "inline-block" : "none";
@@ -4291,16 +5461,16 @@ async function atualizarIndicadoresAcesso() {
     if (botoesUsuarioLista) botoesUsuarioLista.style.display = souAdmin ? "none" : "flex";
     if (botoesEditor) botoesEditor.style.display = souAdmin ? "flex" : "none";
     const podeEditar = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.adicionar_remover_carater || adminPermissoes.is_master);
-    const podeDownload = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.download_lista || adminPermissoes.is_master);
+    const podeDownload = !!usuarioAtual;
     const podeMembros = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.gerenciar_membros || adminPermissoes.is_master);
     const podeAdmins = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.gerenciar_admins || adminPermissoes.is_master);
     const btnAddCarater = document.getElementById("btnAdicionarCarater");
     const btnDownloadLista = document.getElementById("btnDownloadLista");
     if (btnAddCarater) btnAddCarater.style.display = podeEditar ? "inline-block" : "none";
     if (btnDownloadLista) btnDownloadLista.style.display = podeDownload ? "inline-block" : "none";
-    if (btnAdmin) btnAdmin.style.display = souAdmin ? "inline-block" : "none";
+    if (btnAdmin) btnAdmin.style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
     if (document.getElementById("btnMensagemAdmin")) document.getElementById("btnMensagemAdmin").style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
-    if (document.getElementById("btnCapturarTelaAdmin")) document.getElementById("btnCapturarTelaAdmin").style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
+    if (document.getElementById("btnCapturarTelaAdmin")) document.getElementById("btnCapturarTelaAdmin").style.display = podeEditar ? "inline-block" : "none";
     const btnAdmins = document.querySelector('#adminArea .auth-actions .btn-info');
     if (btnAdmins) btnAdmins.style.display = podeAdmins ? "inline-block" : "none";
     const backupBox = document.querySelector('#adminArea .backup-box');
@@ -4459,7 +5629,7 @@ async function carregarGerenciadorAdministradores() {
     let html = '<div class="info"><strong>' + administradores.length + '</strong> administrador(es) ativo(s)</div>';
     administradores.forEach(u => {
         const a = adminPermissoesCache.get(u.id) || {};
-        const resumo = a.is_master ? '🔒 MASTER — acesso protegido' : (a.acesso_full ? 'Acesso Full' : [a.adicionar_remover_carater?'Adicionar/remover caráter':'',a.gerenciar_membros?'Gerenciar membros':'',a.gerenciar_admins?'Gerenciar administradores':'',a.download_lista?'Download da lista':''].filter(Boolean).join(' · ') || 'Sem permissões');
+        const resumo = a.is_master ? '🔒 MASTER — acesso protegido' : (a.acesso_full ? 'Acesso Full' : [a.adicionar_remover_carater?'Adicionar/remover caráter':'',a.gerenciar_membros?'Gerenciar membros':'',a.gerenciar_admins?'Gerenciar administradores':''].filter(Boolean).join(' · ') || 'Sem permissões');
         const podeRetirar = u.id !== usuarioAtual?.id && !a.is_master;
         html += `<div class="admin-gerenciar-item"><div class="info-admin"><strong>${escapeHtml(u.nome_completo || '-')}</strong><small>RE: ${escapeHtml(u.re || '-')} · ${escapeHtml(u.email_funcional || '-')}</small><small class="admin-permissao-resumo">${escapeHtml(resumo)}</small></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn-info" onclick="abrirModalPermissoesAdmin('${escapeHtml(u.id)}','${escapeHtml(u.nome_completo || 'Administrador')}')">⚙️ Permissões</button><button type="button" class="btn-warning" ${podeRetirar ? '' : 'disabled'} onclick="alterarAdministrador('${escapeHtml(u.id)}', false)">${a.is_master ? '🔒 MASTER' : (podeRetirar ? '↩️ Desativar ADM' : '🔒 Seu ADM')}</button></div></div>`;
     });
@@ -4475,7 +5645,10 @@ async function carregarGerenciadorAdministradores() {
 }
 
 async function abrirAdmin() {
-    if (!souAdmin) return;
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) {
+        alert("A tela de Aprovações é exclusiva para administradores com Acesso Full.");
+        return;
+    }
     fecharMensagemAdmin();
     document.getElementById("appPrincipal").style.display = "none";
     document.getElementById("adminArea").style.display = "block";
@@ -5075,7 +6248,7 @@ function obterLocalizacaoAprovacao() {
 function alternarPermissaoFull() {
     const full = document.getElementById("permAcessoFull");
     if (!full) return;
-    ["permAdicionarRemover","permGerenciarMembros","permGerenciarAdmins","permDownloadLista"].forEach(id => {
+    ["permAdicionarRemover","permGerenciarMembros","permGerenciarAdmins"].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.disabled = full.checked;
         if (el && full.checked) el.checked = false;
@@ -5097,7 +6270,6 @@ function abrirModalPermissoesAdmin(userId, nome, permissoes) {
     document.getElementById("permAdicionarRemover").checked = !!p.adicionar_remover_carater;
     document.getElementById("permGerenciarMembros").checked = !!p.gerenciar_membros;
     document.getElementById("permGerenciarAdmins").checked = !!p.gerenciar_admins;
-    document.getElementById("permDownloadLista").checked = !!p.download_lista;
     alternarPermissaoFull();
     const aviso = document.getElementById("permissaoAdminAviso");
     if (aviso) { aviso.style.display = "none"; aviso.textContent = ""; }
@@ -5114,15 +6286,11 @@ async function salvarPermissoesAdministrador() {
     const userId = document.getElementById("permissaoAdminUserId")?.value;
     if (!userId) return;
     const full = document.getElementById("permAcessoFull")?.checked === true;
-    const adminAtual = adminPermissoesCache.get(userId) || {};
     const permissoes = {
         acesso_full: full,
         adicionar_remover_carater: full || document.getElementById("permAdicionarRemover")?.checked === true,
         gerenciar_membros: full || document.getElementById("permGerenciarMembros")?.checked === true,
-        gerenciar_admins: full || document.getElementById("permGerenciarAdmins")?.checked === true,
-        download_lista: full || document.getElementById("permDownloadLista")?.checked === true,
-        visualizar_historico: full || adminAtual.visualizar_historico === true,
-        gerenciar_mensagens: full || adminAtual.gerenciar_mensagens === true
+        gerenciar_admins: full || document.getElementById("permGerenciarAdmins")?.checked === true
     };
     const aviso = document.getElementById("permissaoAdminAviso");
     if (aviso) { aviso.style.display = "block"; aviso.className = "auth-msg warn"; aviso.textContent = "Salvando permissões..."; }
@@ -5132,9 +6300,9 @@ async function salvarPermissoesAdministrador() {
         p_adicionar_remover_carater: permissoes.adicionar_remover_carater,
         p_gerenciar_membros: permissoes.gerenciar_membros,
         p_gerenciar_admins: permissoes.gerenciar_admins,
-        p_download_lista: permissoes.download_lista,
-        p_visualizar_historico: permissoes.visualizar_historico,
-        p_gerenciar_mensagens: permissoes.gerenciar_mensagens
+        p_download_lista: false,
+        p_visualizar_historico: false,
+        p_gerenciar_mensagens: false
     });
     if (error) {
         console.error(error);
@@ -5276,15 +6444,52 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 <div class="botoes-lista" id="botoesAdminLista" style="display:none">
 <button onclick="excluirUltimoOnline()">↩️ Excluir último</button>
 <button onclick="limparListaOnline()">🗑️ Limpar lista</button>
+<button id="btnDownloadLista" onclick="abrirEscolhaDownload()">📥 Download lista de caráter</button>
 </div>
 <div class="botoes-lista" id="botoesUsuarioLista" style="display:none">
-<button type="button" onclick="baixarListaTxt()">📥 Baixar lista de caráter</button>
+<button type="button" onclick="abrirEscolhaDownload()">📥 Baixar lista de caráter</button>
 </div>
-<div class="info">Usuários não administradores podem somente pesquisar, copiar e baixar a lista. Somente administradores podem adicionar, excluir e gerenciar os registros.</div>
+<div class="info">Todos os usuários autenticados podem pesquisar, copiar e baixar a lista. Somente administradores podem adicionar, excluir e gerenciar os registros.</div>
 </div></div>
 
 </div><!-- /conteudo-principal -->
 </div><!-- /appPrincipal -->
+
+<div id="downloadEscolhaOverlay" class="download-escolha-overlay" aria-hidden="true" onclick="if(event.target===this) fecharEscolhaDownload()">
+    <div class="download-escolha-modal" role="dialog" aria-modal="true" aria-labelledby="downloadEscolhaTitulo">
+        <h3 id="downloadEscolhaTitulo">📥 Baixar lista de caráter</h3>
+        <p>Escolha o formato do arquivo que deseja gerar.</p>
+        <div class="download-escolha-acoes">
+            <button type="button" class="btn-primary" onclick="baixarListaTxtEscolha()">📄 Arquivo TXT</button>
+            <button type="button" class="btn-success" onclick="baixarListaPlanilha()">📊 Planilha Excel pronta</button>
+            <button type="button" class="btn-secondary" onclick="fecharEscolhaDownload()">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<div id="areaPlanilhaOverlay" class="area-planilha-overlay" aria-hidden="true" onclick="if(event.target===this) fecharEscolhaAreaPlanilha()">
+    <div class="area-planilha-modal" role="dialog" aria-modal="true" aria-labelledby="areaPlanilhaTitulo">
+        <h3 id="areaPlanilhaTitulo">📊 Selecionar áreas da planilha</h3>
+        <p>Marque uma ou mais áreas. O sistema vai localizar todos os veículos das áreas marcadas, preencher a planilha no modelo de Caráter Geral e só depois iniciar o download. A distribuição 0 a 9 segue o <strong>4º caractere do emplacamento</strong> (ex.: AAA4J35 vai para o bloco 4).</p>
+
+        <div class="area-planilha-toolbar">
+            <span id="areaPlanilhaContagem" class="area-planilha-contagem">Nenhuma área selecionada</span>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button type="button" class="btn-secondary" onclick="selecionarTodasAreasPlanilha()">☑️ Selecionar todas</button>
+                <button type="button" class="btn-secondary" onclick="limparTodasAreasPlanilha()">⬜ Limpar</button>
+            </div>
+        </div>
+
+        <div id="areaPlanilhaLista" class="area-planilha-lista"></div>
+        <div id="areaPlanilhaStatus" class="area-planilha-status"></div>
+        <div id="areaPlanilhaResumo" class="area-planilha-resumo"></div>
+        <div class="area-planilha-acoes">
+            <button id="btnGerarPlanilhaAreas" type="button" class="btn-success" onclick="gerarPlanilhaDasAreas()" disabled>📊 Preencher planilha</button>
+            <button id="btnBaixarPlanilhaPronta" type="button" class="btn-primary" onclick="baixarPlanilhaPreenchida()" disabled>⬇️ Baixar planilha preenchida</button>
+            <button type="button" class="btn-secondary" onclick="fecharEscolhaAreaPlanilha()">Cancelar</button>
+        </div>
+    </div>
+</div>
 
 <script>
 (function(){
@@ -5594,3 +6799,4 @@ document.addEventListener("visibilitychange", function() {
 
 </body>
 </html>
+Hadassa26&
