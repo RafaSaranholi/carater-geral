@@ -3015,48 +3015,53 @@ async function salvarTextoLista() {
         return;
     }
 
-    // A área é obrigatória para que o registro seja inserido na lista.
-    // Formato exigido: x/xM (ex.: 1/5M).
-    const areaInformada = window.prompt(
-        "Informe a área do caráter geral.\n\nFormato obrigatório: x/xM\nExemplo: 1/5M"
-    );
-
-    if (areaInformada === null) {
-        return;
-    }
-
-    const areaNormalizada = String(areaInformada || "")
-        .trim()
-        .replace(/\s+/g, "")
-        .toUpperCase();
-
-    if (!/^\d+\/\d+M$/.test(areaNormalizada)) {
-        alert("Área inválida. O registro NÃO foi inserido.\n\nInforme a área exatamente no formato x/xM.\nExemplo: 1/5M");
-        document.getElementById("status").innerText = "Área obrigatória não informada ou inválida.";
-        return;
-    }
-
-    // Coloca a área dentro do campo SITUAÇÃO para que as rotinas existentes
-    // de leitura/exportação continuem reconhecendo o formato 1/5M.
+    // Só exige a área quando houver um emplacamento reconhecido.
+    const placaNova = encontrarPlaca(texto);
     let textoComArea = texto;
-    const situacaoMatch = textoComArea.match(/(^|[;\n])\s*SITUAÇÃO\s*[:\\-]?\s*([^;\n]*)/i)
-        || textoComArea.match(/(^|[;\n])\s*SITUACAO\s*[:\\-]?\s*([^;\n]*)/i);
 
-    if (situacaoMatch) {
-        const trechoSituacao = situacaoMatch[2].trim();
-        const situacaoComArea = trechoSituacao
-            ? trechoSituacao.replace(/\b\d+\s*\/\s*\d+\s*M\b|\/\s*\d+\s*M\b/ig, "").trim() + " " + areaNormalizada
-            : areaNormalizada;
-
-        textoComArea = textoComArea.replace(
-            situacaoMatch[0],
-            situacaoMatch[0].replace(situacaoMatch[2], situacaoComArea.trim())
+    if (placaNova) {
+        // A área é obrigatória quando existe emplacamento reconhecido.
+        // Formato exigido: x/xM (ex.: 1/5M).
+        const areaInformada = window.prompt(
+            "Foi reconhecido o emplacamento " + placaNova + ".\n\nInforme a área do caráter geral.\nFormato obrigatório: x/xM\nExemplo: 1/5M"
         );
-    } else {
-        textoComArea = textoComArea.trim() + "\nSITUAÇÃO: " + areaNormalizada;
-    }
 
-    textoComArea = textoComArea.replace(/\s+$/g, "").trim();
+        if (areaInformada === null) {
+            return;
+        }
+
+        const areaNormalizada = String(areaInformada || "")
+            .trim()
+            .replace(/\s+/g, "")
+            .toUpperCase();
+
+        if (!/^\d+\/\d+M$/.test(areaNormalizada)) {
+            alert("Área inválida. O registro NÃO foi inserido.\n\nInforme a área exatamente no formato x/xM.\nExemplo: 1/5M");
+            document.getElementById("status").innerText = "Área obrigatória não informada ou inválida.";
+            return;
+        }
+
+        // Coloca a área dentro do campo SITUAÇÃO para que as rotinas existentes
+        // de leitura/exportação continuem reconhecendo o formato 1/5M.
+        const situacaoMatch = textoComArea.match(/(^|[;\n])\s*SITUAÇÃO\s*[:\-]?\s*([^;\n]*)/i)
+            || textoComArea.match(/(^|[;\n])\s*SITUACAO\s*[:\-]?\s*([^;\n]*)/i);
+
+        if (situacaoMatch) {
+            const trechoSituacao = situacaoMatch[2].trim();
+            const situacaoComArea = trechoSituacao
+                ? trechoSituacao.replace(/\b\d+\s*\/\s*\d+\s*M\b|\/\s*\d+\s*M\b/ig, "").trim() + " " + areaNormalizada
+                : areaNormalizada;
+
+            textoComArea = textoComArea.replace(
+                situacaoMatch[0],
+                situacaoMatch[0].replace(situacaoMatch[2], situacaoComArea.trim())
+            );
+        } else {
+            textoComArea = textoComArea.trim() + "\nSITUAÇÃO: " + areaNormalizada;
+        }
+
+        textoComArea = textoComArea.replace(/\s+$/g, "").trim();
+    }
 
     const validacaoPlaca = validarTamanhoEmplacamento(textoComArea);
     if (!validacaoPlaca.valido) {
@@ -3064,9 +3069,6 @@ async function salvarTextoLista() {
         document.getElementById("status").innerText = "Emplacamento inválido: máximo de 7 caracteres.";
         return;
     }
-
-    // Confere o emplacamento identificado no caráter.
-    const placaNova = encontrarPlaca(textoComArea);
 
     if (placaNova) {
         const { data: registrosExistentes, error: erroConsulta } = await sb
