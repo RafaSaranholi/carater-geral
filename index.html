@@ -3015,7 +3015,50 @@ async function salvarTextoLista() {
         return;
     }
 
-    const validacaoPlaca = validarTamanhoEmplacamento(texto);
+    // A área é obrigatória para que o registro seja inserido na lista.
+    // Formato exigido: x/xM (ex.: 1/5M).
+    const areaInformada = window.prompt(
+        "Informe a área do caráter geral.\n\nFormato obrigatório: x/xM\nExemplo: 1/5M"
+    );
+
+    if (areaInformada === null) {
+        return;
+    }
+
+    const areaNormalizada = String(areaInformada || "")
+        .trim()
+        .replace(/\s+/g, "")
+        .toUpperCase();
+
+    if (!/^\d+\/\d+M$/.test(areaNormalizada)) {
+        alert("Área inválida. O registro NÃO foi inserido.\n\nInforme a área exatamente no formato x/xM.\nExemplo: 1/5M");
+        document.getElementById("status").innerText = "Área obrigatória não informada ou inválida.";
+        return;
+    }
+
+    // Coloca a área dentro do campo SITUAÇÃO para que as rotinas existentes
+    // de leitura/exportação continuem reconhecendo o formato 1/5M.
+    let textoComArea = texto;
+    const situacaoMatch = textoComArea.match(/(^|[;\n])\s*SITUAÇÃO\s*[:\\-]?\s*([^;\n]*)/i)
+        || textoComArea.match(/(^|[;\n])\s*SITUACAO\s*[:\\-]?\s*([^;\n]*)/i);
+
+    if (situacaoMatch) {
+        const trechoSituacao = situacaoMatch[2].trim();
+        const situacaoComArea = trechoSituacao
+            ? trechoSituacao.replace(/\b\d+\s*\/\s*\d+\s*M\b|\/\s*\d+\s*M\b/ig, "").trim() + " " + areaNormalizada
+            : areaNormalizada;
+
+        textoComArea = textoComArea.replace(
+            situacaoMatch[0],
+            situacaoMatch[0].replace(situacaoMatch[2], situacaoComArea.trim())
+        );
+    } else {
+        textoComArea = textoComArea.trim() + "\nSITUAÇÃO: " + areaNormalizada;
+    }
+
+    textoComArea = textoComArea.replace(/\s+$/g, "").trim();
+
+    const validacaoPlaca = validarTamanhoEmplacamento(textoComArea);
     if (!validacaoPlaca.valido) {
         alert("ERRO: o emplacamento não pode ter mais de 7 caracteres.\n\nEmplacamento lido: " + validacaoPlaca.placa);
         document.getElementById("status").innerText = "Emplacamento inválido: máximo de 7 caracteres.";
@@ -3023,7 +3066,7 @@ async function salvarTextoLista() {
     }
 
     // Confere o emplacamento identificado no caráter.
-    const placaNova = encontrarPlaca(texto);
+    const placaNova = encontrarPlaca(textoComArea);
 
     if (placaNova) {
         const { data: registrosExistentes, error: erroConsulta } = await sb
@@ -3051,7 +3094,7 @@ async function salvarTextoLista() {
     const { error } = await sb
         .from("extrator_lista_carater")
         .insert({
-            texto: texto,
+            texto: textoComArea,
             criado_por: usuarioAtual.id
         });
 
