@@ -5540,10 +5540,26 @@ async function entrarSistema() {
             throw new Error("Perfil não encontrado.");
         }
 
-        // Impede que a mesma conta permaneça aberta em dois acessos ao mesmo tempo.
-        // A presença já é atualizada pelo sistema a cada 15 segundos.
-        // Consideramos a conta ocupada quando houve atividade nos últimos 30 segundos.
-        if (perfil.status === "aprovado" && perfil.last_seen_at) {
+        // O usuário MASTER é o único que pode manter múltiplos acessos simultâneos.
+        // Para os demais usuários, a presença recente bloqueia um segundo acesso.
+        let masterNoLogin = false;
+        try {
+            const { data: permissoesLogin, error: permissoesLoginError } = await sb.rpc("extrator_minhas_permissoes");
+            if (!permissoesLoginError && permissoesLogin) {
+                const dadosPermissoesLogin = Array.isArray(permissoesLogin)
+                    ? (permissoesLogin[0] || {})
+                    : permissoesLogin;
+                masterNoLogin = dadosPermissoesLogin.is_master === true;
+            }
+        } catch (erroPermissoesLogin) {
+            console.warn("Não foi possível verificar a permissão MASTER no login:", erroPermissoesLogin);
+        }
+
+        // Impede que a mesma conta permaneça aberta em dois acessos ao mesmo tempo,
+        // exceto quando a conta é do usuário MASTER.
+        // A presença é atualizada pelo sistema e consideramos a conta ocupada
+        // quando houve atividade nos últimos 30 segundos.
+        if (!masterNoLogin && perfil.status === "aprovado" && perfil.last_seen_at) {
             const ultimaAtividade = new Date(perfil.last_seen_at).getTime();
             const segundosDesdeUltimaAtividade = (Date.now() - ultimaAtividade) / 1000;
 
