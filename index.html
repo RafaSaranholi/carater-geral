@@ -204,6 +204,11 @@
 .btn-copiar-registro:hover{background:#454545}
 .btn-excluir-registro{position:absolute;right:82px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#6b2525;color:#fff;border:1px solid #8f4444}
 .btn-excluir-registro:hover{background:#8a3030}
+.item-data-lancamento{font-size:9px;line-height:1.15;color:#777;margin:-2px 0 6px;letter-spacing:.1px}
+.item-selecao-master{position:absolute;right:9px;top:8px;display:flex;align-items:center;gap:5px;padding:3px 6px;border-radius:5px;background:rgba(0,0,0,.30);color:#999;font-size:10px;line-height:1;cursor:pointer;user-select:none}
+.item-selecao-master input{margin:0;accent-color:#dc3545;transform:scale(.92)}
+.item-salvo.selecionado-master{box-shadow:inset 0 0 0 2px rgba(220,53,69,.55)}
+#btnExcluirSelecionados:disabled{opacity:.45;cursor:not-allowed}
 .backup-box{margin-top:14px;padding:14px;background:#151515;border:1px solid #444;border-radius:8px}
 .backup-box h3{margin:0 0 7px}
 .backup-box p{margin:0 0 10px;color:#aaa;font-size:12px;line-height:1.45}
@@ -2857,6 +2862,7 @@ async function extrairSomenteCarater() {
 
 let listaTextos = [];
 let canalLista = null;
+const registrosSelecionadosMaster = new Set();
 
 async function carregarLista() {
     const container = document.getElementById("listaSalvos");
@@ -2876,6 +2882,13 @@ async function carregarLista() {
     }
 
     listaTextos = Array.isArray(data) ? data : [];
+
+    // Mantém selecionados apenas os registros que continuam existindo na lista.
+    const idsExistentes = new Set(listaTextos.map(registro => String(registro.id)));
+    Array.from(registrosSelecionadosMaster).forEach(function(id) {
+        if (!idsExistentes.has(String(id))) registrosSelecionadosMaster.delete(String(id));
+    });
+
     renderizarLista();
 }
 
@@ -2910,6 +2923,38 @@ function classeDestaquePlaca(texto) {
     return "";
 }
 
+function formatarDataLancamentoCarater(valor) {
+    if (!valor) return "";
+    const data = new Date(valor);
+    if (Number.isNaN(data.getTime())) return "";
+    return data.toLocaleString("pt-BR", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit", second: "2-digit"
+    });
+}
+
+function atualizarBotaoExcluirSelecionados() {
+    const ehMaster = !!(souAdmin && adminPermissoes.is_master);
+    if (!ehMaster && registrosSelecionadosMaster.size) registrosSelecionadosMaster.clear();
+
+    const botao = document.getElementById("btnExcluirSelecionados");
+    if (!botao) return;
+
+    const total = registrosSelecionadosMaster.size;
+    botao.style.display = ehMaster ? "inline-block" : "none";
+    botao.disabled = !ehMaster || total === 0;
+    botao.textContent = total > 0
+        ? "🗑️ Excluir selecionados (" + total + ")"
+        : "🗑️ Excluir selecionados";
+}
+
+function alternarSelecaoRegistroMaster(id, selecionado) {
+    const chave = String(id);
+    if (selecionado) registrosSelecionadosMaster.add(chave);
+    else registrosSelecionadosMaster.delete(chave);
+    atualizarBotaoExcluirSelecionados();
+}
+
 function renderizarLista() {
     const container = document.getElementById("listaSalvos");
     const contador = document.getElementById("contadorCarater");
@@ -2926,6 +2971,7 @@ function renderizarLista() {
         container.innerHTML = termo
             ? '<div class="info">Nenhum registro encontrado para a pesquisa.</div>'
             : '<div class="info">Nenhum texto salvo.</div>';
+        atualizarBotaoExcluirSelecionados();
         return;
     }
 
@@ -2942,6 +2988,43 @@ function renderizarLista() {
         numero.className = "item-numero";
         numero.textContent = "Registro " + numeroRegistro;
 
+        const dataLancamento = document.createElement("div");
+        dataLancamento.className = "item-data-lancamento";
+        const dataLancamentoTexto = formatarDataLancamentoCarater(registro.created_at);
+        dataLancamento.textContent = dataLancamentoTexto ? "Lançado em: " + dataLancamentoTexto : "";
+        dataLancamento.style.display = dataLancamentoTexto ? "block" : "none";
+
+        if (souAdmin && adminPermissoes.is_master) {
+            const labelSelecao = document.createElement("label");
+            labelSelecao.className = "item-selecao-master";
+            labelSelecao.title = "Selecionar este veículo para exclusão em lote";
+
+            const checkboxSelecao = document.createElement("input");
+            checkboxSelecao.type = "checkbox";
+            checkboxSelecao.checked = registrosSelecionadosMaster.has(String(registro.id));
+            checkboxSelecao.setAttribute("aria-label", "Selecionar Registro " + numeroRegistro);
+
+            const textoSelecao = document.createElement("span");
+            textoSelecao.textContent = "Selecionar";
+
+            checkboxSelecao.addEventListener("click", function(e) {
+                e.stopPropagation();
+            });
+            checkboxSelecao.addEventListener("change", function(e) {
+                e.stopPropagation();
+                alternarSelecaoRegistroMaster(registro.id, checkboxSelecao.checked);
+                item.classList.toggle("selecionado-master", checkboxSelecao.checked);
+            });
+            labelSelecao.addEventListener("click", function(e) {
+                e.stopPropagation();
+            });
+
+            labelSelecao.appendChild(checkboxSelecao);
+            labelSelecao.appendChild(textoSelecao);
+            item.appendChild(labelSelecao);
+            item.classList.toggle("selecionado-master", checkboxSelecao.checked);
+        }
+
         const conteudo = document.createElement("div");
         conteudo.className = "item-conteudo";
         conteudo.textContent = registro.texto || "";
@@ -2953,10 +3036,12 @@ function renderizarLista() {
             badgePlaca.textContent = placa;
             badgePlaca.title = "Emplacamento identificado";
             item.appendChild(numero);
+            item.appendChild(dataLancamento);
             item.appendChild(badgePlaca);
             item.appendChild(conteudo);
         } else {
             item.appendChild(numero);
+            item.appendChild(dataLancamento);
             item.appendChild(conteudo);
         }
 
@@ -2991,6 +3076,8 @@ function renderizarLista() {
 
         container.appendChild(item);
     });
+
+    atualizarBotaoExcluirSelecionados();
 }
 
 async function copiarRegistroLista(texto, numeroRegistro) {
@@ -4285,6 +4372,63 @@ async function excluirRegistroOnline(id, numeroRegistro) {
 
     await carregarLista();
     document.getElementById("status").innerText = "Registro " + numeroRegistro + " excluído.";
+}
+
+async function excluirSelecionadosMaster() {
+    if (!souAdmin || !adminPermissoes.is_master) {
+        alert("Esta função é exclusiva do Administrador Master.");
+        return;
+    }
+
+    const ids = Array.from(registrosSelecionadosMaster);
+    if (!ids.length) {
+        alert("Selecione pelo menos um veículo para excluir.");
+        return;
+    }
+
+    const registros = listaTextos.filter(registro => ids.includes(String(registro.id)));
+    const total = registros.length;
+    if (!total) {
+        registrosSelecionadosMaster.clear();
+        atualizarBotaoExcluirSelecionados();
+        return;
+    }
+
+    const placas = registros
+        .map(registro => encontrarPlaca(registro.texto || ""))
+        .filter(Boolean)
+        .slice(0, 8);
+    const resumoPlacas = placas.length ? "\n\nVeículos: " + placas.join(", ") + (total > placas.length ? "..." : "") : "";
+
+    if (!confirm("Tem certeza que deseja excluir " + total + " veículo(s) selecionado(s)?" + resumoPlacas + "\n\nEsta ação não poderá ser desfeita.")) {
+        return;
+    }
+
+    const botao = document.getElementById("btnExcluirSelecionados");
+    if (botao) botao.disabled = true;
+
+    try {
+        // Divide em lotes para manter a operação estável mesmo com muitas seleções.
+        for (let i = 0; i < ids.length; i += 100) {
+            const lote = ids.slice(i, i + 100);
+            const { error } = await sb
+                .from("extrator_lista_carater")
+                .delete()
+                .in("id", lote);
+
+            if (error) throw error;
+        }
+
+        registrosSelecionadosMaster.clear();
+        await carregarLista();
+        document.getElementById("status").innerText = total + " veículo(s) selecionado(s) excluído(s).";
+    } catch (error) {
+        console.error(error);
+        alert("Não foi possível excluir todos os veículos selecionados.");
+        await carregarLista();
+    } finally {
+        atualizarBotaoExcluirSelecionados();
+    }
 }
 
 async function excluirUltimoOnline() {
@@ -5698,6 +5842,7 @@ async function atualizarIndicadoresAcesso() {
     const btnDownloadLista = document.getElementById("btnDownloadLista");
     if (btnAddCarater) btnAddCarater.style.display = podeEditar ? "inline-block" : "none";
     if (btnDownloadLista) btnDownloadLista.style.display = podeDownload ? "inline-block" : "none";
+    atualizarBotaoExcluirSelecionados();
     if (btnAdmin) btnAdmin.style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
     if (document.getElementById("btnMensagemAdmin")) document.getElementById("btnMensagemAdmin").style.display = (souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master)) ? "inline-block" : "none";
     if (document.getElementById("btnCapturarTelaAdmin")) document.getElementById("btnCapturarTelaAdmin").style.display = podeEditar ? "inline-block" : "none";
@@ -6675,6 +6820,8 @@ sb.auth.onAuthStateChange(function(event, session) {
         usuarioAtual = null;
         perfilAtual = null;
         souAdmin = false;
+        registrosSelecionadosMaster.clear();
+        atualizarBotaoExcluirSelecionados();
         pararRealtimeLista();
         pararPresenca();
         mostrarTelaAcesso();
@@ -6697,6 +6844,7 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 <div class="botoes-lista" id="botoesAdminLista" style="display:none">
 <button onclick="excluirUltimoOnline()">↩️ Excluir último</button>
 <button onclick="limparListaOnline()">🗑️ Limpar lista</button>
+<button id="btnExcluirSelecionados" class="btn-danger" type="button" onclick="excluirSelecionadosMaster()" style="display:none" disabled>🗑️ Excluir selecionados</button>
 <button id="btnDownloadLista" onclick="abrirEscolhaDownload()">📥 Download lista de caráter</button>
 </div>
 <div class="botoes-lista" id="botoesUsuarioLista" style="display:none">
