@@ -169,7 +169,7 @@
 .admin-card h2{margin-top:0}
 .admin-list{display:grid;gap:10px}
 .admin-item{background:#101010;border:1px solid #444;border-radius:8px;padding:12px}
-.presenca-bolinha{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;vertical-align:middle;box-shadow:0 0 5px rgba(255,255,255,.18)}.presenca-online{background:#20c45a}.presenca-recente{background:#2587ff}.presenca-offline{background:#e53935}.presenca-legenda{font-size:12px;color:#aaa;margin-top:5px}
+.presenca-bolinha{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;vertical-align:middle;box-shadow:0 0 5px rgba(255,255,255,.18)}.presenca-online{background:#20c45a}.presenca-recente{background:#2587ff}.presenca-periodo{background:#f0ad4e}.presenca-offline{background:#e53935}.presenca-legenda{font-size:12px;color:#aaa;margin-top:5px}
 .admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 14px;font-size:14px}
 .admin-grid div span:first-child{color:#999}
 .admin-item-clicavel{cursor:pointer;transition:background .15s,border-color .15s}.admin-item-clicavel:hover{background:#1b1b1b;border-color:#777}.admin-resumo-aprovado{grid-template-columns:repeat(3,minmax(0,1fr))}.admin-detalhes-modal{max-width:760px;width:calc(100% - 30px)}
@@ -754,6 +754,7 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
             <button class="btn-secondary" type="button" onclick="voltarDoAdmin()">Voltar ao extrator</button>
             <button class="btn-secondary" type="button" onclick="carregarAdmin()">Atualizar</button>
             <button class="btn-info" type="button" onclick="abrirGerenciadorAdministradores()">👑 Administradores</button>
+            <button id="btnConfigPresencaAdminFull" class="btn-secondary" type="button" onclick="abrirConfiguracaoPresencaAdmin()">⏱️ Tempos dos indicadores</button>
         </div>
 
         <div class="backup-box">
@@ -821,6 +822,30 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
             <button class="btn-primary" type="button" onclick="salvarPermissoesAdministrador()">💾 Confirmar permissões</button>
             <button class="btn-secondary" type="button" onclick="fecharModalPermissoesAdmin()">Cancelar</button>
         </div>
+    </div>
+</div>
+
+<div id="configPresencaAdminOverlay" class="bloqueio-overlay" style="display:none;z-index:260000" onclick="if(event.target===this) fecharConfiguracaoPresencaAdmin()">
+    <div class="bloqueio-modal">
+        <h3>⏱️ Indicadores de atividade</h3>
+        <p>Defina por quanto tempo cada indicação de atividade será exibida na lista de usuários aprovados. Este menu é exclusivo para Administrador Full.</p>
+
+        <label for="presencaOnlineMinutos">🟢 Online até (minutos)</label>
+        <input id="presencaOnlineMinutos" type="number" min="1" max="1440" step="1" inputmode="numeric">
+
+        <label for="presencaRecenteMinutos">🔵 Ativo recentemente até (minutos)</label>
+        <input id="presencaRecenteMinutos" type="number" min="1" max="10080" step="1" inputmode="numeric">
+
+        <label for="presencaPeriodoDias">🟠 Ativo nos últimos (dias)</label>
+        <input id="presencaPeriodoDias" type="number" min="1" max="365" step="1" inputmode="numeric">
+
+        <div class="info" style="margin-top:10px">Depois desse último período, o usuário aparecerá como 🔴 Offline.</div>
+
+        <div class="bloqueio-acoes">
+            <button class="btn-primary" type="button" onclick="salvarConfiguracaoPresencaAdmin()">Salvar</button>
+            <button class="btn-secondary" type="button" onclick="fecharConfiguracaoPresencaAdmin()">Cancelar</button>
+        </div>
+        <div id="configPresencaAdminMsg" class="auth-msg" style="display:none"></div>
     </div>
 </div>
 
@@ -4497,9 +4522,26 @@ function obterPontoSelecaoCaptura(e) {
     };
 }
 
+function posicionarRetanguloSelecaoCaptura(esquerda, topo, largura, altura) {
+    const ret = document.getElementById("capturaSelecaoRetangulo");
+    const img = document.getElementById("capturaSelecaoImagem");
+    const container = document.getElementById("capturaSelecaoContainer");
+    if (!ret || !img || !container) return;
+
+    const imgRect = img.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const deslocamentoX = imgRect.left - containerRect.left - container.clientLeft;
+    const deslocamentoY = imgRect.top - containerRect.top - container.clientTop;
+
+    ret.style.display = "block";
+    ret.style.left = (deslocamentoX + esquerda) + "px";
+    ret.style.top = (deslocamentoY + topo) + "px";
+    ret.style.width = largura + "px";
+    ret.style.height = altura + "px";
+}
+
 function atualizarSelecaoCaptura(e) {
     if (!capturaSelecaoAtiva) return;
-    const ret = document.getElementById("capturaSelecaoRetangulo");
     const p = obterPontoSelecaoCaptura(e);
     const esquerda = Math.min(capturaSelecaoInicioX, p.x);
     const topo = Math.min(capturaSelecaoInicioY, p.y);
@@ -4511,13 +4553,7 @@ function atualizarSelecaoCaptura(e) {
     capturaSelecaoW = largura;
     capturaSelecaoH = altura;
 
-    if (ret) {
-        ret.style.display = "block";
-        ret.style.left = esquerda + "px";
-        ret.style.top = topo + "px";
-        ret.style.width = largura + "px";
-        ret.style.height = altura + "px";
-    }
+    posicionarRetanguloSelecaoCaptura(esquerda, topo, largura, altura);
 }
 
 async function finalizarSelecaoCaptura(e) {
@@ -4589,14 +4625,7 @@ if (capturaSelecaoImagemEl) {
         capturaSelecaoW = 0;
         capturaSelecaoH = 0;
         capturaSelecaoAtiva = true;
-        const ret = document.getElementById("capturaSelecaoRetangulo");
-        if (ret) {
-            ret.style.display = "block";
-            ret.style.left = p.x + "px";
-            ret.style.top = p.y + "px";
-            ret.style.width = "0px";
-            ret.style.height = "0px";
-        }
+        posicionarRetanguloSelecaoCaptura(p.x, p.y, 0, 0);
         if (capturaSelecaoImagemEl.setPointerCapture) capturaSelecaoImagemEl.setPointerCapture(e.pointerId);
     });
     capturaSelecaoImagemEl.addEventListener("pointermove", function(e) {
@@ -4725,6 +4754,156 @@ let ultimaPresencaEnviada = 0;
 let enviandoPresenca = false;
 let atualizandoPresencaAdmin = false;
 
+const CHAVE_CONFIG_PRESENCA_ADMIN = "sartech_config_presenca_admin_v1";
+const CONFIG_PRESENCA_ADMIN_PADRAO = Object.freeze({
+    onlineMinutos: 2,
+    recenteMinutos: 15,
+    periodoDias: 7
+});
+
+function obterConfiguracaoPresencaAdmin() {
+    let salva = null;
+    try {
+        salva = JSON.parse(localStorage.getItem(CHAVE_CONFIG_PRESENCA_ADMIN) || "null");
+    } catch (_) {
+        salva = null;
+    }
+
+    const onlineMinutos = Number(salva?.onlineMinutos);
+    const recenteMinutos = Number(salva?.recenteMinutos);
+    const periodoDias = Number(salva?.periodoDias);
+
+    const config = {
+        onlineMinutos: Number.isFinite(onlineMinutos) && onlineMinutos >= 1 ? onlineMinutos : CONFIG_PRESENCA_ADMIN_PADRAO.onlineMinutos,
+        recenteMinutos: Number.isFinite(recenteMinutos) && recenteMinutos >= 1 ? recenteMinutos : CONFIG_PRESENCA_ADMIN_PADRAO.recenteMinutos,
+        periodoDias: Number.isFinite(periodoDias) && periodoDias >= 1 ? periodoDias : CONFIG_PRESENCA_ADMIN_PADRAO.periodoDias
+    };
+
+    if (config.recenteMinutos < config.onlineMinutos) {
+        config.recenteMinutos = Math.max(CONFIG_PRESENCA_ADMIN_PADRAO.recenteMinutos, config.onlineMinutos);
+    }
+    if ((config.periodoDias * 1440) <= config.recenteMinutos) {
+        config.periodoDias = Math.max(CONFIG_PRESENCA_ADMIN_PADRAO.periodoDias, Math.ceil((config.recenteMinutos + 1) / 1440));
+    }
+
+    return config;
+}
+
+function classificarPresencaUsuario(lastSeenAt) {
+    const config = obterConfiguracaoPresencaAdmin();
+    const ultimaAtividade = lastSeenAt ? new Date(lastSeenAt).getTime() : 0;
+    const minutosInativo = ultimaAtividade && Number.isFinite(ultimaAtividade)
+        ? Math.max(0, (Date.now() - ultimaAtividade) / 60000)
+        : Infinity;
+
+    if (minutosInativo <= config.onlineMinutos) {
+        return { classe: "presenca-online", titulo: "Online" };
+    }
+
+    if (minutosInativo <= config.recenteMinutos) {
+        const unidade = config.recenteMinutos === 1 ? "minuto" : "minutos";
+        return { classe: "presenca-recente", titulo: "Ativo nos últimos " + config.recenteMinutos + " " + unidade };
+    }
+
+    if (minutosInativo <= config.periodoDias * 1440) {
+        const unidade = config.periodoDias === 1 ? "dia" : "dias";
+        return { classe: "presenca-periodo", titulo: "Ativo nos últimos " + config.periodoDias + " " + unidade };
+    }
+
+    return { classe: "presenca-offline", titulo: "Offline" };
+}
+
+function abrirConfiguracaoPresencaAdmin() {
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) {
+        alert("Este menu é exclusivo para Administrador Full.");
+        return;
+    }
+
+    const config = obterConfiguracaoPresencaAdmin();
+    const overlay = document.getElementById("configPresencaAdminOverlay");
+    const online = document.getElementById("presencaOnlineMinutos");
+    const recente = document.getElementById("presencaRecenteMinutos");
+    const periodo = document.getElementById("presencaPeriodoDias");
+    const msg = document.getElementById("configPresencaAdminMsg");
+
+    if (online) online.value = String(config.onlineMinutos);
+    if (recente) recente.value = String(config.recenteMinutos);
+    if (periodo) periodo.value = String(config.periodoDias);
+    if (msg) { msg.style.display = "none"; msg.textContent = ""; }
+    if (overlay) overlay.style.display = "flex";
+}
+
+function fecharConfiguracaoPresencaAdmin() {
+    const overlay = document.getElementById("configPresencaAdminOverlay");
+    if (overlay) overlay.style.display = "none";
+}
+
+function salvarConfiguracaoPresencaAdmin() {
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) {
+        alert("Este menu é exclusivo para Administrador Full.");
+        return;
+    }
+
+    const onlineMinutos = Number(document.getElementById("presencaOnlineMinutos")?.value);
+    const recenteMinutos = Number(document.getElementById("presencaRecenteMinutos")?.value);
+    const periodoDias = Number(document.getElementById("presencaPeriodoDias")?.value);
+    const msg = document.getElementById("configPresencaAdminMsg");
+
+    if (!Number.isFinite(onlineMinutos) || onlineMinutos < 1 || onlineMinutos > 1440 ||
+        !Number.isFinite(recenteMinutos) || recenteMinutos < 1 || recenteMinutos > 10080 ||
+        !Number.isFinite(periodoDias) || periodoDias < 1 || periodoDias > 365) {
+        if (msg) {
+            msg.className = "auth-msg err";
+            msg.textContent = "Informe tempos válidos para os três indicadores.";
+            msg.style.display = "block";
+        }
+        return;
+    }
+
+    if (recenteMinutos < onlineMinutos) {
+        if (msg) {
+            msg.className = "auth-msg err";
+            msg.textContent = "O tempo de atividade recente deve ser igual ou maior que o tempo de Online.";
+            msg.style.display = "block";
+        }
+        return;
+    }
+
+    if ((periodoDias * 1440) <= recenteMinutos) {
+        if (msg) {
+            msg.className = "auth-msg err";
+            msg.textContent = "O período em dias deve terminar depois do tempo de atividade recente.";
+            msg.style.display = "block";
+        }
+        return;
+    }
+
+    try {
+        localStorage.setItem(CHAVE_CONFIG_PRESENCA_ADMIN, JSON.stringify({
+            onlineMinutos: Math.round(onlineMinutos),
+            recenteMinutos: Math.round(recenteMinutos),
+            periodoDias: Math.round(periodoDias)
+        }));
+    } catch (erro) {
+        console.error(erro);
+        if (msg) {
+            msg.className = "auth-msg err";
+            msg.textContent = "Não foi possível salvar a configuração neste navegador.";
+            msg.style.display = "block";
+        }
+        return;
+    }
+
+    if (msg) {
+        msg.className = "auth-msg ok";
+        msg.textContent = "Tempos dos indicadores atualizados.";
+        msg.style.display = "block";
+    }
+
+    if (typeof filtrarUsuariosAprovados === "function") filtrarUsuariosAprovados();
+    atualizarSomentePresencaAdmin();
+}
+
 async function registrarPresenca() {
     if (!usuarioAtual || !perfilAtual || perfilAtual.status !== "aprovado" || enviandoPresenca) return;
 
@@ -4797,7 +4976,6 @@ async function atualizarSomentePresencaAdmin() {
         return;
     }
 
-    const agora = Date.now();
     const usuarios = Array.isArray(data) ? data : [];
 
     usuarios.forEach(function(usuario) {
@@ -4808,28 +4986,11 @@ async function atualizarSomentePresencaAdmin() {
         const texto = card.querySelector(".presenca-texto");
         if (!bolinha || !texto) return;
 
-        const ultimaAtividade = usuario.last_seen_at
-            ? new Date(usuario.last_seen_at).getTime()
-            : 0;
+        const presenca = classificarPresencaUsuario(usuario.last_seen_at);
 
-        const minutosInativo = ultimaAtividade
-            ? (agora - ultimaAtividade) / 60000
-            : Infinity;
-
-        let classe = "presenca-offline";
-        let titulo = "Offline";
-
-        if (minutosInativo <= 0.5) {
-            classe = "presenca-online";
-            titulo = "Online";
-        } else if (minutosInativo <= 15) {
-            classe = "presenca-recente";
-            titulo = "Ativo nos últimos 15 minutos";
-        }
-
-            bolinha.className = "presenca-bolinha " + classe;
-            bolinha.title = titulo;
-            texto.textContent = titulo;
+            bolinha.className = "presenca-bolinha " + presenca.classe;
+            bolinha.title = presenca.titulo;
+            texto.textContent = presenca.titulo;
         });
     } catch (erro) {
         console.warn("Não foi possível atualizar somente a presença:", erro);
@@ -5490,12 +5651,14 @@ async function atualizarIndicadoresAcesso() {
     const badgeAprovacoes = document.getElementById("badgeAprovacoes");
     const btnMensagemAdmin = document.getElementById("btnMensagemAdmin");
     const btnCapturarTelaAdmin = document.getElementById("btnCapturarTelaAdmin");
+    const btnConfigPresencaAdminFull = document.getElementById("btnConfigPresencaAdminFull");
     const botoesLista = document.getElementById("botoesAdminLista");
     const botoesUsuarioLista = document.getElementById("botoesUsuarioLista");
     const botoesEditor = document.getElementById("botoesEditorLista");
 
     const podeAcessarAprovacoes = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.is_master);
     if (btnAdmin) btnAdmin.style.display = podeAcessarAprovacoes ? "inline-block" : "none";
+    if (btnConfigPresencaAdminFull) btnConfigPresencaAdminFull.style.display = podeAcessarAprovacoes ? "inline-block" : "none";
     if (badgeAprovacoes) {
         badgeAprovacoes.style.display = podeAcessarAprovacoes ? "inline-flex" : "none";
         badgeAprovacoes.textContent = "0";
@@ -5916,10 +6079,9 @@ function montarCardUsuario(usuario, adminIds, pendente) {
             ? '<span class="admin-status-badge">REJEITADO</span>'
             : '<span class="admin-status-badge pending">PENDENTE</span>';
     const badgeAdmin = ehAdmin ? ' <span class="admin-status-badge admin">ADMINISTRADOR</span>' : '';
-    const ultimaAtividade = usuario.last_seen_at ? new Date(usuario.last_seen_at).getTime() : 0;
-    const minutosInativo = ultimaAtividade ? (Date.now() - ultimaAtividade) / 60000 : Infinity;
-    const classePresenca = minutosInativo <= 2 ? "presenca-online" : (minutosInativo <= 15 ? "presenca-recente" : "presenca-offline");
-    const tituloPresenca = minutosInativo <= 2 ? "Online" : (minutosInativo <= 15 ? "Ativo nos últimos 15 minutos" : "Offline");
+    const presenca = classificarPresencaUsuario(usuario.last_seen_at);
+    const classePresenca = presenca.classe;
+    const tituloPresenca = presenca.titulo;
     const badgePresenca = usuario.status === "aprovado" ? '<span class="presenca-bolinha ' + classePresenca + '" title="' + tituloPresenca + '"></span>' : '';
 
     if (!pendente && usuario.status === "aprovado") {
