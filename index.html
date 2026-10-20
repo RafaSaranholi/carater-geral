@@ -2274,20 +2274,9 @@ function encontrarPlaca(texto) {
             for (const variante of variantes) {
 
                 /*
-                 * Primeiro Mercosul.
-                 */
-
-                const mercosul =
-                    corrigirPlacaMercosul(
-                        variante
-                    );
-
-                if (mercosul)
-                    return mercosul;
-
-
-                /*
-                 * Depois placa antiga.
+                 * Testa primeiro placa antiga (LLLNNNN).
+                 * Evita converter o 8 de CEI1879 em B
+                 * por interpretar incorretamente como Mercosul.
                  */
 
                 const antiga =
@@ -2297,6 +2286,19 @@ function encontrarPlaca(texto) {
 
                 if (antiga)
                     return antiga;
+
+
+                /*
+                 * Depois testa placa Mercosul (LLLNLNN).
+                 */
+
+                const mercosul =
+                    corrigirPlacaMercosul(
+                        variante
+                    );
+
+                if (mercosul)
+                    return mercosul;
             }
         }
     }
@@ -2321,16 +2323,6 @@ function encontrarPlaca(texto) {
 
     for (const candidato of candidatos) {
 
-        const mercosul =
-            corrigirPlacaMercosul(
-                candidato
-            );
-
-
-        if (mercosul)
-            return mercosul;
-
-
         const variantes = gerarVariantesPlaca(candidato);
 
         for (const variante of variantes) {
@@ -2342,6 +2334,14 @@ function encontrarPlaca(texto) {
             if (antiga)
                 return antiga;
         }
+
+        const mercosul =
+            corrigirPlacaMercosul(
+                candidato
+            );
+
+        if (mercosul)
+            return mercosul;
     }
 
 
