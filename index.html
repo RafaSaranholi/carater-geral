@@ -2228,6 +2228,21 @@ function encontrarPlaca(texto) {
     const textoMaiusculo =
         texto.toUpperCase();
 
+    /*
+     * PRIORIDADE MÁXIMA: preservar placas que já estão legíveis
+     * no texto do campo CADASTRO VEÍCULO. Não aplicar ambiguidades
+     * de OCR a uma sequência que já corresponde exatamente ao padrão.
+     * Ex.: CEI1879 deve continuar CEI1879, nunca CEI1B79.
+     */
+    const placaLiteralCampo = textoMaiusculo.match(
+        /CADASTRO\s+VE[ÍI1]CULO\s*[:\-]?\s*([A-Z]{3}\s*[0-9]{4}|[A-Z]{3}[0-9][A-Z][0-9]{2})\b/
+    );
+    if (placaLiteralCampo) {
+        const literal = placaLiteralCampo[1].replace(/[^A-Z0-9]/g, "");
+        if (/^[A-Z]{3}[0-9]{4}$/.test(literal) || /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(literal)) {
+            return literal;
+        }
+    }
 
     /*
      * Primeiro procura especificamente
@@ -2320,6 +2335,14 @@ function encontrarPlaca(texto) {
             /[A-Z0-9]{7}/g
         ) || [];
 
+    // Se o texto já contém uma placa em formato válido, preserva-a
+    // antes de tentar corrigir caracteres ambíguos do OCR.
+    for (const candidato of candidatos) {
+        if (/^[A-Z]{3}[0-9]{4}$/.test(candidato))
+            return candidato;
+        if (/^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(candidato))
+            return candidato;
+    }
 
     for (const candidato of candidatos) {
 
