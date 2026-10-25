@@ -4341,6 +4341,169 @@ function baixarListaPlanilha() {
     abrirEscolhaAreaPlanilha();
 }
 
+function abrirImportacaoLista() {
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.adicionar_remover_carater || adminPermissoes.is_master)) {
+        alert("Você não possui permissão para importar registros.");
+        return;
+    }
+    const campo = document.getElementById("arquivoImportarLista");
+    if (campo) { campo.value = ""; campo.click(); }
+}
+
+function normalizarTextoDuplicidade(valor) {
+    return String(valor || "")
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase().replace(/[^A-Z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function separarRegistrosTxtImportado(conteudo) {
+    const texto = String(conteudo || "").replace(/^\uFEFF/, "").trim();
+    if (!texto) return [];
+    const marcador = /^\s*=====\s*REGISTRO\s+\d+\s*=====\s*\r?\n?/gim;
+    if (marcador.test(texto)) {
+        const partes = texto.split(/^\s*=====\s*REGISTRO\s+\d+\s*=====\s*\r?\n?/gim);
+        return partes.map(p => p.trim()).filter(Boolean);
+    }
+    return [texto];
+}
+
+function textoCelulaImportadaExcel(cell) {
+    const value = cell ? cell.value : null;
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string" || typeof value === "number") return String(value).trim();
+    if (value.richText) return value.richText.map(part => part.text || "").join("").trim();
+    if (typeof value === "object" && value.text !== undefined) return String(value.text).trim();
+    if (value.result !== undefined) return String(value.result).trim();
+    return "";
+}
+
+async function lerRegistrosExcelImportado(arquivo) {
+    if (typeof ExcelJS === "undefined") throw new Error("A biblioteca Excel não foi carregada. Recarregue a página e tente novamente.");
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await arquivo.arrayBuffer());
+    const registros = [];
+    wb.worksheets.forEach(function(ws) {
+        // Primeiro, aceita planilhas simples com uma coluna que contenha o texto completo do registro.
+        let colunaTexto = 0;
+        let linhaCabecalho = 0;
+        for (let r = 1; r <= Math.min(ws.rowCount, 10) && !colunaTexto; r++) {
+            ws.getRow(r).eachCell({includeEmpty:false}, function(cell, col) {
+                const cab = normalizarTextoDuplicidade(textoCelulaImportadaExcel(cell));
+                if (/^(TEXTO|TEXTO COMPLETO|CARATER COMPLETO|REGISTRO COMPLETO|CARATER GERAL)$/.test(cab)) {
+                    colunaTexto = col; linhaCabecalho = r;
+                }
+            });
+        }
+        if (colunaTexto) {
+            for (let r = linhaCabecalho + 1; r <= ws.rowCount; r++) {
+                const texto = textoCelulaImportadaExcel(ws.getRow(r).getCell(colunaTexto));
+                if (texto) registros.push(texto.toUpperCase());
+            }
+            return;
+        }
+
+        // Compatibilidade com a planilha "Caráter Geral" exportada pelo próprio Extrator.
+        for (let r = 4; r <= ws.rowCount; r++) {
+            [[2, 12], [16, 26]].forEach(function(par) {
+                const base = par[0];
+                const tres = [0,1,2].map(i => textoCelulaImportadaExcel(ws.getRow(r).getCell(base + i))).join("");
+                const quartoEFinais = textoCelulaImportadaExcel(ws.getRow(r).getCell(base + 3));
+                const placa = (tres + quartoEFinais).replace(/[^A-Z0-9]/gi, "").toUpperCase();
+                if (!/^[A-Z]{3}[A-Z0-9]{4}$/.test(placa) || placa.length !== 7) return;
+                const modelo = textoCelulaImportadaExcel(ws.getRow(r).getCell(base + 6));
+                const cor = textoCelulaImportadaExcel(ws.getRow(r).getCell(base + 9));
+                const codigo = textoCelulaImportadaExcel(ws.getRow(r).getCell(base + 10)).toUpperCase();
+                const area = textoCelulaImportadaExcel(ws.getRow(r).getCell(base + 11)).toUpperCase();
+                let situacao = codigo === "R" ? "ROUBO" : codigo === "F" ? "FURTO" : codigo ? "OUTROS" : "";
+                if (situacao && area) situacao += " ";
+                situacao += area;
+                const linhas = ["CADASTRO VEÍCULO: " + placa];
+                if (modelo) linhas.push("MODELO: " + modelo);
+                if (cor) linhas.push("COR: " + cor);
+                if (situacao.trim()) linhas.push("SITUAÇÃO: " + situacao.trim());
+                registros.push(linhas.join("\n"));
+            });
+        }
+    });
+    return registros;
+}
+
+async function importarListaCarater(arquivo) {
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.adicionar_remover_carater || adminPermissoes.is_master)) {
+        alert("Você não possui permissão para importar registros."); return;
+    }
+    if (!usuarioAtual) { alert("Faça login antes de importar a lista."); return; }
+    if (!arquivo) return;
+    const extensao = (arquivo.name.split(".").pop() || "").toLowerCase();
+    if (!/[.]?(txt|xlsx|xlsm)$/.test(extensao)) {
+        alert("Formato não suportado. Selecione um arquivo TXT ou Excel (.xlsx/.xlsm)."); return;
+    }
+    const status = document.getElementById("status");
+    try {
+        if (status) status.innerText = "Lendo arquivo para importação...";
+        let importados = [];
+        if (extensao === "txt") {
+            importados = separarRegistrosTxtImportado(await arquivo.text()).map(t => t.toUpperCase());
+        } else {
+            importados = await lerRegistrosExcelImportado(arquivo);
+        }
+        importados = importados.map(t => String(t || "").trim()).filter(Boolean);
+        if (!importados.length) {
+            alert("Nenhum registro foi encontrado no arquivo. Para Excel, use a planilha de caráter geral exportada pelo programa ou uma coluna chamada TEXTO/TEXTO COMPLETO.");
+            if (status) status.innerText = "Nenhum registro válido encontrado no arquivo.";
+            return;
+        }
+
+        // Usa a lista online mais recente como base para nunca substituir registros existentes.
+        const { data: existentes, error: erroConsulta } = await sb.from("extrator_lista_carater").select("id,texto");
+        if (erroConsulta) throw erroConsulta;
+        const chavesPlaca = new Set();
+        const chavesTexto = new Set();
+        (existentes || []).forEach(function(reg) {
+            const placa = encontrarPlaca(reg.texto || "");
+            if (placa) chavesPlaca.add(placa.toUpperCase());
+            else chavesTexto.add(normalizarTextoDuplicidade(reg.texto));
+        });
+
+        const novos = [];
+        let duplicados = 0;
+        importados.forEach(function(texto) {
+            const placa = encontrarPlaca(texto);
+            const chaveTexto = normalizarTextoDuplicidade(texto);
+            if (placa) {
+                const chave = placa.toUpperCase();
+                if (chavesPlaca.has(chave)) { duplicados++; return; }
+                chavesPlaca.add(chave);
+            } else {
+                if (!chaveTexto || chavesTexto.has(chaveTexto)) { duplicados++; return; }
+                chavesTexto.add(chaveTexto);
+            }
+            novos.push({texto: texto, criado_por: usuarioAtual.id});
+        });
+
+        if (!novos.length) {
+            alert("Importação concluída: nenhum registro novo. " + duplicados + " duplicado(s) ignorado(s).");
+            if (status) status.innerText = "Importação concluída sem novos registros. Duplicados ignorados: " + duplicados + ".";
+            return;
+        }
+        let inseridos = 0;
+        for (let i = 0; i < novos.length; i += 100) {
+            const lote = novos.slice(i, i + 100);
+            const { error } = await sb.from("extrator_lista_carater").insert(lote);
+            if (error) throw new Error("Falha ao inserir o lote iniciado no registro " + (i + 1) + ": " + (error.message || error) + ". Já foram inseridos " + inseridos + " registro(s).");
+            inseridos += lote.length;
+        }
+        await carregarLista();
+        const resumo = "Importação concluída. Novos registros adicionados: " + inseridos + ". Duplicados ignorados: " + duplicados + ". Total na lista: " + listaTextos.length + ".";
+        if (status) status.innerText = resumo;
+        alert(resumo);
+    } catch (erro) {
+        console.error(erro);
+        alert("Não foi possível concluir a importação. " + (erro.message || erro));
+        if (status) status.innerText = "Erro na importação da lista.";
+    }
+}
+
 function baixarListaTxt() {
     if (!usuarioAtual) {
         alert("Faça login para baixar a lista de caráter geral.");
@@ -4535,19 +4698,99 @@ function pararRealtimeLista() {
    diretamente na área de imagem, aguardando o usuário clicar em
    um dos botões de extração.
 ========================================================= */
-function capturarTelaAdmin() {
+async function capturarTelaAdmin() {
     const podeEditar = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.adicionar_remover_carater || adminPermissoes.is_master);
     if (!podeEditar) {
         alert("Você não possui permissão para inserir caráter.");
         return;
     }
 
-    // O navegador não pode abrir diretamente a ferramenta nativa de recorte do Windows.
-    // O programa já aceita imagens coladas com Ctrl+V, então usamos o recorte nativo
-    // sem abrir uma janela interna adicional.
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        alert("Seu navegador não permite captura de tela neste dispositivo.");
+        return;
+    }
+
+    const botao = document.getElementById("btnCapturarTelaAdmin");
     const status = document.getElementById("status");
-    if (status) {
-        status.innerText = "Use Windows + Shift + S para selecionar a área na tela. Depois volte ao Extrator e pressione Ctrl + V para carregar a captura.";
+    let stream = null;
+    let video = null;
+
+    try {
+        if (botao) botao.disabled = true;
+        if (status) status.innerText = "Selecione a tela ou janela que deseja capturar...";
+
+        stream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+                displaySurface: "monitor",
+                frameRate: { ideal: 30, max: 30 }
+            },
+            audio: false
+        });
+
+        const track = stream.getVideoTracks()[0];
+        if (!track) throw new Error("Nenhuma fonte de vídeo foi selecionada.");
+
+        video = document.createElement("video");
+        video.muted = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+
+        await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error("Tempo esgotado ao preparar a captura.")), 10000);
+            video.onloadedmetadata = () => {
+                clearTimeout(timeout);
+                resolve();
+            };
+        });
+
+        await video.play();
+        await new Promise(resolve => {
+            if (video.requestVideoFrameCallback) {
+                video.requestVideoFrameCallback(() => resolve());
+            } else {
+                setTimeout(resolve, 250);
+            }
+        });
+
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        if (!canvas.width || !canvas.height) {
+            throw new Error("Não foi possível obter o tamanho da captura.");
+        }
+
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const blob = await new Promise((resolve, reject) => {
+            canvas.toBlob(result => {
+                if (result) resolve(result);
+                else reject(new Error("Não foi possível gerar a imagem da captura."));
+            }, "image/png");
+        });
+
+        // A janela nativa de compartilhamento já terminou.
+        // Agora abrimos imediatamente a janela interna para recortar somente o que interessa.
+        abrirSeletorCaptura(blob);
+        if (status) status.innerText = "Selecione a área desejada na captura.";
+    } catch (erro) {
+        console.error(erro);
+        if (erro?.name === "NotAllowedError") {
+            if (status) status.innerText = "Captura cancelada.";
+        } else {
+            if (status) status.innerText = "Não foi possível capturar a tela.";
+            alert("Não foi possível capturar a tela. Tente novamente.");
+        }
+    } finally {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+        if (video) {
+            try { video.pause(); } catch (_) {}
+            video.srcObject = null;
+        }
+        if (botao) botao.disabled = false;
     }
 }
 
@@ -6789,6 +7032,8 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 <button onclick="limparListaOnline()">🗑️ Limpar lista</button>
 <button id="btnExcluirSelecionados" class="btn-danger" type="button" onclick="excluirSelecionadosMaster()" style="display:none" disabled>🗑️ Excluir selecionados</button>
 <button id="btnDownloadLista" onclick="abrirEscolhaDownload()">📥 Download lista de caráter</button>
+<button type="button" onclick="abrirImportacaoLista()">📤 Importar lista (TXT/Excel)</button>
+<input id="arquivoImportarLista" type="file" accept=".txt,.xlsx,.xlsm" style="display:none" onchange="importarListaCarater(this.files && this.files[0]); this.value=''">
 </div>
 <div class="botoes-lista" id="botoesUsuarioLista" style="display:none">
 <button type="button" onclick="abrirEscolhaDownload()">📥 Baixar lista de caráter</button>
