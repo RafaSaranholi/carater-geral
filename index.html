@@ -113,7 +113,7 @@
         margin-top: 8px;
     }
 
-.conteudo-principal{display:grid;grid-template-columns:minmax(0,1fr) 700px;gap:20px;align-items:start} /* LARGURA LISTA DE CARATER GERAL SALVO */
+.conteudo-principal{display:grid;grid-template-columns:minmax(0,1fr) 750px;gap:20px;align-items:start} /* LARGURA LISTA DE CARATER GERAL SALVO */
 .painel-lista{background:#202020;border:1px solid #444;border-radius:8px;padding:15px;position:sticky;top:15px}
 .painel-lista h3{margin-top:0}
 #listaSalvos{max-height:600px;overflow-y:auto;margin-bottom:10px}
@@ -612,6 +612,27 @@
     font-size:34px;
     margin-bottom:5px;
 }
+</style>
+
+
+<style id="fotos-veiculos-estilo">
+/* Complemento visual isolado: mantém cores, campos e botões originais. */
+.btn-ver-veiculo{display:inline-flex;align-items:center;justify-content:center;margin:10px 0 4px;padding:7px 12px;background:#23465c;color:#eef7ff;border:1px solid #397b9e;border-radius:6px;font-size:12px;font-weight:bold}
+.btn-ver-veiculo:hover{background:#315e78}
+.foto-veiculo-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;box-sizing:border-box;padding:15px;background:rgba(0,0,0,.82);z-index:210000}
+.foto-veiculo-overlay.aberto{display:flex}
+.foto-veiculo-modal{width:min(560px,96vw);max-height:91vh;overflow-y:auto;background:#202020;border:1px solid #555;border-radius:12px;padding:20px;box-sizing:border-box;box-shadow:0 20px 60px rgba(0,0,0,.65)}
+.foto-veiculo-cabecalho{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.foto-veiculo-cabecalho h3{margin:0 0 6px;color:#eee;font-size:19px}
+.foto-veiculo-cabecalho button{margin:0;padding:5px 10px;background:#333;color:white;border:1px solid #555}
+.foto-veiculo-dados{color:#c8d5df;font-size:14px;line-height:1.5;margin:7px 0 12px;white-space:pre-wrap}
+.foto-veiculo-foto{display:none;width:100%;max-height:50vh;object-fit:contain;border:1px solid #444;border-radius:8px;background:#111;box-sizing:border-box}
+.foto-veiculo-status{font-size:13px;color:#bbb;line-height:1.5;margin:12px 0;white-space:pre-line}
+.foto-veiculo-aviso{font-size:12px;color:#ebce8e;line-height:1.5;background:#28251d;border:1px solid #635331;border-radius:7px;padding:10px;margin-top:12px}
+.foto-veiculo-fontes{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:13px}
+.foto-veiculo-fontes a{display:inline-flex;text-decoration:none;background:#23465c;color:#eaf5ff;border:1px solid #397b9e;border-radius:6px;padding:9px 12px;font-size:12px;font-weight:bold}
+.foto-veiculo-fontes a:hover{background:#315e78}
+.foto-veiculo-credito{margin:8px 0 0;font-size:11px;color:#aaa}
 </style>
 
 </head>
@@ -3006,6 +3027,8 @@ function renderizarLista() {
     const container = document.getElementById("listaSalvos");
     const contador = document.getElementById("contadorCarater");
     if (!container) return;
+    // Descarta observações de botões removidos ao atualizar a pesquisa/lista.
+    if (observadorFotosVeiculos) observadorFotosVeiculos.disconnect();
 
     if (contador) contador.textContent = "Total: " + listaTextos.length;
 
@@ -3091,6 +3114,9 @@ function renderizarLista() {
             item.appendChild(dataLancamento);
             item.appendChild(conteudo);
         }
+
+        // Busca ilustrativa de fotos, sem alterar o registro salvo nem enviar a placa.
+        adicionarBotaoFotoVeiculo(item, registro.texto || "");
 
         const botaoCopiar = document.createElement("button");
         botaoCopiar.type = "button";
@@ -7497,6 +7523,277 @@ document.addEventListener("visibilitychange", function() {
         if (telaSempreAtiva) solicitarWakeLockTela();
     } else {
         liberarWakeLockTela();
+    }
+});
+</script>
+
+
+<!-- Consulta ilustrativa de marca/modelo/cor; os dados oficiais e os registros não mudam. -->
+<div id="fotoVeiculoOverlay" class="foto-veiculo-overlay" aria-hidden="true" onclick="if(event.target===this)fecharFotoVeiculo()">
+  <div class="foto-veiculo-modal" role="dialog" aria-modal="true" aria-labelledby="fotoVeiculoTitulo">
+    <div class="foto-veiculo-cabecalho">
+      <h3 id="fotoVeiculoTitulo">🚗 Visualizar modelo do veículo</h3>
+      <button type="button" onclick="fecharFotoVeiculo()" aria-label="Fechar visualização">✕</button>
+    </div>
+    <div id="fotoVeiculoDados" class="foto-veiculo-dados"></div>
+    <img id="fotoVeiculoImagem" class="foto-veiculo-foto" alt="Fotografia ilustrativa do modelo">
+    <div id="fotoVeiculoStatus" class="foto-veiculo-status" aria-live="polite"></div>
+    <div id="fotoVeiculoCreditos" class="foto-veiculo-credito"></div>
+    <div class="foto-veiculo-aviso">Foto meramente ilustrativa. Não é fotografia do veículo cadastrado e NÃO permite confirmar placa, identidade, características individuais ou a cor real do veículo procurado.</div>
+    <div class="foto-veiculo-fontes">
+      <a id="fotoVeiculoPesquisa" href="#" target="_blank" rel="noopener noreferrer">🔎 Pesquisar fotos por modelo e cor</a>
+      <a id="fotoVeiculoOrigem" href="#" target="_blank" rel="noopener noreferrer" style="display:none">📸 Ver origem da foto</a>
+    </div>
+  </div>
+</div>
+<script id="fotos-veiculos-script">
+// A fotografia é uma referência pública do modelo, não uma informação do veículo da placa.
+// Consulta sem chave à API Wikimedia Commons; se não houver resultado, oferece imagens do Google.
+const cacheFotosVeiculos = new Map();
+const filaFotosVeiculos = [];
+let consultasFotosAtivas = 0;
+let observadorFotosVeiculos = null;
+let visualizacaoFotoAtual = 0;
+
+function normalizarBuscaVeiculo(texto) {
+    return String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function extrairDadosFotoVeiculo(texto) {
+    // Aproveita o leitor de campos existente, inclusive registros importados por OCR/Excel.
+    const marcaBruta = campoCarater(texto, ["MARCA"]);
+    const modeloBruto = campoCarater(texto, ["MODELO"]);
+    const cor = campoCarater(texto, ["COR"]);
+    const ano = (campoCarater(texto, ["ANO"]).match(/\b(?:19|20)\d{2}\b/) || [""])[0];
+    let marca = String(marcaBruta || "").trim().replace(/\s*\/\s*/g, " ");
+    let modelo = String(modeloBruto || "").trim().replace(/\s*\/\s*/g, " ");
+    marca = marca.replace(/^GM\s+CHEVROLET\b/i, "Chevrolet")
+        .replace(/^GM\b/i, "Chevrolet").replace(/^VW\b/i, "Volkswagen")
+        .replace(/^VOLKS\b/i, "Volkswagen");
+    if (!modelo) {
+        // Ex.: MARCA: VW/GOL ou MARCA: HONDA/CG 160 FAN.
+        const partes = String(marcaBruta || "").split("/").map(p => p.trim()).filter(Boolean);
+        if (partes.length >= 2) modelo = partes.slice(1).join(" ");
+        else {
+            const palavrasMarca = marca.split(/\s+/);
+            if (palavrasMarca.length >= 2) modelo = palavrasMarca.slice(1).join(" ");
+        }
+    }
+    let consulta = [marca, modelo].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+    if (modelo && normalizarBuscaVeiculo(marca).includes(normalizarBuscaVeiculo(modelo))) consulta = marca;
+    // Não tentar retornar fotos de uma marca genérica sem um modelo distinguível.
+    const indeterminados = /^(N\/I|NAO INFORMADO|NAO IDENTIFICADO|IGNORADO|OUTROS|AUTOMOVEL|MOTOCICLETA|VEICULO|CAMINHONETE|CAMINHAO)$/i;
+    if (!modelo || indeterminados.test(modelo.trim())) return null;
+    const corIngles = {
+        BRANCA:"white", BRANCO:"white", PRETA:"black", PRETO:"black",
+        PRATA:"silver", PRATEADA:"silver", CINZA:"gray", GRAFITE:"gray",
+        VERMELHA:"red", VERMELHO:"red", AZUL:"blue", VERDE:"green",
+        AMARELA:"yellow", AMARELO:"yellow", DOURADA:"gold", DOURADO:"gold",
+        BEGE:"beige", MARROM:"brown", LARANJA:"orange", ROXA:"purple", ROXO:"purple"
+    };
+    const corPalavras = normalizarBuscaVeiculo(cor).split(" ").filter(Boolean);
+    const ingles = corIngles[corPalavras[0]?.toUpperCase()] || "";
+    // Não enviar placa, situação, localização nem dados pessoais ao serviço externo.
+    return {consulta, modelo, cor: String(cor || "").trim(), ano, ingles,
+        chave: normalizarBuscaVeiculo(consulta) + "|" + normalizarBuscaVeiculo(cor)};
+}
+
+function urlPesquisaFotoVeiculo(dados) {
+    if (!dados) return "https://www.google.com/search?tbm=isch&q=veiculos";
+    const consulta = [dados.consulta, dados.ano, dados.cor, "veiculo"].filter(Boolean).join(" ");
+    return "https://www.google.com/search?tbm=isch&q=" + encodeURIComponent(consulta);
+}
+
+function pontuarFotoVeiculo(pagina, dados) {
+    const titulo = normalizarBuscaVeiculo(pagina.title.replace(/^File:/i, ""));
+    const palavras = normalizarBuscaVeiculo(dados.modelo).split(" ").filter(p => p.length >= 2);
+    if (!palavras.length || !palavras.some(p => titulo.split(" ").includes(p))) return -1;
+    if (/\b(logo|badge|emblem|interior|engine|motor|dashboard|drawing|diagram|blueprint|toy|miniature|icon|wheel)\b/.test(titulo)) return -1;
+    let pontos = 1;
+    for (const palavra of palavras) if (titulo.split(" ").includes(palavra)) pontos += 2;
+    const cores = [normalizarBuscaVeiculo(dados.cor), normalizarBuscaVeiculo(dados.ingles), "grey" === dados.ingles ? "gray" : "", "gray" === dados.ingles ? "grey" : ""].filter(Boolean);
+    const corNoTitulo = cores.some(c => titulo.split(" ").includes(c));
+    if (corNoTitulo) pontos += 15;
+    return {pontos, corNoTitulo};
+}
+
+async function consultarWikimediaFotos(dados, termo) {
+    const params = new URLSearchParams({
+        action:"query", generator:"search", gsrsearch:termo + " filetype:bitmap",
+        gsrnamespace:"6", gsrlimit:"12", prop:"imageinfo", iiprop:"url|extmetadata",
+        iiurlwidth:"700", iiextmetadatafilter:"LicenseShortName", format:"json", origin:"*"
+    });
+    const controle = new AbortController();
+    const limite = setTimeout(() => controle.abort(), 10000);
+    try {
+        const resposta = await fetch("https://commons.wikimedia.org/w/api.php?" + params, {
+            signal:controle.signal, credentials:"omit"
+        });
+        if (!resposta.ok) throw new Error("Wikimedia HTTP " + resposta.status);
+        const json = await resposta.json();
+        return Object.values(json.query?.pages || {}).map(p => {
+            const info = p.imageinfo?.[0];
+            const url = info?.thumburl || info?.url;
+            if (!url || !/^https:\/\/upload\.wikimedia\.org\//.test(url)) return null;
+            const pontuacao = pontuarFotoVeiculo(p, dados);
+            if (pontuacao === -1) return null;
+            return {
+                foto:url,
+                pagina: /^https:\/\/commons\.wikimedia\.org\//.test(info.descriptionurl || "") ? info.descriptionurl : "",
+                titulo:p.title.replace(/^File:/i, ""),
+                licenca:String(info.extmetadata?.LicenseShortName?.value || "").replace(/<[^>]*>/g, ""),
+                ...pontuacao
+            };
+        }).filter(Boolean).sort((a,b) => b.pontos - a.pontos);
+    } finally { clearTimeout(limite); }
+}
+
+async function consultarFotoVeiculo(dados) {
+    const consultas = [];
+    if (dados.cor) consultas.push(dados.consulta + " " + (dados.ingles || dados.cor));
+    consultas.push(dados.consulta);
+    let ilustrativa = null;
+    for (const termo of consultas) {
+        const resultados = await consultarWikimediaFotos(dados, termo);
+        if (resultados[0]?.corNoTitulo) return resultados[0];
+        if (!ilustrativa && resultados.length) ilustrativa = resultados[0];
+        // Sem cor declarada, a busca do modelo já é suficiente para foto ilustrativa.
+        if (!dados.cor && ilustrativa) break;
+    }
+    return ilustrativa;
+}
+
+function processarFilaFotosVeiculos() {
+    if (consultasFotosAtivas || !filaFotosVeiculos.length) return;
+    const tarefa = filaFotosVeiculos.shift();
+    consultasFotosAtivas = 1; // Uma consulta por vez para não sobrecarregar a fonte.
+    consultarFotoVeiculo(tarefa.dados).then(tarefa.resolve, tarefa.reject).finally(() => {
+        consultasFotosAtivas = 0;
+        processarFilaFotosVeiculos();
+    });
+}
+
+function buscarFotoVeiculo(dados, prioritario = false) {
+    if (!dados) return Promise.resolve(null);
+    if (cacheFotosVeiculos.has(dados.chave)) return cacheFotosVeiculos.get(dados.chave);
+    const promessa = new Promise((resolve, reject) => {
+        const tarefa = {dados, resolve, reject};
+        if (prioritario) filaFotosVeiculos.unshift(tarefa);
+        else filaFotosVeiculos.push(tarefa);
+    }).catch(erro => {
+        // Falhas de conexão nunca bloqueiam o botão de pesquisa externa.
+        console.warn("Foto ilustrativa indisponível:", erro);
+        return null;
+    });
+    cacheFotosVeiculos.set(dados.chave, promessa);
+    processarFilaFotosVeiculos();
+    return promessa;
+}
+
+function adicionarBotaoFotoVeiculo(item, texto) {
+    const dados = extrairDadosFotoVeiculo(texto);
+    const botao = document.createElement("button");
+    botao.type = "button";
+    botao.className = "btn-ver-veiculo";
+    botao.textContent = "🚗 Ver veículo";
+    botao.title = "Fotografia ilustrativa pesquisada por modelo e cor";
+    botao.addEventListener("click", evento => {
+        evento.stopPropagation();
+        abrirFotoVeiculo(dados);
+    });
+    item.appendChild(botao);
+
+    if (!dados) {
+        botao.title = "Modelo não identificado; veja mais informações";
+        return;
+    }
+    // Pesquisa automática ao surgir na área visível da lista, inclusive itens novos.
+    if (typeof IntersectionObserver === "undefined") return;
+    if (!observadorFotosVeiculos) {
+        observadorFotosVeiculos = new IntersectionObserver(entradas => {
+            entradas.forEach(entrada => {
+                if (!entrada.isIntersecting) return;
+                observadorFotosVeiculos.unobserve(entrada.target);
+                const campo = entrada.target;
+                const dadosVeiculo = campo.__dadosFotoVeiculo;
+                if (!dadosVeiculo) return;
+                buscarFotoVeiculo(dadosVeiculo).then(resultado => {
+                    if (campo.isConnected && resultado) campo.title = resultado.corNoTitulo
+                        ? "Foto ilustrativa encontrada com cor indicada no arquivo"
+                        : "Foto ilustrativa do modelo encontrada; cor não confirmada";
+                });
+            });
+        }, {root:document.getElementById("listaSalvos"), rootMargin:"100px"});
+    }
+    botao.__dadosFotoVeiculo = dados;
+    observadorFotosVeiculos.observe(botao);
+}
+
+function fecharFotoVeiculo() {
+    const overlay = document.getElementById("fotoVeiculoOverlay");
+    if (!overlay) return;
+    visualizacaoFotoAtual++;
+    overlay.classList.remove("aberto");
+    overlay.setAttribute("aria-hidden", "true");
+    document.getElementById("fotoVeiculoImagem").removeAttribute("src");
+}
+
+async function abrirFotoVeiculo(dados) {
+    const overlay = document.getElementById("fotoVeiculoOverlay");
+    if (!overlay) return;
+    const token = ++visualizacaoFotoAtual;
+    const titulo = document.getElementById("fotoVeiculoDados");
+    const imagem = document.getElementById("fotoVeiculoImagem");
+    const status = document.getElementById("fotoVeiculoStatus");
+    const creditos = document.getElementById("fotoVeiculoCreditos");
+    const origem = document.getElementById("fotoVeiculoOrigem");
+    const pesquisa = document.getElementById("fotoVeiculoPesquisa");
+    overlay.classList.add("aberto");
+    overlay.setAttribute("aria-hidden", "false");
+    imagem.style.display = "none";
+    imagem.removeAttribute("src");
+    creditos.textContent = "";
+    origem.style.display = "none";
+    pesquisa.href = urlPesquisaFotoVeiculo(dados);
+    if (!dados) {
+        titulo.textContent = "Modelo ou marca não identificados no registro.";
+        status.textContent = "É necessário informar MARCA e MODELO para buscar imagens específicas. O registro original foi mantido.";
+        return;
+    }
+    titulo.textContent = "Modelo: " + dados.consulta + "\nCor informada: " + (dados.cor || "Não informada")
+        + (dados.ano ? "\nAno: " + dados.ano : "");
+    status.textContent = "Buscando fotografia ilustrativa do modelo...";
+    const resultado = await buscarFotoVeiculo(dados, true);
+    if (token !== visualizacaoFotoAtual) return;
+    if (!resultado) {
+        status.textContent = "Não foi encontrada uma foto pública verificável deste modelo. Use 'Pesquisar fotos por modelo e cor' para consultar outras imagens.";
+        return;
+    }
+    imagem.alt = "Imagem ilustrativa do modelo " + dados.consulta + "; a cor real não foi verificada";
+    imagem.onload = () => {
+        if (token === visualizacaoFotoAtual) imagem.style.display = "block";
+    };
+    imagem.onerror = () => {
+        if (token === visualizacaoFotoAtual) {
+            imagem.style.display = "none";
+            status.textContent = "A fotografia da fonte não pôde ser carregada. Use a pesquisa de imagens.";
+        }
+    };
+    imagem.src = resultado.foto;
+    status.textContent = resultado.corNoTitulo
+        ? "Imagem ilustrativa encontrada. A cor aparece descrita na fonte, mas não foi verificada visualmente."
+        : "Imagem ilustrativa do modelo. ATENÇÃO: a cor da fotografia pode ser diferente da cor cadastrada.";
+    creditos.textContent = "Fonte: Wikimedia Commons" + (resultado.licenca ? " · Licença: " + resultado.licenca : "");
+    if (resultado.pagina) {
+        origem.href = resultado.pagina;
+        origem.style.display = "inline-flex";
+    }
+}
+
+document.addEventListener("keydown", evento => {
+    if (evento.key === "Escape" && document.getElementById("fotoVeiculoOverlay")?.classList.contains("aberto")) {
+        fecharFotoVeiculo();
     }
 });
 </script>
