@@ -1708,10 +1708,31 @@ async function executarOCR(canvas, retornarDados = false) {
             6
         );
 
+    // Atalho de velocidade: se duas leituras independentes concordam
+    // nos marcadores e na placa, evita executar mais três OCRs completos.
+    const textoR1 = String(r1?.data?.text || '').trim();
+    const textoR2 = String(r2?.data?.text || '').trim();
+    const placaR1 = encontrarPlaca(textoR1);
+    const placaR2 = encontrarPlaca(textoR2);
+    const camposR1 = /CADASTRO\s+VE[ÍI1ÌÎÏ]?CULO/i.test(textoR1) && /SITUA[CÇC]?[AÃA]?O\s*:/i.test(textoR1);
+    const camposR2 = /CADASTRO\s+VE[ÍI1ÌÎÏ]?CULO/i.test(textoR2) && /SITUA[CÇC]?[AÃA]?O\s*:/i.test(textoR2);
+    if (camposR1 && camposR2 && placaR1 && placaR1 === placaR2 &&
+        Number(r1?.data?.confidence || 0) >= 55 && Number(r2?.data?.confidence || 0) >= 55) {
+        const escolhidoRapido = Number(r2.data.confidence || 0) > Number(r1.data.confidence || 0) ? r2 : r1;
+        if (retornarDados) return {
+            text: String(escolhidoRapido.data.text || '').trim(),
+            confidence: escolhidoRapido.data.confidence,
+            lines: escolhidoRapido.data.lines || [],
+            words: escolhidoRapido.data.words || [],
+            data: escolhidoRapido.data
+        };
+        return String(escolhidoRapido.data.text || '').trim();
+    }
 
     /*
      * Terceira leitura:
-     * modo automático de segmentação.
+     * modo automático de segmentação, usada apenas quando as duas
+     * primeiras leituras não concordam suficientemente.
      */
 
     const r3 =
@@ -2796,86 +2817,89 @@ function copiarTexto() {
 ========================================================= */
 
 async function extrairSomenteCarater() {
-
     if (!imagemOriginal) {
         alert("Cole ou carregue uma imagem primeiro.");
         return;
     }
 
-    try {
-        document.getElementById("status").innerText =
-            "Lendo imagem e extraindo caráter...";
+    const botao = document.querySelector('button[onclick="extrairSomenteCarater()"]');
+    if (botao) { botao.disabled = true; botao.dataset.textoOriginal = botao.textContent; botao.textContent = "⏳ Extraindo..."; }
 
-        // Faz a leitura diretamente da imagem inteira, sem exigir
-        // qualquer seleção da área vermelha e sem mostrar o OCR completo.
+    try {
+        document.getElementById("status").innerText = "Lendo imagem e conferindo emplacamento...";
         const canvas = document.createElement("canvas");
         canvas.width = imagemOriginal.naturalWidth;
         canvas.height = imagemOriginal.naturalHeight;
-        const ctx = canvas.getContext("2d");
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
         ctx.drawImage(imagemOriginal, 0, 0);
 
         const dados = await executarOCR(canvas, true);
-        const texto = processarTexto((dados && dados.text) ? dados.text : "");
+        if (!dados) throw new Error("OCR não retornou dados.");
 
-        if (!texto.trim()) {
-            throw new Error("OCR não retornou texto.");
-        }
+        // Mantém as quebras originais do OCR durante a extração: achatá-las
+        // antes de localizar SITUAÇÃO fazia o resultado engolir campos seguintes.
+        const linhasOCR = Array.isArray(dados.lines)
+            ? dados.lines.map(l => String(l?.text || "").trim()).filter(Boolean)
+            : [];
+        let textoOCR = (linhasOCR.length ? linhasOCR.join("\n") : String(dados.text || ""))
+            .replace(/\r/g, "").toUpperCase();
+        textoOCR = textoOCR.replace(/CADASTRO\s+VE[ÍI1ÌÎÏ]?CULO/g, "CADASTRO VEÍCULO")
+            .replace(/SITUA[CÇC]?[AÃA]?O/g, "SITUAÇÃO");
 
-        // Procura CADASTRO VEÍCULO: e extrai até o final do valor de SITUAÇÃO.
-        const inicioRegex = /CADASTRO\s+VE[ÍIÌÎÏI]?CULO\s*:/i;
-        const inicioMatch = inicioRegex.exec(texto);
-
+        const inicioRegex = /CADASTRO\s+VEÍCULO\s*[:\-]?/i;
+        const inicioMatch = inicioRegex.exec(textoOCR);
         if (!inicioMatch) {
-            alert('Não foi encontrado "CADASTRO VEÍCULO:" no texto lido.');
+            alert('Não foi encontrado "CADASTRO VEÍCULO" na imagem. Tente uma captura mais nítida.');
+            document.getElementById("status").innerText = "Campo CADASTRO VEÍCULO não reconhecido.";
             return;
         }
 
-        const inicio = inicioMatch.index + inicioMatch[0].length;
-        const restante = texto.slice(inicio);
-
-        const situacaoRegex = /SITUA[CÇC]?[AÃA]?O\s*:/i;
-        const situacaoMatch = situacaoRegex.exec(restante);
-
+        const restante = textoOCR.slice(inicioMatch.index + inicioMatch[0].length);
+        const situacaoMatch = /SITUAÇÃO\s*[:\-]?/i.exec(restante);
         if (!situacaoMatch) {
-            alert('Não foi encontrado "SITUAÇÃO:" no texto lido.');
+            alert('Não foi encontrado o campo "SITUAÇÃO". Tente uma captura mais nítida.');
+            document.getElementById("status").innerText = "Campo SITUAÇÃO não reconhecido.";
             return;
         }
 
-        const fimMarcador = situacaoMatch.index + situacaoMatch[0].length;
-        const depoisSituacao = restante.slice(fimMarcador);
-
-        // Mantém somente o valor da situação, encerrando no próximo ; ou quebra de linha.
-        const fimValor = depoisSituacao.search(/[;\n\r]/);
-        const fim = fimValor >= 0
-            ? fimMarcador + fimValor
-            : restante.length;
-
-        let resultado = restante.slice(0, fim).trim();
-
-        // Mantém o conteúdo reconhecido, apenas removendo quebras de linha
-        // para que o caráter seja apresentado em uma única linha.
-        resultado = resultado
-            .replace(/[\\r\\n]+/g, " ")
-            .replace(/[ \\t]{2,}/g, " ")
+        const depoisMarcador = restante.slice(situacaoMatch.index + situacaoMatch[0].length);
+        // Alguns prints deixam o valor de SITUAÇÃO na linha seguinte ao rótulo.
+        // Ignora apenas as quebras/espaços iniciais e captura o valor dessa linha.
+        const deslocamentoValor = depoisMarcador.search(/\S/);
+        if (deslocamentoValor < 0) {
+            alert("O campo SITUAÇÃO foi encontrado, mas está sem conteúdo.");
+            return;
+        }
+        const valorSituacao = depoisMarcador.slice(deslocamentoValor);
+        const fimValor = valorSituacao.search(/[;\n\r]/);
+        const fimRelativo = fimValor >= 0 ? fimValor : valorSituacao.length;
+        const fim = situacaoMatch.index + situacaoMatch[0].length + deslocamentoValor + fimRelativo;
+        let resultado = restante.slice(0, fim).trim()
+            .replace(/[\r\n]+/g, " ")
+            .replace(/[ \t]{2,}/g, " ")
+            .replace(/\s+([,;:])/g, "$1")
             .trim();
 
         if (!resultado) {
-            alert("Não foi possível extrair o caráter.");
+            alert("O campo foi encontrado, mas o conteúdo do caráter ficou vazio.");
             return;
         }
 
-        // Mostra somente o resultado final, sem exigir seleção e sem
-        // substituir a imagem ou alterar a lista de textos salvos.
+        // Detecta e corrige a placa somente quando o padrão completo é válido.
+        // Não inventa caracteres se não houver confiança suficiente.
+        const placa = encontrarPlaca("CADASTRO VEÍCULO: " + resultado);
+        if (placa) resultado = corrigirPlacaNoTexto(resultado, placa);
         document.getElementById("resultado").value = resultado.toUpperCase();
-        document.getElementById("placa").innerText = encontrarPlaca(resultado) || "---";
-        document.getElementById("status").innerText =
-            "Caráter extraído com sucesso.";
-
+        document.getElementById("placa").innerText = placa || "---";
+        document.getElementById("status").innerText = placa
+            ? "Caráter extraído. Emplacamento reconhecido: " + placa + "."
+            : "Caráter extraído; confira manualmente o emplacamento antes de salvar.";
     } catch (erro) {
         console.error(erro);
-        document.getElementById("status").innerText =
-            "Erro durante a leitura do caráter.";
-        alert("Não foi possível reconhecer o caráter.");
+        document.getElementById("status").innerText = "Erro durante a leitura do caráter.";
+        alert("Não foi possível reconhecer o caráter. Tente uma imagem mais nítida ou recorte a área relevante.");
+    } finally {
+        if (botao) { botao.disabled = false; botao.textContent = botao.dataset.textoOriginal || "🔎 Extrair somente o caráter"; }
     }
 }
 
@@ -4614,6 +4638,58 @@ async function excluirSelecionadosMaster() {
         await carregarLista();
     } finally {
         atualizarBotaoExcluirSelecionados();
+    }
+}
+
+async function excluirRegistrosPorData() {
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.adicionar_remover_carater || adminPermissoes.is_master)) {
+        alert("Você não possui permissão para excluir registros da lista.");
+        return;
+    }
+    const campoData = document.getElementById("dataExcluirCarater");
+    const dataEscolhida = campoData?.value;
+    if (!dataEscolhida) {
+        alert("Selecione a data completa que deseja excluir.");
+        campoData?.focus();
+        return;
+    }
+
+    // Compara a data local exibida na lista, evitando erro de fuso horário UTC.
+    const registrosDoDia = listaTextos.filter(registro => {
+        if (!registro.created_at) return false;
+        const data = new Date(registro.created_at);
+        if (Number.isNaN(data.getTime())) return false;
+        const ano = data.getFullYear();
+        const mes = String(data.getMonth() + 1).padStart(2, "0");
+        const dia = String(data.getDate()).padStart(2, "0");
+        return ano + "-" + mes + "-" + dia === dataEscolhida;
+    });
+
+    if (!registrosDoDia.length) {
+        alert("Não há registros salvos nessa data.");
+        return;
+    }
+    const dataFormatada = dataEscolhida.split("-").reverse().join("/");
+    if (!confirm("ATENÇÃO: serão excluídos " + registrosDoDia.length + " registro(s) lançado(s) em " + dataFormatada + ".\n\nEsta ação não poderá ser desfeita. Deseja continuar?")) return;
+
+    const botao = document.querySelector('.excluir-data-carater button');
+    if (botao) { botao.disabled = true; botao.textContent = "Excluindo..."; }
+    try {
+        const ids = registrosDoDia.map(r => r.id);
+        for (let i = 0; i < ids.length; i += 100) {
+            const { error } = await sb.from("extrator_lista_carater").delete().in("id", ids.slice(i, i + 100));
+            if (error) throw error;
+        }
+        registrosDoDia.forEach(r => registrosSelecionadosMaster.delete(String(r.id)));
+        await carregarLista();
+        document.getElementById("status").innerText = registrosDoDia.length + " registro(s) excluído(s) de " + dataFormatada + ".";
+        alert(registrosDoDia.length + " registro(s) de " + dataFormatada + " foram excluídos.");
+    } catch (error) {
+        console.error(error);
+        alert("Não foi possível concluir a exclusão da data. Confira suas permissões e tente novamente.");
+        await carregarLista();
+    } finally {
+        if (botao) { botao.disabled = false; botao.textContent = "🗑️ Excluir data"; }
     }
 }
 
@@ -7029,6 +7105,11 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 <div id="listaSalvos"><div class="info">A lista online será carregada após o login.</div></div>
 <div class="botoes-lista" id="botoesAdminLista" style="display:none">
 <button onclick="excluirUltimoOnline()">↩️ Excluir último</button>
+<div class="excluir-data-carater" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 0">
+    <label for="dataExcluirCarater" style="font-size:13px;font-weight:600">Excluir todos do dia:</label>
+    <input id="dataExcluirCarater" type="date" style="max-width:170px;min-height:36px">
+    <button type="button" class="btn-danger" onclick="excluirRegistrosPorData()">🗑️ Excluir data</button>
+</div>
 <button onclick="limparListaOnline()">🗑️ Limpar lista</button>
 <button id="btnExcluirSelecionados" class="btn-danger" type="button" onclick="excluirSelecionadosMaster()" style="display:none" disabled>🗑️ Excluir selecionados</button>
 <button id="btnDownloadLista" onclick="abrirEscolhaDownload()">📥 Download lista de caráter</button>
