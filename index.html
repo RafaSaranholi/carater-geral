@@ -617,7 +617,7 @@
 
 <style id="fotos-veiculos-estilo">
 /* Complemento visual isolado: mantém cores, campos e botões originais. */
-.btn-ver-veiculo{display:inline-flex;align-items:center;justify-content:center;margin:10px 0 4px;padding:7px 12px;background:#23465c;color:#eef7ff;border:1px solid #397b9e;border-radius:6px;font-size:12px;font-weight:bold}
+.btn-ver-veiculo{display:inline-flex;align-items:center;justify-content:center;margin:10px 0 4px;padding:7px 12px;background:#23465c;color:#eef7ff;border:1px solid #397b9e;border-radius:6px;font-size:12px;font-weight:bold;text-decoration:none}
 .btn-ver-veiculo:hover{background:#315e78}
 .foto-veiculo-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;box-sizing:border-box;padding:15px;background:rgba(0,0,0,.82);z-index:210000}
 .foto-veiculo-overlay.aberto{display:flex}
@@ -7693,19 +7693,20 @@ function buscarFotoVeiculo(dados, prioritario = false) {
 
 function adicionarBotaoFotoVeiculo(item, texto) {
     const dados = extrairDadosFotoVeiculo(texto);
-    const botao = document.createElement("button");
-    botao.type = "button";
+    const botao = document.createElement("a");
     botao.className = "btn-ver-veiculo";
     botao.textContent = "🚗 Ver veículo";
-    botao.title = "Fotografia ilustrativa pesquisada por modelo e cor";
+    botao.title = "Pesquisar fotos do veículo por modelo e cor no Google";
+    botao.href = urlPesquisaFotoVeiculo(dados);
+    botao.target = "_blank";
+    botao.rel = "noopener noreferrer";
     botao.addEventListener("click", evento => {
         evento.stopPropagation();
-        abrirFotoVeiculo(dados);
     });
     item.appendChild(botao);
 
     if (!dados) {
-        botao.title = "Modelo não identificado; veja mais informações";
+        botao.title = "Pesquisar fotos de veículos no Google";
         return;
     }
     // Pesquisa automática ao surgir na área visível da lista, inclusive itens novos.
