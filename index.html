@@ -4646,51 +4646,90 @@ async function excluirRegistrosPorData() {
         alert("Você não possui permissão para excluir registros da lista.");
         return;
     }
-    const campoData = document.getElementById("dataExcluirCarater");
-    const dataEscolhida = campoData?.value;
-    if (!dataEscolhida) {
-        alert("Selecione a data completa que deseja excluir.");
-        campoData?.focus();
-        return;
-    }
 
-    // Compara a data local exibida na lista, evitando erro de fuso horário UTC.
-    const registrosDoDia = listaTextos.filter(registro => {
-        if (!registro.created_at) return false;
+    // Agrupa os registros pelas datas locais exibidas na lista.
+    const porData = new Map();
+    (listaTextos || []).forEach(registro => {
+        if (!registro.created_at) return;
         const data = new Date(registro.created_at);
-        if (Number.isNaN(data.getTime())) return false;
-        const ano = data.getFullYear();
-        const mes = String(data.getMonth() + 1).padStart(2, "0");
-        const dia = String(data.getDate()).padStart(2, "0");
-        return ano + "-" + mes + "-" + dia === dataEscolhida;
+        if (Number.isNaN(data.getTime())) return;
+        const chave = data.getFullYear() + "-" + String(data.getMonth() + 1).padStart(2, "0") + "-" + String(data.getDate()).padStart(2, "0");
+        if (!porData.has(chave)) porData.set(chave, []);
+        porData.get(chave).push(registro);
     });
 
-    if (!registrosDoDia.length) {
-        alert("Não há registros salvos nessa data.");
+    const datas = Array.from(porData.keys()).sort((a, b) => b.localeCompare(a));
+    if (!datas.length) {
+        alert("Não há registros com data disponível para excluir.");
         return;
     }
-    const dataFormatada = dataEscolhida.split("-").reverse().join("/");
-    if (!confirm("ATENÇÃO: serão excluídos " + registrosDoDia.length + " registro(s) lançado(s) em " + dataFormatada + ".\n\nEsta ação não poderá ser desfeita. Deseja continuar?")) return;
 
-    const botao = document.querySelector('.excluir-data-carater button');
-    if (botao) { botao.disabled = true; botao.textContent = "Excluindo..."; }
-    try {
-        const ids = registrosDoDia.map(r => r.id);
-        for (let i = 0; i < ids.length; i += 100) {
-            const { error } = await sb.from("extrator_lista_carater").delete().in("id", ids.slice(i, i + 100));
-            if (error) throw error;
+    // Cria uma janela de seleção sem adicionar outro campo permanente à lista.
+    const anterior = document.getElementById("modalExcluirDataCarater");
+    if (anterior) anterior.remove();
+    const overlay = document.createElement("div");
+    overlay.id = "modalExcluirDataCarater";
+    overlay.style.cssText = "position:fixed;inset:0;z-index:300000;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:18px;";
+    const opcoes = datas.map(data => {
+        const quantidade = porData.get(data).length;
+        const dataBR = data.split("-").reverse().join("/");
+        return '<option value="' + data + '">' + dataBR + ' — ' + quantidade + ' veículo(s)</option>';
+    }).join("");
+    overlay.innerHTML = '<div role="dialog" aria-modal="true" aria-labelledby="tituloModalExcluirData" style="width:min(100%,440px);background:var(--card-bg,#fff);color:var(--text-color,#222);border-radius:14px;padding:22px;box-shadow:0 18px 60px rgba(0,0,0,.4)">' +
+        '<h3 id="tituloModalExcluirData" style="margin:0 0 8px">🗑️ Excluir veículos por data</h3>' +
+        '<p style="margin:0 0 14px">Selecione uma data que possui veículos salvos. A quantidade será exibida ao lado de cada data.</p>' +
+        '<label for="seletorDataExcluirCarater" style="display:block;font-weight:600;margin-bottom:6px">Datas disponíveis</label>' +
+        '<select id="seletorDataExcluirCarater" style="width:100%;min-height:42px;padding:8px;border-radius:8px;margin-bottom:16px">' + opcoes + '</select>' +
+        '<div id="resumoExcluirDataCarater" style="font-size:13px;margin-bottom:16px"></div>' +
+        '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">' +
+        '<button type="button" id="cancelarExcluirDataCarater" class="btn-secondary">Cancelar</button>' +
+        '<button type="button" id="confirmarExcluirDataCarater" class="btn-danger">🗑️ Excluir data</button>' +
+        '</div></div>';
+    document.body.appendChild(overlay);
+
+    const seletor = overlay.querySelector("#seletorDataExcluirCarater");
+    const resumo = overlay.querySelector("#resumoExcluirDataCarater");
+    const atualizarResumo = () => {
+        const data = seletor.value;
+        const qtd = (porData.get(data) || []).length;
+        resumo.textContent = "Serão excluídos " + qtd + " registro(s) de " + data.split("-").reverse().join("/") + ".";
+    };
+    atualizarResumo();
+    seletor.addEventListener("change", atualizarResumo);
+    overlay.querySelector("#cancelarExcluirDataCarater").onclick = () => overlay.remove();
+    overlay.addEventListener("click", evento => { if (evento.target === overlay) overlay.remove(); });
+    overlay.querySelector("#confirmarExcluirDataCarater").onclick = async () => {
+        const dataEscolhida = seletor.value;
+        const registrosDoDia = porData.get(dataEscolhida) || [];
+        if (!registrosDoDia.length) {
+            alert("Não há registros salvos nessa data.");
+            return;
         }
-        registrosDoDia.forEach(r => registrosSelecionadosMaster.delete(String(r.id)));
-        await carregarLista();
-        document.getElementById("status").innerText = registrosDoDia.length + " registro(s) excluído(s) de " + dataFormatada + ".";
-        alert(registrosDoDia.length + " registro(s) de " + dataFormatada + " foram excluídos.");
-    } catch (error) {
-        console.error(error);
-        alert("Não foi possível concluir a exclusão da data. Confira suas permissões e tente novamente.");
-        await carregarLista();
-    } finally {
-        if (botao) { botao.disabled = false; botao.textContent = "🗑️ Excluir data"; }
-    }
+        const dataFormatada = dataEscolhida.split("-").reverse().join("/");
+        if (!confirm("ATENÇÃO: serão excluídos " + registrosDoDia.length + " veículo(s) salvo(s) em " + dataFormatada + ".\n\nEsta ação não poderá ser desfeita. Deseja continuar?")) return;
+
+        const botaoConfirmar = overlay.querySelector("#confirmarExcluirDataCarater");
+        botaoConfirmar.disabled = true;
+        botaoConfirmar.textContent = "Excluindo...";
+        try {
+            const ids = registrosDoDia.map(r => r.id);
+            for (let i = 0; i < ids.length; i += 100) {
+                const { error } = await sb.from("extrator_lista_carater").delete().in("id", ids.slice(i, i + 100));
+                if (error) throw error;
+            }
+            registrosDoDia.forEach(r => registrosSelecionadosMaster.delete(String(r.id)));
+            overlay.remove();
+            await carregarLista();
+            document.getElementById("status").innerText = registrosDoDia.length + " registro(s) excluído(s) de " + dataFormatada + ".";
+            alert(registrosDoDia.length + " veículo(s) de " + dataFormatada + " foram excluídos.");
+        } catch (error) {
+            console.error(error);
+            alert("Não foi possível concluir a exclusão da data. Confira suas permissões e tente novamente.");
+            botaoConfirmar.disabled = false;
+            botaoConfirmar.textContent = "🗑️ Excluir data";
+            await carregarLista();
+        }
+    };
 }
 
 async function excluirUltimoOnline() {
@@ -7104,12 +7143,7 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 </div>
 <div id="listaSalvos"><div class="info">A lista online será carregada após o login.</div></div>
 <div class="botoes-lista" id="botoesAdminLista" style="display:none">
-<button onclick="excluirUltimoOnline()">↩️ Excluir último</button>
-<div class="excluir-data-carater" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 0">
-    <label for="dataExcluirCarater" style="font-size:13px;font-weight:600">Excluir todos do dia:</label>
-    <input id="dataExcluirCarater" type="date" style="max-width:170px;min-height:36px">
-    <button type="button" class="btn-danger" onclick="excluirRegistrosPorData()">🗑️ Excluir data</button>
-</div>
+<button type="button" class="btn-danger" onclick="excluirRegistrosPorData()">🗑️ Excluir data</button>
 <button onclick="limparListaOnline()">🗑️ Limpar lista</button>
 <button id="btnExcluirSelecionados" class="btn-danger" type="button" onclick="excluirSelecionadosMaster()" style="display:none" disabled>🗑️ Excluir selecionados</button>
 <button id="btnDownloadLista" onclick="abrirEscolhaDownload()">📥 Download lista de caráter</button>
