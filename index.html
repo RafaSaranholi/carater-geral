@@ -4497,7 +4497,21 @@ async function importarListaCarater(arquivo) {
         } else {
             importados = await lerRegistrosExcelImportado(arquivo);
         }
-        importados = importados.map(t => String(t || "").trim()).filter(Boolean);
+        // O TXT exportado pelo próprio sistema pode trazer a data/hora original.
+        // Arquivos antigos e planilhas sem essa informação continuam compatíveis.
+        importados = importados.map(function(item) {
+            const bruto = String(item || "").trim();
+            if (!bruto) return null;
+            const matchData = bruto.match(/^DATA\/HORA DO REGISTRO:\s*(.+?)\s*\r?\n/i);
+            let created_at = null;
+            let texto = bruto;
+            if (matchData) {
+                const tentativa = new Date(matchData[1].trim());
+                if (!Number.isNaN(tentativa.getTime())) created_at = tentativa.toISOString();
+                texto = bruto.slice(matchData[0].length).trim();
+            }
+            return texto ? {texto:texto.toUpperCase(), created_at:created_at} : null;
+        }).filter(Boolean);
         if (!importados.length) {
             alert("Nenhum registro foi encontrado no arquivo. Para Excel, use a planilha de caráter geral exportada pelo programa ou uma coluna chamada TEXTO/TEXTO COMPLETO.");
             if (status) status.innerText = "Nenhum registro válido encontrado no arquivo.";
@@ -4517,7 +4531,8 @@ async function importarListaCarater(arquivo) {
 
         const novos = [];
         let duplicados = 0;
-        importados.forEach(function(texto) {
+        importados.forEach(function(item) {
+            const texto = item.texto;
             const placa = encontrarPlaca(texto);
             const chaveTexto = normalizarTextoDuplicidade(texto);
             if (placa) {
@@ -4528,7 +4543,9 @@ async function importarListaCarater(arquivo) {
                 if (!chaveTexto || chavesTexto.has(chaveTexto)) { duplicados++; return; }
                 chavesTexto.add(chaveTexto);
             }
-            novos.push({texto: texto, criado_por: usuarioAtual.id});
+            const novoRegistro = {texto: texto, criado_por: usuarioAtual.id};
+            if (item.created_at) novoRegistro.created_at = item.created_at;
+            novos.push(novoRegistro);
         });
 
         if (!novos.length) {
@@ -4565,7 +4582,9 @@ function baixarListaTxt() {
     }
 
     const conteudo = listaTextos.map(function(registro, indice) {
-        return "===== REGISTRO " + (indice + 1) + " =====\n\n" + (registro.texto || "");
+        const dataHora = registro.created_at ? new Date(registro.created_at).toISOString() : "";
+        const linhaData = dataHora ? "DATA/HORA DO REGISTRO: " + dataHora + "\n\n" : "";
+        return "===== REGISTRO " + (indice + 1) + " =====\n\n" + linhaData + (registro.texto || "");
     }).join("\n\n");
 
     const blob = new Blob([conteudo], {type:"text/plain;charset=utf-8"});
