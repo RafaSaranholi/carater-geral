@@ -412,6 +412,33 @@ input:focus-visible,textarea:focus-visible{outline-offset:0;border-color:#7fb7ff
 @media(max-width:600px){body{padding:14px}.area{padding:16px}input,textarea,select{font-size:16px}.auth-actions button{min-width:100%}}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 </style>
+<style id="lista-compacta-celular">
+.zoom-lista{display:none}
+@media (max-width:900px),(max-height:520px){
+  :root{--lista-fonte:12px}
+  body{padding-top:10px;padding-bottom:10px}
+  .painel-lista,#appPrincipal.readonly-user .painel-lista{padding:8px}
+  .painel-lista h3{font-size:15px;margin:0 0 4px}
+  .lista-toolbar{margin:4px 0 6px;gap:5px}
+  .lista-toolbar input{padding:8px 10px;font-size:16px}
+  .lista-toolbar button{padding:7px 10px}
+  .zoom-lista{display:inline-block}
+  #listaSalvos,#appPrincipal.readonly-user #listaSalvos{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:6px;align-content:start;max-height:calc(100vh - 118px);max-height:calc(100dvh - 118px);min-height:0;margin-bottom:6px;-webkit-overflow-scrolling:touch}
+  #listaSalvos>.info{grid-column:1/-1}
+  .item-salvo{margin:0;padding:5px 7px 33px;font-size:var(--lista-fonte);border-radius:5px}
+  .item-salvo .item-conteudo{font-size:var(--lista-fonte);line-height:1.17}
+  .item-salvo .item-numero{font-size:10px;margin-bottom:1px}
+  .item-salvo .item-data-lancamento{margin:0 0 3px}
+  .placa-destaque{min-width:0;margin:0 0 4px;padding:2px 8px;font-size:calc(var(--lista-fonte) + 4px);letter-spacing:1px;border-width:2px}
+  .btn-copiar-registro,.btn-excluir-registro{bottom:5px;padding:5px 9px;font-size:11px}
+  .btn-copiar-registro{right:6px}
+  .btn-excluir-registro{right:68px}
+}
+@media (max-height:520px) and (orientation:landscape){
+  #listaSalvos,#appPrincipal.readonly-user #listaSalvos{max-height:calc(100vh - 92px);max-height:calc(100dvh - 92px);grid-template-columns:repeat(auto-fill,minmax(215px,1fr))}
+  .painel-lista h3{display:inline-block;margin-right:8px}
+}
+</style>
 <link rel="manifest" href="./manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
 <meta name="theme-color" content="#0b0f14">
@@ -7869,6 +7896,20 @@ document.addEventListener("keydown", evento => {
   window.addEventListener("online",function(){conexao(true);});
   if(!navigator.onLine)conexao(false);
   window.addEventListener("unhandledrejection",function(e){console.warn("Promessa não tratada:",e.reason);});
+})();
+</script>
+<script id="zoom-lista-celular">
+(function(){
+  var chave="listaFonteCelular",min=9,max=18,tam=12;
+  try{var v=parseInt(localStorage.getItem(chave),10);if(v>=min&&v<=max)tam=v;}catch(e){}
+  function aplicar(){document.documentElement.style.setProperty("--lista-fonte",tam+"px");try{localStorage.setItem(chave,tam);}catch(e){}}
+  function botao(txt,tit,d){
+    var b=document.createElement("button");b.type="button";b.className="zoom-lista";b.textContent=txt;b.title=tit;b.setAttribute("aria-label",tit);
+    b.onclick=function(){tam=Math.max(min,Math.min(max,tam+d));aplicar();};return b;
+  }
+  var tb=document.querySelector(".lista-toolbar");
+  if(tb){tb.appendChild(botao("A−","Diminuir letra da lista",-1));tb.appendChild(botao("A+","Aumentar letra da lista",1));}
+  aplicar();
 })();
 </script>
 </body>
