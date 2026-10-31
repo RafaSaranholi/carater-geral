@@ -2,7 +2,10 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://jbecezbglolnfsqkiaad.supabase.co" crossorigin>
 
 <title>SARTECH.TECHNOLOGY - CARÁTER GERAL</title>
 
@@ -113,7 +116,7 @@
         margin-top: 8px;
     }
 
-.conteudo-principal{display:grid;grid-template-columns:minmax(0,1fr) 750px;gap:20px;align-items:start} /* LARGURA LISTA DE CARATER GERAL SALVO */
+.conteudo-principal{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,750px);gap:20px;align-items:start} /* LARGURA LISTA DE CARATER GERAL SALVO */
 .painel-lista{background:#202020;border:1px solid #444;border-radius:8px;padding:15px;position:sticky;top:15px}
 .painel-lista h3{margin-top:0}
 #listaSalvos{max-height:600px;overflow-y:auto;margin-bottom:10px}
@@ -390,6 +393,25 @@
 
 </style>
 
+<style id="melhorias-visuais-acessibilidade">
+:root{color-scheme:dark}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{padding-left:max(25px,env(safe-area-inset-left));padding-right:max(25px,env(safe-area-inset-right));padding-bottom:max(25px,env(safe-area-inset-bottom));-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
+button,input,textarea,select{font-family:inherit}
+button{transition:opacity .15s,transform .05s,filter .15s}
+button:active:not(:disabled){transform:translateY(1px)}
+button:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.4)}
+button:disabled:hover{opacity:.45}
+:focus-visible{outline:2px solid #7fb7ff;outline-offset:2px;border-radius:4px}
+input:focus-visible,textarea:focus-visible{outline-offset:0;border-color:#7fb7ff}
+.item-salvo{transition:border-color .15s}
+.item-salvo:focus-visible{border-color:#7fb7ff}
+#listaSalvos,textarea,#imagemContainer{scrollbar-width:thin;scrollbar-color:#555 #151515}
+#faixaConexao{position:fixed;left:50%;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:99999;padding:9px 16px;border-radius:999px;font-size:13px;background:#8a6d1d;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.45);display:none}
+#faixaConexao.ok{background:#198754}
+@media(max-width:600px){body{padding:14px}.area{padding:16px}input,textarea,select{font-size:16px}.auth-actions button{min-width:100%}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+</style>
 <link rel="manifest" href="./manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
 <meta name="theme-color" content="#0b0f14">
@@ -7818,6 +7840,37 @@ document.addEventListener("keydown", evento => {
 });
 </script>
 
+<script id="melhorias-nao-intrusivas">
+(function(){
+  "use strict";
+  var st=document.getElementById("status");
+  if(st){st.setAttribute("role","status");st.setAttribute("aria-live","polite");}
+  var b=document.getElementById("buscaLista");
+  if(b&&!b.getAttribute("aria-label"))b.setAttribute("aria-label","Pesquisar na lista de caráter geral");
+  function tab(r){r.querySelectorAll(".item-salvo:not([tabindex])").forEach(function(el){el.setAttribute("tabindex","0");});}
+  document.addEventListener("keydown",function(e){
+    var t=e.target;
+    if(t&&t.classList&&t.classList.contains("item-salvo")&&(e.key==="Enter"||e.key===" ")){e.preventDefault();t.click();}
+  });
+  var lista=document.getElementById("listaSalvos");
+  if(lista){tab(lista);if(window.MutationObserver)new MutationObserver(function(){tab(lista);}).observe(lista,{childList:true});}
+  var faixa=document.createElement("div");
+  faixa.id="faixaConexao";faixa.setAttribute("role","status");
+  document.body.appendChild(faixa);
+  var tmr;
+  function conexao(on){
+    clearTimeout(tmr);
+    faixa.className=on?"ok":"";
+    faixa.textContent=on?"✅ Conexão restabelecida":"⚠️ Sem internet — alterações online podem não ser salvas";
+    faixa.style.display="block";
+    if(on)tmr=setTimeout(function(){faixa.style.display="none";},3000);
+  }
+  window.addEventListener("offline",function(){conexao(false);});
+  window.addEventListener("online",function(){conexao(true);});
+  if(!navigator.onLine)conexao(false);
+  window.addEventListener("unhandledrejection",function(e){console.warn("Promessa não tratada:",e.reason);});
+})();
+</script>
 </body>
 </html>
 SARTECH.TECHNOLOGY
