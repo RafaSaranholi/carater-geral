@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>CARÁTER GERAL - SARTECH.TECHNOLOGY</title>
+<title>SARTECH.TECHNOLOGY - CARÁTER GERAL</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -5566,6 +5566,9 @@ let cadLivenessSamples = [];
 let cadLivenessFirstSide = null;
 let selfieLivenessAprovada = false;
 let selfieLivenessVerifiedAt = null;
+let cadFaceValidaAgora = false;
+let cadFaceValidaEm = 0;
+let cadResolverVerificacaoFinal = null;
 
 function limparFormularioCadastro() {
     ["cadRE","cadNome","cadUnidade","cadEmail","cadSenha","cadSenha2"].forEach(id => {
@@ -5628,6 +5631,9 @@ function resetLivenessState(){
     cadLivenessBaseline=null;
     cadLivenessSamples=[];
     cadLivenessFirstSide=null;
+    cadFaceValidaAgora=false;
+    cadFaceValidaEm=0;
+    cadResolverVerificacaoFinal=null;
     selfieLivenessAprovada=false;
     selfieLivenessVerifiedAt=null;
     const btn=document.getElementById("btnCapturarSelfie");
@@ -5646,6 +5652,57 @@ function calcularIndicadorGiro(face){
     return (nariz.x-centroOlhos)/larguraFace;
 }
 
+// Avalia se o rosto está bom para a FOTO FINAL: inteiro, grande o bastante, centralizado e de frente.
+function avaliarRostoParaFoto(face){
+    const nariz=face[1], bochechaEsq=face[234], bochechaDir=face[454];
+    if(!nariz||!bochechaEsq||!bochechaDir) return {ok:false,motivo:"Rosto incompleto. Posicione o rosto inteiro na câmera."};
+    const largura=Math.abs(bochechaDir.x-bochechaEsq.x);
+    if(largura<0.22) return {ok:false,motivo:"Aproxime o rosto da câmera."};
+    if(nariz.x<0.25||nariz.x>0.75||nariz.y<0.2||nariz.y>0.8) return {ok:false,motivo:"Centralize o rosto na câmera."};
+    const giro=calcularIndicadorGiro(face);
+    const base=(cadLivenessBaseline===null)?0:cadLivenessBaseline;
+    if(giro===null||Math.abs(giro-base)>0.035) return {ok:false,motivo:"Olhe de frente para a câmera."};
+    return {ok:true,motivo:""};
+}
+
+// Depois da prova de vida, continua vigiando: o botão de capturar só fica ativo com UM rosto válido na câmera.
+function tratarRostoAposVerificacao(faces){
+    const btn=document.getElementById("btnCapturarSelfie");
+    let valido=false, motivo="";
+    if(faces.length===0) motivo="Não detectei um rosto. Posicione o rosto no centro para capturar.";
+    else if(faces.length>1) motivo="Detectei mais de um rosto. Deixe somente uma pessoa diante da câmera.";
+    else { const av=avaliarRostoParaFoto(faces[0]); valido=av.ok; motivo=av.motivo; }
+    cadFaceValidaAgora=valido;
+    if(valido){
+        cadFaceValidaEm=Date.now();
+        atualizarLivenessUI("✅ Verificação concluída. Rosto detectado, pode capturar a selfie.","ok");
+    }else{
+        atualizarLivenessUI(motivo,"warn");
+    }
+    if(btn) btn.disabled=!valido;
+}
+
+// Confere o rosto na própria imagem que vai ser salva (fecha a brecha de tirar a foto sem rosto).
+async function verificarRostoNoFrame(canvas){
+    let tentativas=0;
+    while(cadLivenessProcessing && tentativas<30){ await new Promise(r=>setTimeout(r,100)); tentativas++; }
+    cadLivenessProcessing=true;
+    try{
+        const espera=new Promise((resolve)=>{
+            cadResolverVerificacaoFinal=resolve;
+            setTimeout(()=>resolve(null),5000);
+        });
+        await cadFaceMesh.send({image:canvas});
+        return await espera;
+    }catch(e){
+        console.error(e);
+        return null;
+    }finally{
+        cadResolverVerificacaoFinal=null;
+        cadLivenessProcessing=false;
+    }
+}
+
 async function inicializarFaceMesh(){
     if(cadFaceMesh) return cadFaceMesh;
     if(typeof FaceMesh === "undefined") throw new Error("Módulo de verificação facial indisponível.");
@@ -5658,6 +5715,16 @@ async function inicializarFaceMesh(){
     });
     cadFaceMesh.onResults((results)=>{
         const faces=results.multiFaceLandmarks||[];
+        if(cadResolverVerificacaoFinal){
+            const resolver=cadResolverVerificacaoFinal;
+            cadResolverVerificacaoFinal=null;
+            resolver(faces);
+            return;
+        }
+        if(cadLivenessStage==="done"){
+            tratarRostoAposVerificacao(faces);
+            return;
+        }
         if(faces.length===0){
             atualizarLivenessUI("Não detectei um rosto. Posicione o rosto no centro da câmera.","warn");
             return;
@@ -5700,8 +5767,8 @@ async function inicializarFaceMesh(){
                 selfieLivenessAprovada=true;
                 selfieLivenessVerifiedAt=new Date().toISOString();
                 const btn=document.getElementById("btnCapturarSelfie");
-                if(btn) btn.disabled=false;
-                atualizarLivenessUI("✅ Verificação concluída. Agora você pode capturar a selfie.","ok");
+                if(btn) btn.disabled=true;
+                atualizarLivenessUI("✅ Movimento confirmado. Agora olhe de frente para a câmera.","ok");
             }
         }
     });
@@ -5716,7 +5783,7 @@ async function iniciarMonitoramentoLiveness(){
     await inicializarFaceMesh();
     if(cadLivenessTimer) clearInterval(cadLivenessTimer);
     cadLivenessTimer=setInterval(async()=>{
-        if(!cadSelfieStream || !video.videoWidth || cadLivenessProcessing || cadLivenessStage==="done") return;
+        if(!cadSelfieStream || !video.videoWidth || cadLivenessProcessing) return;
         cadLivenessProcessing=true;
         try{ await cadFaceMesh.send({image:video}); }
         catch(e){ console.error(e); atualizarLivenessUI("Não foi possível verificar o rosto. Tente novamente.","err"); }
@@ -5747,12 +5814,28 @@ function fecharCameraSelfie(){
 
 async function capturarSelfie(){
     const video=document.getElementById("cadSelfieVideo"), canvas=document.getElementById("cadSelfieCanvas");
+    const btn=document.getElementById("btnCapturarSelfie");
     if(!selfieLivenessAprovada){mostrarMsg("cadMsg","Conclua a verificação: vire o rosto levemente para os dois lados.","warn");return;}
     if(!video||!canvas||!video.videoWidth||!video.videoHeight){mostrarMsg("cadMsg","A câmera ainda não está pronta. Aguarde um instante.","warn");return;}
+    // 1ª barreira: o rosto precisa estar válido NESTE momento (resultado recente da câmera).
+    if(!cadFaceValidaAgora || (Date.now()-cadFaceValidaEm)>1500){
+        mostrarMsg("cadMsg","Rosto não detectado. Posicione o rosto de frente para a câmera para capturar.","warn");
+        return;
+    }
+    if(btn) btn.disabled=true;
     const escala=Math.min(1,640/video.videoWidth); canvas.width=Math.max(1,Math.round(video.videoWidth*escala)); canvas.height=Math.max(1,Math.round(video.videoHeight*escala));
     const ctx=canvas.getContext("2d",{alpha:false}); ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    // 2ª barreira: confere o rosto na própria imagem capturada. Se não der certo, NÃO grava.
+    const faces=await verificarRostoNoFrame(canvas);
+    let valido=false;
+    if(faces && faces.length===1){ valido=avaliarRostoParaFoto(faces[0]).ok; }
+    if(!valido){
+        mostrarMsg("cadMsg","A foto não foi registrada: o rosto precisa aparecer inteiro, sozinho, de frente e no centro. Tente novamente.","warn");
+        atualizarLivenessUI("Foto não registrada. Olhe de frente para a câmera e tente de novo.","warn");
+        return;
+    }
     await definirSelfieCadastro(canvas.toDataURL("image/jpeg",0.78)); fecharCameraSelfie();
-    const status=document.getElementById("cadSelfieStatus"); if(status) status.textContent="Selfie capturada após verificação de movimento do rosto.";
+    const status=document.getElementById("cadSelfieStatus"); if(status) status.textContent="Selfie capturada com rosto verificado.";
 }
 
 function obterLocalizacaoAceite() {
