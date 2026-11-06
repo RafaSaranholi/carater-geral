@@ -2,10 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="color-scheme" content="dark">
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link rel="preconnect" href="https://jbecezbglolnfsqkiaad.supabase.co" crossorigin>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>SARTECH.TECHNOLOGY - CARÁTER GERAL</title>
 
@@ -116,7 +113,7 @@
         margin-top: 8px;
     }
 
-.conteudo-principal{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,750px);gap:20px;align-items:start} /* LARGURA LISTA DE CARATER GERAL SALVO */
+.conteudo-principal{display:grid;grid-template-columns:minmax(0,1fr) 750px;gap:20px;align-items:start} /* LARGURA LISTA DE CARATER GERAL SALVO */
 .painel-lista{background:#202020;border:1px solid #444;border-radius:8px;padding:15px;position:sticky;top:15px}
 .painel-lista h3{margin-top:0}
 #listaSalvos{max-height:600px;overflow-y:auto;margin-bottom:10px}
@@ -138,6 +135,9 @@
 .auth-card p{color:#aaa;margin:0 0 18px;font-size:14px;line-height:1.45}
 .auth-card label{display:block;margin:12px 0 6px;font-size:14px;color:#ddd}
 .auth-card input{width:100%;box-sizing:border-box;padding:12px 13px;border-radius:7px;border:1px solid #555;background:#101010;color:#eee;font-size:15px}
+.auth-card select{width:100%;box-sizing:border-box;padding:12px 13px;border-radius:7px;border:1px solid #555;background:#101010;color:#eee;font-size:15px}
+.bpm-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;background:#1d3557;color:#cfe3ff;margin-left:6px;vertical-align:middle}
+.bpm-badge.i{background:#5a3a00;color:#ffe3b0}
 .auth-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
 .auth-actions button{flex:1;min-width:145px}
 .btn-primary{background:#0d6efd;color:#fff}
@@ -393,52 +393,6 @@
 
 </style>
 
-<style id="melhorias-visuais-acessibilidade">
-:root{color-scheme:dark}
-html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
-body{padding-left:max(25px,env(safe-area-inset-left));padding-right:max(25px,env(safe-area-inset-right));padding-bottom:max(25px,env(safe-area-inset-bottom));-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
-button,input,textarea,select{font-family:inherit}
-button{transition:opacity .15s,transform .05s,filter .15s}
-button:active:not(:disabled){transform:translateY(1px)}
-button:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.4)}
-button:disabled:hover{opacity:.45}
-:focus-visible{outline:2px solid #7fb7ff;outline-offset:2px;border-radius:4px}
-input:focus-visible,textarea:focus-visible{outline-offset:0;border-color:#7fb7ff}
-.item-salvo{transition:border-color .15s}
-.item-salvo:focus-visible{border-color:#7fb7ff}
-#listaSalvos,textarea,#imagemContainer{scrollbar-width:thin;scrollbar-color:#555 #151515}
-#faixaConexao{position:fixed;left:50%;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:99999;padding:9px 16px;border-radius:999px;font-size:13px;background:#8a6d1d;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.45);display:none}
-#faixaConexao.ok{background:#198754}
-@media(max-width:600px){body{padding:14px}.area{padding:16px}input,textarea,select{font-size:16px}.auth-actions button{min-width:100%}}
-@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
-</style>
-<style id="lista-compacta-celular">
-.zoom-lista{display:none}
-@media (max-width:900px),(max-height:520px){
-  :root{--lista-fonte:12px}
-  body{padding-top:10px;padding-bottom:10px}
-  .painel-lista,#appPrincipal.readonly-user .painel-lista{padding:8px}
-  .painel-lista h3{font-size:15px;margin:0 0 4px}
-  .lista-toolbar{margin:4px 0 6px;gap:5px}
-  .lista-toolbar input{padding:8px 10px;font-size:16px}
-  .lista-toolbar button{padding:7px 10px}
-  .zoom-lista{display:inline-block}
-  #listaSalvos,#appPrincipal.readonly-user #listaSalvos{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:6px;align-content:start;max-height:calc(100vh - 118px);max-height:calc(100dvh - 118px);min-height:0;margin-bottom:6px;-webkit-overflow-scrolling:touch}
-  #listaSalvos>.info{grid-column:1/-1}
-  .item-salvo{margin:0;padding:5px 7px 33px;font-size:var(--lista-fonte);border-radius:5px}
-  .item-salvo .item-conteudo{font-size:var(--lista-fonte);line-height:1.17}
-  .item-salvo .item-numero{font-size:10px;margin-bottom:1px}
-  .item-salvo .item-data-lancamento{margin:0 0 3px}
-  .placa-destaque{min-width:0;margin:0 0 4px;padding:2px 8px;font-size:calc(var(--lista-fonte) + 4px);letter-spacing:1px;border-width:2px}
-  .btn-copiar-registro,.btn-excluir-registro{bottom:5px;padding:5px 9px;font-size:11px}
-  .btn-copiar-registro{right:6px}
-  .btn-excluir-registro{right:68px}
-}
-@media (max-height:520px) and (orientation:landscape){
-  #listaSalvos,#appPrincipal.readonly-user #listaSalvos{max-height:calc(100vh - 92px);max-height:calc(100dvh - 92px);grid-template-columns:repeat(auto-fill,minmax(215px,1fr))}
-  .painel-lista h3{display:inline-block;margin-right:8px}
-}
-</style>
 <link rel="manifest" href="./manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
 <meta name="theme-color" content="#0b0f14">
@@ -744,6 +698,9 @@ input:focus-visible,textarea:focus-visible{outline-offset:0;border-color:#7fb7ff
 
             <label for="cadUnidade">Unidade</label>
             <input id="cadUnidade" type="text" autocomplete="organization" placeholder="Ex.: COPOM, BPM, CIA...">
+
+            <label for="cadBpm">Batalhão (BPM/M ou BPM/I)</label>
+            <select id="cadBpm"><option value="M">BPM/M</option><option value="I">BPM/I</option></select>
 
             <label for="cadEmail">E-mail funcional</label>
             <div class="email-funcional-input">
@@ -2981,15 +2938,48 @@ let listaTextos = [];
 let canalLista = null;
 const registrosSelecionadosMaster = new Set();
 
+/* ---------- BPM/M x BPM/I ---------- */
+function bpmDoUsuario() {
+    return (perfilAtual && perfilAtual.bpm === "I") ? "I" : "M";
+}
+
+function rotuloBpm(valor) {
+    return valor === "I" ? "BPM/I" : "BPM/M";
+}
+
+function atualizarRotuloBpm() {
+    const el = document.getElementById("bpmBadgeLista");
+    if (!el) return;
+    const v = bpmDoUsuario();
+    el.textContent = rotuloBpm(v);
+    el.classList.toggle("i", v === "I");
+}
+
+// Pergunta ao banco qual é o BPM atual do usuário (pode ter sido alterado por um administrador).
+async function sincronizarBpmUsuario() {
+    try {
+        const { data, error } = await sb.rpc("extrator_meu_bpm");
+        if (!error && (data === "M" || data === "I")) {
+            if (perfilAtual) perfilAtual.bpm = data;
+        }
+    } catch (e) {
+        console.warn("Não foi possível sincronizar o BPM:", e);
+    }
+    atualizarRotuloBpm();
+}
+
 async function carregarLista() {
     const container = document.getElementById("listaSalvos");
     if (!container) return;
 
     container.innerHTML = '<div class="info">Carregando lista online...</div>';
 
+    await sincronizarBpmUsuario();
+
     const { data, error } = await sb
         .from("extrator_lista_carater")
         .select("id,texto,created_at")
+        .eq("bpm", bpmDoUsuario())
         .order("created_at", { ascending: false });
 
     if (error) {
@@ -3307,7 +3297,8 @@ async function salvarTextoLista() {
     if (placaNova) {
         const { data: registrosExistentes, error: erroConsulta } = await sb
             .from("extrator_lista_carater")
-            .select("id,texto");
+            .select("id,texto")
+            .eq("bpm", bpmDoUsuario());
 
         if (erroConsulta) {
             console.error(erroConsulta);
@@ -4568,7 +4559,7 @@ async function importarListaCarater(arquivo) {
         }
 
         // Usa a lista online mais recente como base para nunca substituir registros existentes.
-        const { data: existentes, error: erroConsulta } = await sb.from("extrator_lista_carater").select("id,texto");
+        const { data: existentes, error: erroConsulta } = await sb.from("extrator_lista_carater").select("id,texto").eq("bpm", bpmDoUsuario());
         if (erroConsulta) throw erroConsulta;
         const chavesPlaca = new Set();
         const chavesTexto = new Set();
@@ -4853,11 +4844,12 @@ async function excluirUltimoOnline() {
 async function limparListaOnline() {
     if (!listaTextos.length) return;
 
-    if (!confirm("Tem certeza que deseja apagar toda a lista online?")) return;
+    if (!confirm("Tem certeza que deseja apagar toda a lista online do " + rotuloBpm(bpmDoUsuario()) + "?")) return;
 
     const { error } = await sb
         .from("extrator_lista_carater")
         .delete()
+        .eq("bpm", bpmDoUsuario())
         .not("id", "is", null);
 
     if (error) {
@@ -5886,6 +5878,7 @@ async function cadastrarUsuario() {
                 nome_completo: nome,
                 unidade: unidade,
                 email_funcional: email,
+                bpm: (document.getElementById("cadBpm") && document.getElementById("cadBpm").value === "I") ? "I" : "M",
                 selfie_base64: selfieCadastroBase64,
                 selfie_liveness_status: selfieLivenessAprovada ? "aprovado" : "reprovado",
                 selfie_liveness_verified_at: selfieLivenessVerifiedAt,
@@ -6162,7 +6155,7 @@ async function consultarPerfilAtual() {
 
     const { data, error } = await sb
         .from("extrator_usuarios")
-        .select("id,re,nome_completo,unidade,email_funcional,status,created_at,last_seen_at")
+        .select("id,re,nome_completo,unidade,email_funcional,status,created_at,last_seen_at,bpm")
         .eq("id", usuarioAtual.id)
         .single();
 
@@ -6508,7 +6501,7 @@ function filtrarUsuariosAprovados() {
 
     const lista = termo
         ? usuariosAprovadosAdmin.filter(u =>
-            [u.re, u.nome_completo, u.unidade, u.email_funcional, u.status]
+            [u.re, u.nome_completo, u.unidade, u.email_funcional, u.status, rotuloBpm(u.bpm)]
                 .some(v => String(v || "").toUpperCase().includes(termo))
         )
         : usuariosAprovadosAdmin;
@@ -6531,7 +6524,7 @@ async function carregarAdminUsuarios() {
 
     const consultaAdmin = Promise.all([
         sb.from("extrator_usuarios")
-            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at,termo_aceito_em,termo_latitude,termo_longitude,termo_localizacao_precisao,aprovacao_em,aprovacao_latitude,aprovacao_longitude,aprovacao_localizacao_precisao,last_seen_at")
+            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at,termo_aceito_em,termo_latitude,termo_longitude,termo_localizacao_precisao,aprovacao_em,aprovacao_latitude,aprovacao_longitude,aprovacao_localizacao_precisao,last_seen_at,bpm")
             .order("created_at", { ascending: true }),
         sb.rpc("extrator_lista_admins")
     ]);
@@ -6600,6 +6593,40 @@ async function carregarAdminUsuarios() {
     filtrarUsuariosAprovados();
 }
 
+function criarBotaoBpm(usuario) {
+    // Somente administrador com Acesso Full (ou MASTER) pode mudar o batalhão de alguém.
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) return null;
+    const atual = usuario.bpm === "I" ? "I" : "M";
+    const destino = atual === "I" ? "M" : "I";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn-info";
+    btn.textContent = "🔁 Mover para " + rotuloBpm(destino);
+    btn.title = "Hoje: " + rotuloBpm(atual) + ". Move o usuário para a lista do " + rotuloBpm(destino) + ".";
+    btn.onclick = function(event) {
+        event.stopPropagation();
+        alterarBpmUsuario(usuario.id, destino, usuario.nome_completo);
+    };
+    return btn;
+}
+
+async function alterarBpmUsuario(userId, novoBpm, nome) {
+    if (!confirm("Mover " + (nome || "este usuário") + " para o " + rotuloBpm(novoBpm) + "?\n\nEle passará a ver somente a lista do " + rotuloBpm(novoBpm) + ".")) return;
+
+    const { error } = await sb.rpc("extrator_alterar_bpm", { p_user_id: userId, p_bpm: novoBpm });
+    if (error) {
+        console.error(error);
+        alert("Não foi possível alterar o batalhão. Confirme que a migração SQL foi executada no Supabase e que você tem Acesso Full.");
+        return;
+    }
+
+    // Se o próprio administrador mudou de batalhão, recarrega a lista dele.
+    if (userId === usuarioAtual?.id) {
+        await carregarLista();
+    }
+    await carregarAdminUsuarios();
+}
+
 function montarCardUsuario(usuario, adminIds, pendente) {
     const item = document.createElement("div");
     item.className = "admin-item";
@@ -6619,6 +6646,7 @@ function montarCardUsuario(usuario, adminIds, pendente) {
             ? '<span class="admin-status-badge">REJEITADO</span>'
             : '<span class="admin-status-badge pending">PENDENTE</span>';
     const badgeAdmin = ehAdmin ? ' <span class="admin-status-badge admin">ADMINISTRADOR</span>' : '';
+    const badgeBpm = '<span class="bpm-badge' + (usuario.bpm === "I" ? " i" : "") + '">' + rotuloBpm(usuario.bpm) + '</span>';
     const presenca = classificarPresencaUsuario(usuario.last_seen_at);
     const classePresenca = presenca.classe;
     const tituloPresenca = presenca.titulo;
@@ -6632,7 +6660,7 @@ function montarCardUsuario(usuario, adminIds, pendente) {
             '<div class="admin-grid admin-resumo-aprovado">' +
                 '<div><span>Nome:</span> <strong>' + escapeHtml(usuario.nome_completo) + '</strong></div>' +
                 '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
-                '<div><span>Status:</span> ' + badgePresenca + '<strong class="presenca-texto">' + escapeHtml(tituloPresenca) + '</strong> ' + badgeStatus + badgeAdmin + '</div>' +
+                '<div><span>Status:</span> ' + badgePresenca + '<strong class="presenca-texto">' + escapeHtml(tituloPresenca) + '</strong> ' + badgeStatus + badgeAdmin + badgeBpm + '</div>' +
             '</div>' +
             '<div class="admin-actions" id="acoes-' + escapeHtml(usuario.id) + '"></div>';
 
@@ -6644,7 +6672,7 @@ function montarCardUsuario(usuario, adminIds, pendente) {
         item.innerHTML =
             '<div class="admin-grid">' +
                 '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
-                '<div><span>Status do usuário:</span> ' + badgeStatus + badgeAdmin + '</div>' +
+                '<div><span>Status do usuário:</span> ' + badgeStatus + badgeAdmin + badgeBpm + '</div>' +
                 '<div><span>Status:</span> ' + badgePresenca + '<strong>' + escapeHtml(tituloPresenca) + '</strong></div>' +
                 '<div><span>Nome:</span> ' + escapeHtml(usuario.nome_completo) + '</div>' +
                 '<div><span>Unidade:</span> ' + escapeHtml(usuario.unidade) + '</div>' +
@@ -6680,6 +6708,8 @@ function montarCardUsuario(usuario, adminIds, pendente) {
         rejeitar.textContent = "❌ Rejeitar";
         rejeitar.onclick = () => alterarStatusUsuario(usuario.id, "rejeitado");
         actions.append(aprovar, rejeitar);
+        const btnBpmPendente = criarBotaoBpm(usuario);
+        if (btnBpmPendente) actions.appendChild(btnBpmPendente);
     } else {
         if (usuario.status === "rejeitado") {
             const aprovar = document.createElement("button");
@@ -6719,6 +6749,8 @@ function montarCardUsuario(usuario, adminIds, pendente) {
         excluir.disabled = ehEu || !(adminPermissoes.acesso_full || adminPermissoes.gerenciar_membros || adminPermissoes.is_master);
         excluir.title = ehEu ? "Você não pode excluir seu próprio usuário." : "Excluir usuário e remover o acesso";
         excluir.onclick = () => excluirUsuario(usuario.id, usuario.re, usuario.nome_completo);
+        const btnBpm = criarBotaoBpm(usuario);
+        if (btnBpm) actions.appendChild(btnBpm);
         actions.appendChild(excluir);
     }
 
@@ -6749,6 +6781,7 @@ function abrirDetalhesUsuario(usuario) {
             '<div><span>Nome:</span> <strong>' + escapeHtml(usuario.nome_completo) + '</strong></div>' +
             '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
             '<div><span>Unidade:</span> ' + escapeHtml(usuario.unidade || "-") + '</div>' +
+            '<div><span>Batalhão:</span> <strong>' + rotuloBpm(usuario.bpm) + '</strong></div>' +
             '<div><span>E-mail funcional:</span> ' + escapeHtml(usuario.email_funcional || "-") + '</div>' +
             '<div><span>Status:</span> <span class="admin-status-badge ok">APROVADO</span></div>' +
             '<div><span>Cadastrado em:</span> ' + escapeHtml(cadastroTexto) + '</div>' +
@@ -7230,7 +7263,7 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 
 </div>
 <div class="painel-lista">
-<h3>Lista de Caráter Geral <span id="contadorCarater" class="contador-carater">Total: 0</span></h3>
+<h3>Lista de Caráter Geral <span id="bpmBadgeLista" class="bpm-badge">BPM/M</span> <span id="contadorCarater" class="contador-carater">Total: 0</span></h3>
 <div class="lista-toolbar">
     <input id="buscaLista" type="search" placeholder="🔎 Pesquisar emplacamento ou qualquer palavra..." autocomplete="off">
     <button type="button" onclick="limparBuscaLista()" title="Limpar pesquisa">✕</button>
@@ -7867,51 +7900,6 @@ document.addEventListener("keydown", evento => {
 });
 </script>
 
-<script id="melhorias-nao-intrusivas">
-(function(){
-  "use strict";
-  var st=document.getElementById("status");
-  if(st){st.setAttribute("role","status");st.setAttribute("aria-live","polite");}
-  var b=document.getElementById("buscaLista");
-  if(b&&!b.getAttribute("aria-label"))b.setAttribute("aria-label","Pesquisar na lista de caráter geral");
-  function tab(r){r.querySelectorAll(".item-salvo:not([tabindex])").forEach(function(el){el.setAttribute("tabindex","0");});}
-  document.addEventListener("keydown",function(e){
-    var t=e.target;
-    if(t&&t.classList&&t.classList.contains("item-salvo")&&(e.key==="Enter"||e.key===" ")){e.preventDefault();t.click();}
-  });
-  var lista=document.getElementById("listaSalvos");
-  if(lista){tab(lista);if(window.MutationObserver)new MutationObserver(function(){tab(lista);}).observe(lista,{childList:true});}
-  var faixa=document.createElement("div");
-  faixa.id="faixaConexao";faixa.setAttribute("role","status");
-  document.body.appendChild(faixa);
-  var tmr;
-  function conexao(on){
-    clearTimeout(tmr);
-    faixa.className=on?"ok":"";
-    faixa.textContent=on?"✅ Conexão restabelecida":"⚠️ Sem internet — alterações online podem não ser salvas";
-    faixa.style.display="block";
-    if(on)tmr=setTimeout(function(){faixa.style.display="none";},3000);
-  }
-  window.addEventListener("offline",function(){conexao(false);});
-  window.addEventListener("online",function(){conexao(true);});
-  if(!navigator.onLine)conexao(false);
-  window.addEventListener("unhandledrejection",function(e){console.warn("Promessa não tratada:",e.reason);});
-})();
-</script>
-<script id="zoom-lista-celular">
-(function(){
-  var chave="listaFonteCelular",min=9,max=18,tam=12;
-  try{var v=parseInt(localStorage.getItem(chave),10);if(v>=min&&v<=max)tam=v;}catch(e){}
-  function aplicar(){document.documentElement.style.setProperty("--lista-fonte",tam+"px");try{localStorage.setItem(chave,tam);}catch(e){}}
-  function botao(txt,tit,d){
-    var b=document.createElement("button");b.type="button";b.className="zoom-lista";b.textContent=txt;b.title=tit;b.setAttribute("aria-label",tit);
-    b.onclick=function(){tam=Math.max(min,Math.min(max,tam+d));aplicar();};return b;
-  }
-  var tb=document.querySelector(".lista-toolbar");
-  if(tb){tb.appendChild(botao("A−","Diminuir letra da lista",-1));tb.appendChild(botao("A+","Aumentar letra da lista",1));}
-  aplicar();
-})();
-</script>
 </body>
 </html>
 SARTECH.TECHNOLOGY
