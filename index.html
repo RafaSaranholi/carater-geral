@@ -3721,23 +3721,6 @@ async function salvarTextoLista() {
     const placaNova = encontrarPlaca(texto);
     let textoComArea = texto;
 
-    // Placa lida com dúvida: pede confirmação antes de seguir.
-    if (placaNova && _placaDuvida && _placaDuvida.nivel === "baixa"
-        && _placaDuvida.placa === placaNova && !_placaDuvida.confirmada) {
-        const alt = _placaDuvida.alternativas && _placaDuvida.alternativas.length
-            ? "\nOutras leituras possíveis: " + _placaDuvida.alternativas.slice(0, 3).join(", ")
-            : "";
-        const confirmou = window.confirm(
-            "A leitura da placa " + placaNova + " ficou com dúvida." + alt +
-            "\n\nConferiu na imagem e a placa está correta?"
-        );
-        if (!confirmou) {
-            document.getElementById("status").innerText = "Registro não salvo: confira a placa.";
-            return;
-        }
-        _placaDuvida.confirmada = true;
-    }
-
     if (placaNova) {
         // A área é obrigatória quando existe emplacamento reconhecido.
         // Formato exigido: x/xM (ex.: 1/5M).
