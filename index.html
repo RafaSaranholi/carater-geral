@@ -135,6 +135,9 @@
 .auth-card p{color:#aaa;margin:0 0 18px;font-size:14px;line-height:1.45}
 .auth-card label{display:block;margin:12px 0 6px;font-size:14px;color:#ddd}
 .auth-card input{width:100%;box-sizing:border-box;padding:12px 13px;border-radius:7px;border:1px solid #555;background:#101010;color:#eee;font-size:15px}
+.auth-card select{width:100%;box-sizing:border-box;padding:12px 13px;border-radius:7px;border:1px solid #555;background:#101010;color:#eee;font-size:15px}
+.bpm-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;background:#1d3557;color:#cfe3ff;margin-left:6px;vertical-align:middle}
+.bpm-badge.i{background:#5a3a00;color:#ffe3b0}
 .auth-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
 .auth-actions button{flex:1;min-width:145px}
 .btn-primary{background:#0d6efd;color:#fff}
@@ -695,6 +698,9 @@
 
             <label for="cadUnidade">Unidade</label>
             <input id="cadUnidade" type="text" autocomplete="organization" placeholder="Ex.: COPOM, BPM, CIA...">
+
+            <label for="cadBpm">Batalhão (BPM/M ou BPM/I)</label>
+            <select id="cadBpm"><option value="M">BPM/M</option><option value="I">BPM/I</option></select>
 
             <label for="cadEmail">E-mail funcional</label>
             <div class="email-funcional-input">
@@ -2761,7 +2767,7 @@ function registrarConfiancaPlaca(info) {
     let cor = "";
 
     if (info.nivel === "alta") {
-        msg = "✔ Placa conferida";
+        msg = "✔ Placa conferida em " + info.validas + " leituras independentes.";
         cor = "#6fdc8c";
     } else if (info.nivel === "media") {
         msg = "Placa conferida, mas com pequena divergência entre as leituras. Vale conferir na imagem.";
@@ -3449,15 +3455,48 @@ let listaTextos = [];
 let canalLista = null;
 const registrosSelecionadosMaster = new Set();
 
+/* ---------- BPM/M x BPM/I ---------- */
+function bpmDoUsuario() {
+    return (perfilAtual && perfilAtual.bpm === "I") ? "I" : "M";
+}
+
+function rotuloBpm(valor) {
+    return valor === "I" ? "BPM/I" : "BPM/M";
+}
+
+function atualizarRotuloBpm() {
+    const el = document.getElementById("bpmBadgeLista");
+    if (!el) return;
+    const v = bpmDoUsuario();
+    el.textContent = rotuloBpm(v);
+    el.classList.toggle("i", v === "I");
+}
+
+// Pergunta ao banco qual é o BPM atual do usuário (pode ter sido alterado por um administrador).
+async function sincronizarBpmUsuario() {
+    try {
+        const { data, error } = await sb.rpc("extrator_meu_bpm");
+        if (!error && (data === "M" || data === "I")) {
+            if (perfilAtual) perfilAtual.bpm = data;
+        }
+    } catch (e) {
+        console.warn("Não foi possível sincronizar o BPM:", e);
+    }
+    atualizarRotuloBpm();
+}
+
 async function carregarLista() {
     const container = document.getElementById("listaSalvos");
     if (!container) return;
 
     container.innerHTML = '<div class="info">Carregando lista online...</div>';
 
+    await sincronizarBpmUsuario();
+
     const { data, error } = await sb
         .from("extrator_lista_carater")
         .select("id,texto,created_at")
+        .eq("bpm", bpmDoUsuario())
         .order("created_at", { ascending: false });
 
     if (error) {
@@ -3775,7 +3814,8 @@ async function salvarTextoLista() {
     if (placaNova) {
         const { data: registrosExistentes, error: erroConsulta } = await sb
             .from("extrator_lista_carater")
-            .select("id,texto");
+            .select("id,texto")
+            .eq("bpm", bpmDoUsuario());
 
         if (erroConsulta) {
             console.error(erroConsulta);
@@ -5037,7 +5077,7 @@ async function importarListaCarater(arquivo) {
         }
 
         // Usa a lista online mais recente como base para nunca substituir registros existentes.
-        const { data: existentes, error: erroConsulta } = await sb.from("extrator_lista_carater").select("id,texto");
+        const { data: existentes, error: erroConsulta } = await sb.from("extrator_lista_carater").select("id,texto").eq("bpm", bpmDoUsuario());
         if (erroConsulta) throw erroConsulta;
         const chavesPlaca = new Set();
         const chavesTexto = new Set();
@@ -5322,11 +5362,12 @@ async function excluirUltimoOnline() {
 async function limparListaOnline() {
     if (!listaTextos.length) return;
 
-    if (!confirm("Tem certeza que deseja apagar toda a lista online?")) return;
+    if (!confirm("Tem certeza que deseja apagar toda a lista online do " + rotuloBpm(bpmDoUsuario()) + "?")) return;
 
     const { error } = await sb
         .from("extrator_lista_carater")
         .delete()
+        .eq("bpm", bpmDoUsuario())
         .not("id", "is", null);
 
     if (error) {
@@ -6043,6 +6084,9 @@ let cadLivenessSamples = [];
 let cadLivenessFirstSide = null;
 let selfieLivenessAprovada = false;
 let selfieLivenessVerifiedAt = null;
+let cadFaceValidaAgora = false;
+let cadFaceValidaEm = 0;
+let cadResolverVerificacaoFinal = null;
 
 function limparFormularioCadastro() {
     ["cadRE","cadNome","cadUnidade","cadEmail","cadSenha","cadSenha2"].forEach(id => {
@@ -6105,6 +6149,9 @@ function resetLivenessState(){
     cadLivenessBaseline=null;
     cadLivenessSamples=[];
     cadLivenessFirstSide=null;
+    cadFaceValidaAgora=false;
+    cadFaceValidaEm=0;
+    cadResolverVerificacaoFinal=null;
     selfieLivenessAprovada=false;
     selfieLivenessVerifiedAt=null;
     const btn=document.getElementById("btnCapturarSelfie");
@@ -6123,6 +6170,57 @@ function calcularIndicadorGiro(face){
     return (nariz.x-centroOlhos)/larguraFace;
 }
 
+// Avalia se o rosto está bom para a FOTO FINAL: inteiro, grande o bastante, centralizado e de frente.
+function avaliarRostoParaFoto(face){
+    const nariz=face[1], bochechaEsq=face[234], bochechaDir=face[454];
+    if(!nariz||!bochechaEsq||!bochechaDir) return {ok:false,motivo:"Rosto incompleto. Posicione o rosto inteiro na câmera."};
+    const largura=Math.abs(bochechaDir.x-bochechaEsq.x);
+    if(largura<0.22) return {ok:false,motivo:"Aproxime o rosto da câmera."};
+    if(nariz.x<0.25||nariz.x>0.75||nariz.y<0.2||nariz.y>0.8) return {ok:false,motivo:"Centralize o rosto na câmera."};
+    const giro=calcularIndicadorGiro(face);
+    const base=(cadLivenessBaseline===null)?0:cadLivenessBaseline;
+    if(giro===null||Math.abs(giro-base)>0.035) return {ok:false,motivo:"Olhe de frente para a câmera."};
+    return {ok:true,motivo:""};
+}
+
+// Depois da prova de vida, continua vigiando: o botão de capturar só fica ativo com UM rosto válido na câmera.
+function tratarRostoAposVerificacao(faces){
+    const btn=document.getElementById("btnCapturarSelfie");
+    let valido=false, motivo="";
+    if(faces.length===0) motivo="Não detectei um rosto. Posicione o rosto no centro para capturar.";
+    else if(faces.length>1) motivo="Detectei mais de um rosto. Deixe somente uma pessoa diante da câmera.";
+    else { const av=avaliarRostoParaFoto(faces[0]); valido=av.ok; motivo=av.motivo; }
+    cadFaceValidaAgora=valido;
+    if(valido){
+        cadFaceValidaEm=Date.now();
+        atualizarLivenessUI("✅ Verificação concluída. Rosto detectado, pode capturar a selfie.","ok");
+    }else{
+        atualizarLivenessUI(motivo,"warn");
+    }
+    if(btn) btn.disabled=!valido;
+}
+
+// Confere o rosto na própria imagem que vai ser salva (fecha a brecha de tirar a foto sem rosto).
+async function verificarRostoNoFrame(canvas){
+    let tentativas=0;
+    while(cadLivenessProcessing && tentativas<30){ await new Promise(r=>setTimeout(r,100)); tentativas++; }
+    cadLivenessProcessing=true;
+    try{
+        const espera=new Promise((resolve)=>{
+            cadResolverVerificacaoFinal=resolve;
+            setTimeout(()=>resolve(null),5000);
+        });
+        await cadFaceMesh.send({image:canvas});
+        return await espera;
+    }catch(e){
+        console.error(e);
+        return null;
+    }finally{
+        cadResolverVerificacaoFinal=null;
+        cadLivenessProcessing=false;
+    }
+}
+
 async function inicializarFaceMesh(){
     if(cadFaceMesh) return cadFaceMesh;
     if(typeof FaceMesh === "undefined") throw new Error("Módulo de verificação facial indisponível.");
@@ -6135,6 +6233,16 @@ async function inicializarFaceMesh(){
     });
     cadFaceMesh.onResults((results)=>{
         const faces=results.multiFaceLandmarks||[];
+        if(cadResolverVerificacaoFinal){
+            const resolver=cadResolverVerificacaoFinal;
+            cadResolverVerificacaoFinal=null;
+            resolver(faces);
+            return;
+        }
+        if(cadLivenessStage==="done"){
+            tratarRostoAposVerificacao(faces);
+            return;
+        }
         if(faces.length===0){
             atualizarLivenessUI("Não detectei um rosto. Posicione o rosto no centro da câmera.","warn");
             return;
@@ -6177,8 +6285,8 @@ async function inicializarFaceMesh(){
                 selfieLivenessAprovada=true;
                 selfieLivenessVerifiedAt=new Date().toISOString();
                 const btn=document.getElementById("btnCapturarSelfie");
-                if(btn) btn.disabled=false;
-                atualizarLivenessUI("✅ Verificação concluída. Agora você pode capturar a selfie.","ok");
+                if(btn) btn.disabled=true;
+                atualizarLivenessUI("✅ Movimento confirmado. Agora olhe de frente para a câmera.","ok");
             }
         }
     });
@@ -6193,7 +6301,7 @@ async function iniciarMonitoramentoLiveness(){
     await inicializarFaceMesh();
     if(cadLivenessTimer) clearInterval(cadLivenessTimer);
     cadLivenessTimer=setInterval(async()=>{
-        if(!cadSelfieStream || !video.videoWidth || cadLivenessProcessing || cadLivenessStage==="done") return;
+        if(!cadSelfieStream || !video.videoWidth || cadLivenessProcessing) return;
         cadLivenessProcessing=true;
         try{ await cadFaceMesh.send({image:video}); }
         catch(e){ console.error(e); atualizarLivenessUI("Não foi possível verificar o rosto. Tente novamente.","err"); }
@@ -6224,12 +6332,28 @@ function fecharCameraSelfie(){
 
 async function capturarSelfie(){
     const video=document.getElementById("cadSelfieVideo"), canvas=document.getElementById("cadSelfieCanvas");
+    const btn=document.getElementById("btnCapturarSelfie");
     if(!selfieLivenessAprovada){mostrarMsg("cadMsg","Conclua a verificação: vire o rosto levemente para os dois lados.","warn");return;}
     if(!video||!canvas||!video.videoWidth||!video.videoHeight){mostrarMsg("cadMsg","A câmera ainda não está pronta. Aguarde um instante.","warn");return;}
+    // 1ª barreira: o rosto precisa estar válido NESTE momento (resultado recente da câmera).
+    if(!cadFaceValidaAgora || (Date.now()-cadFaceValidaEm)>1500){
+        mostrarMsg("cadMsg","Rosto não detectado. Posicione o rosto de frente para a câmera para capturar.","warn");
+        return;
+    }
+    if(btn) btn.disabled=true;
     const escala=Math.min(1,640/video.videoWidth); canvas.width=Math.max(1,Math.round(video.videoWidth*escala)); canvas.height=Math.max(1,Math.round(video.videoHeight*escala));
     const ctx=canvas.getContext("2d",{alpha:false}); ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    // 2ª barreira: confere o rosto na própria imagem capturada. Se não der certo, NÃO grava.
+    const faces=await verificarRostoNoFrame(canvas);
+    let valido=false;
+    if(faces && faces.length===1){ valido=avaliarRostoParaFoto(faces[0]).ok; }
+    if(!valido){
+        mostrarMsg("cadMsg","A foto não foi registrada: o rosto precisa aparecer inteiro, sozinho, de frente e no centro. Tente novamente.","warn");
+        atualizarLivenessUI("Foto não registrada. Olhe de frente para a câmera e tente de novo.","warn");
+        return;
+    }
     await definirSelfieCadastro(canvas.toDataURL("image/jpeg",0.78)); fecharCameraSelfie();
-    const status=document.getElementById("cadSelfieStatus"); if(status) status.textContent="Selfie capturada após verificação de movimento do rosto.";
+    const status=document.getElementById("cadSelfieStatus"); if(status) status.textContent="Selfie capturada com rosto verificado.";
 }
 
 function obterLocalizacaoAceite() {
@@ -6355,6 +6479,7 @@ async function cadastrarUsuario() {
                 nome_completo: nome,
                 unidade: unidade,
                 email_funcional: email,
+                bpm: (document.getElementById("cadBpm") && document.getElementById("cadBpm").value === "I") ? "I" : "M",
                 selfie_base64: selfieCadastroBase64,
                 selfie_liveness_status: selfieLivenessAprovada ? "aprovado" : "reprovado",
                 selfie_liveness_verified_at: selfieLivenessVerifiedAt,
@@ -6631,7 +6756,7 @@ async function consultarPerfilAtual() {
 
     const { data, error } = await sb
         .from("extrator_usuarios")
-        .select("id,re,nome_completo,unidade,email_funcional,status,created_at,last_seen_at")
+        .select("id,re,nome_completo,unidade,email_funcional,status,created_at,last_seen_at,bpm")
         .eq("id", usuarioAtual.id)
         .single();
 
@@ -6977,7 +7102,7 @@ function filtrarUsuariosAprovados() {
 
     const lista = termo
         ? usuariosAprovadosAdmin.filter(u =>
-            [u.re, u.nome_completo, u.unidade, u.email_funcional, u.status]
+            [u.re, u.nome_completo, u.unidade, u.email_funcional, u.status, rotuloBpm(u.bpm)]
                 .some(v => String(v || "").toUpperCase().includes(termo))
         )
         : usuariosAprovadosAdmin;
@@ -7000,7 +7125,7 @@ async function carregarAdminUsuarios() {
 
     const consultaAdmin = Promise.all([
         sb.from("extrator_usuarios")
-            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at,termo_aceito_em,termo_latitude,termo_longitude,termo_localizacao_precisao,aprovacao_em,aprovacao_latitude,aprovacao_longitude,aprovacao_localizacao_precisao,last_seen_at")
+            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at,termo_aceito_em,termo_latitude,termo_longitude,termo_localizacao_precisao,aprovacao_em,aprovacao_latitude,aprovacao_longitude,aprovacao_localizacao_precisao,last_seen_at,bpm")
             .order("created_at", { ascending: true }),
         sb.rpc("extrator_lista_admins")
     ]);
@@ -7069,6 +7194,40 @@ async function carregarAdminUsuarios() {
     filtrarUsuariosAprovados();
 }
 
+function criarBotaoBpm(usuario) {
+    // Somente administrador com Acesso Full (ou MASTER) pode mudar o batalhão de alguém.
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) return null;
+    const atual = usuario.bpm === "I" ? "I" : "M";
+    const destino = atual === "I" ? "M" : "I";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn-info";
+    btn.textContent = "🔁 Mover para " + rotuloBpm(destino);
+    btn.title = "Hoje: " + rotuloBpm(atual) + ". Move o usuário para a lista do " + rotuloBpm(destino) + ".";
+    btn.onclick = function(event) {
+        event.stopPropagation();
+        alterarBpmUsuario(usuario.id, destino, usuario.nome_completo);
+    };
+    return btn;
+}
+
+async function alterarBpmUsuario(userId, novoBpm, nome) {
+    if (!confirm("Mover " + (nome || "este usuário") + " para o " + rotuloBpm(novoBpm) + "?\n\nEle passará a ver somente a lista do " + rotuloBpm(novoBpm) + ".")) return;
+
+    const { error } = await sb.rpc("extrator_alterar_bpm", { p_user_id: userId, p_bpm: novoBpm });
+    if (error) {
+        console.error(error);
+        alert("Não foi possível alterar o batalhão. Confirme que a migração SQL foi executada no Supabase e que você tem Acesso Full.");
+        return;
+    }
+
+    // Se o próprio administrador mudou de batalhão, recarrega a lista dele.
+    if (userId === usuarioAtual?.id) {
+        await carregarLista();
+    }
+    await carregarAdminUsuarios();
+}
+
 function montarCardUsuario(usuario, adminIds, pendente) {
     const item = document.createElement("div");
     item.className = "admin-item";
@@ -7088,6 +7247,7 @@ function montarCardUsuario(usuario, adminIds, pendente) {
             ? '<span class="admin-status-badge">REJEITADO</span>'
             : '<span class="admin-status-badge pending">PENDENTE</span>';
     const badgeAdmin = ehAdmin ? ' <span class="admin-status-badge admin">ADMINISTRADOR</span>' : '';
+    const badgeBpm = '<span class="bpm-badge' + (usuario.bpm === "I" ? " i" : "") + '">' + rotuloBpm(usuario.bpm) + '</span>';
     const presenca = classificarPresencaUsuario(usuario.last_seen_at);
     const classePresenca = presenca.classe;
     const tituloPresenca = presenca.titulo;
@@ -7101,7 +7261,7 @@ function montarCardUsuario(usuario, adminIds, pendente) {
             '<div class="admin-grid admin-resumo-aprovado">' +
                 '<div><span>Nome:</span> <strong>' + escapeHtml(usuario.nome_completo) + '</strong></div>' +
                 '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
-                '<div><span>Status:</span> ' + badgePresenca + '<strong class="presenca-texto">' + escapeHtml(tituloPresenca) + '</strong> ' + badgeStatus + badgeAdmin + '</div>' +
+                '<div><span>Status:</span> ' + badgePresenca + '<strong class="presenca-texto">' + escapeHtml(tituloPresenca) + '</strong> ' + badgeStatus + badgeAdmin + badgeBpm + '</div>' +
             '</div>' +
             '<div class="admin-actions" id="acoes-' + escapeHtml(usuario.id) + '"></div>';
 
@@ -7113,7 +7273,7 @@ function montarCardUsuario(usuario, adminIds, pendente) {
         item.innerHTML =
             '<div class="admin-grid">' +
                 '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
-                '<div><span>Status do usuário:</span> ' + badgeStatus + badgeAdmin + '</div>' +
+                '<div><span>Status do usuário:</span> ' + badgeStatus + badgeAdmin + badgeBpm + '</div>' +
                 '<div><span>Status:</span> ' + badgePresenca + '<strong>' + escapeHtml(tituloPresenca) + '</strong></div>' +
                 '<div><span>Nome:</span> ' + escapeHtml(usuario.nome_completo) + '</div>' +
                 '<div><span>Unidade:</span> ' + escapeHtml(usuario.unidade) + '</div>' +
@@ -7149,6 +7309,8 @@ function montarCardUsuario(usuario, adminIds, pendente) {
         rejeitar.textContent = "❌ Rejeitar";
         rejeitar.onclick = () => alterarStatusUsuario(usuario.id, "rejeitado");
         actions.append(aprovar, rejeitar);
+        const btnBpmPendente = criarBotaoBpm(usuario);
+        if (btnBpmPendente) actions.appendChild(btnBpmPendente);
     } else {
         if (usuario.status === "rejeitado") {
             const aprovar = document.createElement("button");
@@ -7188,6 +7350,8 @@ function montarCardUsuario(usuario, adminIds, pendente) {
         excluir.disabled = ehEu || !(adminPermissoes.acesso_full || adminPermissoes.gerenciar_membros || adminPermissoes.is_master);
         excluir.title = ehEu ? "Você não pode excluir seu próprio usuário." : "Excluir usuário e remover o acesso";
         excluir.onclick = () => excluirUsuario(usuario.id, usuario.re, usuario.nome_completo);
+        const btnBpm = criarBotaoBpm(usuario);
+        if (btnBpm) actions.appendChild(btnBpm);
         actions.appendChild(excluir);
     }
 
@@ -7218,6 +7382,7 @@ function abrirDetalhesUsuario(usuario) {
             '<div><span>Nome:</span> <strong>' + escapeHtml(usuario.nome_completo) + '</strong></div>' +
             '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
             '<div><span>Unidade:</span> ' + escapeHtml(usuario.unidade || "-") + '</div>' +
+            '<div><span>Batalhão:</span> <strong>' + rotuloBpm(usuario.bpm) + '</strong></div>' +
             '<div><span>E-mail funcional:</span> ' + escapeHtml(usuario.email_funcional || "-") + '</div>' +
             '<div><span>Status:</span> <span class="admin-status-badge ok">APROVADO</span></div>' +
             '<div><span>Cadastrado em:</span> ' + escapeHtml(cadastroTexto) + '</div>' +
@@ -7699,7 +7864,7 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 
 </div>
 <div class="painel-lista">
-<h3>Lista de Caráter Geral <span id="contadorCarater" class="contador-carater">Total: 0</span></h3>
+<h3>Lista de Caráter Geral <span id="bpmBadgeLista" class="bpm-badge">BPM/M</span> <span id="contadorCarater" class="contador-carater">Total: 0</span></h3>
 <div class="lista-toolbar">
     <input id="buscaLista" type="search" placeholder="🔎 Pesquisar emplacamento ou qualquer palavra..." autocomplete="off">
     <button type="button" onclick="limparBuscaLista()" title="Limpar pesquisa">✕</button>
