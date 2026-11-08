@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>CARÁTER GERAL - SARTECH.TECHNOLOGY</title>
+<title>SARTECH.TECHNOLOGY - CARÁTER GERAL</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -135,9 +135,6 @@
 .auth-card p{color:#aaa;margin:0 0 18px;font-size:14px;line-height:1.45}
 .auth-card label{display:block;margin:12px 0 6px;font-size:14px;color:#ddd}
 .auth-card input{width:100%;box-sizing:border-box;padding:12px 13px;border-radius:7px;border:1px solid #555;background:#101010;color:#eee;font-size:15px}
-.auth-card select{width:100%;box-sizing:border-box;padding:12px 13px;border-radius:7px;border:1px solid #555;background:#101010;color:#eee;font-size:15px}
-.bpm-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;background:#1d3557;color:#cfe3ff;margin-left:6px;vertical-align:middle}
-.bpm-badge.i{background:#5a3a00;color:#ffe3b0}
 .auth-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
 .auth-actions button{flex:1;min-width:145px}
 .btn-primary{background:#0d6efd;color:#fff}
@@ -699,9 +696,6 @@
             <label for="cadUnidade">Unidade</label>
             <input id="cadUnidade" type="text" autocomplete="organization" placeholder="Ex.: COPOM, BPM, CIA...">
 
-            <label for="cadBpm">Batalhão (BPM/M ou BPM/I)</label>
-            <select id="cadBpm"><option value="M">BPM/M</option><option value="I">BPM/I</option></select>
-
             <label for="cadEmail">E-mail funcional</label>
             <div class="email-funcional-input">
                 <input id="cadEmail" type="text" inputmode="email" autocomplete="username" placeholder="seunome" maxlength="80">
@@ -1061,6 +1055,8 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
         ---
     </div>
 
+    <div id="placaConfianca" style="display:none;margin-top:8px;font-size:14px;line-height:1.4;font-weight:bold"></div>
+
 </div>
 
 <h3>Texto extraído</h3>
@@ -1170,6 +1166,8 @@ function carregarImagem(arquivo) {
             document
                 .getElementById("placa")
                 .innerText = "---";
+
+            limparConfiancaPlaca();
         };
 
         imagemOriginal.src = e.target.result;
@@ -1474,70 +1472,67 @@ function obterCanvasSelecionado() {
    OCR
 ========================================================= */
 
+/*
+ * MOTOR OCR
+ * Um único "worker" do Tesseract fica carregado (mais rápido) e os
+ * parâmetros (modo de leitura e caracteres permitidos) são aplicados com
+ * setParameters, que é a forma que o Tesseract.js v5 realmente respeita.
+ * As leituras passam por uma fila para que os parâmetros de uma leitura
+ * nunca sejam trocados no meio de outra.
+ */
+const ESCALA_OCR = 4;
+let _workerOCR = null;
+let _workerOCRPromessa = null;
+let _filaOCR = Promise.resolve();
+
+function _loggerOCR(info) {
+    if (info && info.status === "recognizing text") {
+        const el = document.getElementById("status");
+        if (el) el.innerText = "Reconhecendo texto... " + Math.round(info.progress * 100) + "%";
+    }
+}
+
+function obterWorkerOCR() {
+    if (_workerOCR) return Promise.resolve(_workerOCR);
+    if (!_workerOCRPromessa) {
+        _workerOCRPromessa = Tesseract.createWorker("por", 1, { logger: _loggerOCR })
+            .then(function(w) { _workerOCR = w; return w; })
+            .catch(function(erro) { _workerOCRPromessa = null; throw erro; });
+    }
+    return _workerOCRPromessa;
+}
+
+function ocrComParametros(imagem, params) {
+    const tarefa = _filaOCR.then(async function() {
+        const worker = await obterWorkerOCR();
+        await worker.setParameters(params);
+        return worker.recognize(imagem);
+    });
+    _filaOCR = tarefa.catch(function() {});
+    return tarefa;
+}
+
 async function fazerOCR(canvas, modo, psm, somentePlaca = false) {
 
     const imagem =
         prepararImagem(canvas, modo);
 
+    const params = {
+        tessedit_pageseg_mode: String(psm),
+        preserve_interword_spaces: "1",
+        user_defined_dpi: "300",
+        tessedit_char_whitelist: somentePlaca
+            ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
+            : ""
+    };
 
-    const resultado =
-        await Tesseract.recognize(
-            imagem,
-            "por",
-            {
-
-                logger: function(info) {
-
-                    if (
-                        info.status ===
-                        "recognizing text"
-                    ) {
-
-                        const porcentagem =
-                            Math.round(
-                                info.progress * 100
-                            );
-
-                        document
-                            .getElementById("status")
-                            .innerText =
-                            "Reconhecendo texto... " +
-                            porcentagem +
-                            "%";
-                    }
-                },
-
-                config: {
-
-                    /*
-                     * PSM 6:
-                     * bloco de texto.
-                     */
-
-                    tessedit_pageseg_mode:
-                        String(psm),
-
-                    /*
-                     * Mantém os espaços.
-                     */
-
-                    preserve_interword_spaces:
-                        "1",
-
-                    // Quando usado para placa, restringimos o reconhecimento
-                    // aos caracteres alfanuméricos. Isso reduz trocas como
-                    // G/8, B/8, I/1 e O/0 causadas por caracteres de outros
-                    // campos da imagem.
-                    ...(somentePlaca ? {
-                        tessedit_char_whitelist:
-                            "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
-                    } : {})
-                }
-            }
-        );
-
-
-    return resultado;
+    try {
+        return await ocrComParametros(imagem, params);
+    } catch (erro) {
+        // Plano B: comportamento antigo, caso o worker não consiga iniciar.
+        console.warn("Worker OCR indisponível, usando modo simples:", erro);
+        return await Tesseract.recognize(imagem, "por", { logger: _loggerOCR });
+    }
 }
 
 
@@ -1766,25 +1761,7 @@ async function executarOCR(canvas, retornarDados = false) {
         await fazerOCR(
             canvas,
             0,
-            11
-        );
-
-    // Leituras adicionais focadas em placas.
-    // Não substituem as leituras gerais; entram como candidatos extras.
-    const r4 =
-        await fazerOCR(
-            canvas,
-            0,
-            6,
-            true
-        );
-
-    const r5 =
-        await fazerOCR(
-            canvas,
-            1,
-            11,
-            true
+            3
         );
 
 
@@ -1806,18 +1783,6 @@ async function executarOCR(canvas, retornarDados = false) {
             texto: r3.data.text.trim(),
             confianca: r3.data.confidence,
             dados: r3.data
-        },
-
-        {
-            texto: r4.data.text.trim(),
-            confianca: r4.data.confidence,
-            dados: r4.data
-        },
-
-        {
-            texto: r5.data.text.trim(),
-            confianca: r5.data.confidence,
-            dados: r5.data
         }
     ];
 
@@ -1956,6 +1921,38 @@ function corrigirCampos(texto) {
         texto.replace(
             /\bSITUA[ÇC]AO\b/gi,
             "SITUAÇÃO"
+        );
+
+
+    /*
+     * Área no formato x/xM (ex.: 1/1M, 2/35M). Só mexe em trechos que
+     * têm exatamente esse formato, trocando letras parecidas com números
+     * (I, L, | -> 1 ; O -> 0 ; S -> 5 ; B -> 8 ; G -> 6 ; Z -> 2).
+     */
+    const letraParaNumero = { "I": "1", "L": "1", "|": "1", "O": "0", "S": "5", "B": "8", "G": "6", "Z": "2" };
+
+    const paraNumeros = function(s) {
+        const r = s.toUpperCase().split("").map(c => letraParaNumero[c] || c).join("");
+        return /^[0-9]+$/.test(r) ? r : null;
+    };
+
+    texto =
+        texto.replace(
+            /(^|[^A-Za-z0-9])([0-9ILOSBGZ|]{1,2})\s*\/\s*([0-9ILOSBGZ|]{1,3})\s*M\b/gi,
+            function(todo, antes, a, b) {
+                const na = paraNumeros(a);
+                const nb = paraNumeros(b);
+                return (na && nb) ? antes + na + "/" + nb + "M" : todo;
+            }
+        );
+
+    texto =
+        texto.replace(
+            /(^|[^A-Za-z0-9])\/\s*([0-9ILOSBGZ|]{1,3})\s*M\b/gi,
+            function(todo, antes, b) {
+                const nb = paraNumeros(b);
+                return (nb && /[0-9]/.test(b)) ? antes + "/" + nb + "M" : todo;
+            }
         );
 
 
@@ -2264,6 +2261,139 @@ function corrigirPlacaMercosul(valor) {
 
 
 /* =========================================================
+   CORREÇÃO DE PLACA PELO MENOR NÚMERO DE TROCAS
+   Compara a leitura com os dois formatos (LLLNNNN e LLLNLNN) e escolhe
+   o que exige menos correções. Assim, uma leitura que já está certa
+   nunca é "consertada", e um erro isolado (ex.: A8C1D23) é corrigido
+   sem mexer nas demais posições (ABC1D23, e não ABC1023).
+========================================================= */
+
+const _PLACA_PARA_LETRA  = { "0": "O", "1": "I", "2": "Z", "5": "S", "6": "G", "8": "B" };
+const _PLACA_PARA_DIGITO = { "O": "0", "Q": "0", "D": "0", "I": "1", "L": "1", "S": "5", "B": "8", "G": "6", "Z": "2" };
+
+function melhorCorrecaoPlaca(valor, custoMaximo = 3) {
+
+    const base = normalizarCandidato(valor);
+
+    if (base.length !== 7)
+        return null;
+
+    // Uma placa real tem pelo menos 3 números. Exigir 2 números
+    // realmente lidos evita transformar palavras comuns em placa.
+    const digitosReais = (base.match(/[0-9]/g) || []).length;
+    if (digitosReais < 2)
+        return null;
+
+    const padroes = [
+        { tipo: "antiga",   mascara: "LLLDDDD" },
+        { tipo: "mercosul", mascara: "LLLDLDD" }
+    ];
+
+    let melhor = null;
+
+    for (const p of padroes) {
+
+        let custo = 0;
+        let saida = "";
+        let ok = true;
+
+        for (let i = 0; i < 7; i++) {
+
+            const c = base[i];
+
+            if (p.mascara[i] === "L") {
+                if (/[A-Z]/.test(c)) saida += c;
+                else if (_PLACA_PARA_LETRA[c]) { saida += _PLACA_PARA_LETRA[c]; custo++; }
+                else { ok = false; break; }
+            } else {
+                if (/[0-9]/.test(c)) saida += c;
+                else if (_PLACA_PARA_DIGITO[c]) { saida += _PLACA_PARA_DIGITO[c]; custo++; }
+                else { ok = false; break; }
+            }
+        }
+
+        if (!ok || custo > custoMaximo)
+            continue;
+
+        if (!melhor || custo < melhor.custo)
+            melhor = { placa: saida, tipo: p.tipo, custo: custo };
+    }
+
+    return melhor;
+}
+
+
+/* =========================================================
+   PLACA SEM O MARCADOR "CADASTRO VEÍCULO"
+   Procura a placa em qualquer lugar do texto, inclusive escrita como
+   "ABC 1234" ou "ABC-1D23". Retorna { placa, indice } ou null.
+========================================================= */
+
+const _ROTULOS_NAO_PLACA = ["ANO", "COR", "UF", "CEP", "RUA", "KM", "AV", "TIPO", "COD"];
+
+function encontrarPlacaSemMarcador(textoMaiusculo) {
+
+    const tokens = [];
+    const re = /[A-Z0-9]+/g;
+    let m;
+
+    while ((m = re.exec(textoMaiusculo)) !== null) {
+        tokens.push({ t: m[0], ini: m.index, fim: m.index + m[0].length });
+    }
+
+    const candidatos = [];
+
+    for (let i = 0; i < tokens.length; i++) {
+
+        let junto = "";
+
+        for (let k = 0; k < 3 && i + k < tokens.length; k++) {
+
+            if (k > 0) {
+                // Só junta pedaços separados por um espaço ou hífen
+                // (nunca por ":" "/" ";" "," etc.), na mesma linha.
+                const sep = textoMaiusculo.slice(tokens[i + k - 1].fim, tokens[i + k].ini);
+                if (!/^[ \-]$/.test(sep)) break;
+                if (_ROTULOS_NAO_PLACA.includes(tokens[i].t)) break;
+            }
+
+            junto += tokens[i + k].t;
+
+            if (junto.length > 7) break;
+
+            if (junto.length === 7) {
+                // Pedaços juntados (ex.: "ABC 1234"): não aceita quando vêm
+                // logo depois de "/" (ex.: MARCA: HONDA/POP 110I).
+                const antes = textoMaiusculo.slice(0, tokens[i].ini).replace(/[ \t]+$/, "");
+                const juntado = k > 0;
+                if (!(juntado && antes.slice(-1) === "/"))
+                    candidatos.push({ valor: junto, indice: tokens[i].ini, juntado: juntado });
+                break;
+            }
+        }
+    }
+
+    // 1) Sequência que já está no formato correto: preserva como está.
+    for (const c of candidatos) {
+        if (/^[A-Z]{3}[0-9]{4}$/.test(c.valor) || /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(c.valor))
+            return { placa: c.valor, indice: c.indice };
+    }
+
+    // 2) Senão, a que precisa de menos correções (máx. 2).
+    let melhor = null;
+
+    for (const c of candidatos) {
+        if (c.juntado) continue;   // pedaços juntados só valem se já estiverem corretos
+        const r = melhorCorrecaoPlaca(c.valor, 2);
+        if (r && (!melhor || r.custo < melhor.custo))
+            melhor = { placa: r.placa, indice: c.indice, custo: r.custo };
+    }
+
+    return melhor ? { placa: melhor.placa, indice: melhor.indice } : null;
+}
+
+
+/* =========================================================
    DETECTAR PLACA
 ========================================================= */
 
@@ -2293,8 +2423,7 @@ function encontrarPlaca(texto) {
     }
 
     /*
-     * Primeiro procura especificamente
-     * depois de CADASTRO VEÍCULO.
+     * Se existir o campo CADASTRO VEÍCULO, procura logo depois dele.
      */
 
     const campo =
@@ -2305,20 +2434,13 @@ function encontrarPlaca(texto) {
 
     if (campo) {
 
-        const trecho =
-            campo[1];
-
-
         const limpo =
-            trecho.replace(
+            campo[1].replace(
                 /[^A-Z0-9]/g,
                 ""
             );
 
-
-        /*
-         * Testa sequências de 7.
-         */
+        let melhor = null;
 
         for (
             let i = 0;
@@ -2326,97 +2448,469 @@ function encontrarPlaca(texto) {
             i++
         ) {
 
-            const candidato =
-                limpo.substring(
-                    i,
-                    i + 7
+            const r =
+                melhorCorrecaoPlaca(
+                    limpo.substring(i, i + 7)
                 );
 
-            const variantes = gerarVariantesPlaca(candidato);
+            if (r && (!melhor || r.custo < melhor.custo))
+                melhor = r;
 
-            for (const variante of variantes) {
-
-                /*
-                 * Testa primeiro placa antiga (LLLNNNN).
-                 * Evita converter o 8 de CEI1879 em B
-                 * por interpretar incorretamente como Mercosul.
-                 */
-
-                const antiga =
-                    corrigirPlacaAntiga(
-                        variante
-                    );
-
-                if (antiga)
-                    return antiga;
-
-
-                /*
-                 * Depois testa placa Mercosul (LLLNLNN).
-                 */
-
-                const mercosul =
-                    corrigirPlacaMercosul(
-                        variante
-                    );
-
-                if (mercosul)
-                    return mercosul;
-            }
+            if (melhor && melhor.custo === 0)
+                break;
         }
+
+        if (melhor)
+            return melhor.placa;
     }
 
 
     /*
-     * Procura no texto inteiro.
+     * Sem o campo (ou sem placa válida logo depois dele): procura a
+     * placa em qualquer posição do texto.
      */
 
-    const geral =
-        textoMaiusculo.replace(
-            /[^A-Z0-9]/g,
-            " "
-        );
+    const achada = encontrarPlacaSemMarcador(textoMaiusculo);
+
+    return achada ? achada.placa : null;
+}
 
 
-    const candidatos =
-        geral.match(
-            /[A-Z0-9]{7}/g
-        ) || [];
+/* =========================================================
+   CONFERÊNCIA DA PLACA
+   Depois da leitura geral, o programa localiza a placa na imagem,
+   recorta só ela, amplia e lê várias vezes (tons diferentes, modos
+   diferentes, só letras e números). A placa final é a que a maioria
+   das leituras confirma. Se houver divergência, o programa avisa.
+========================================================= */
 
-    // Se o texto já contém uma placa em formato válido, preserva-a
-    // antes de tentar corrigir caracteres ambíguos do OCR.
-    for (const candidato of candidatos) {
-        if (/^[A-Z]{3}[0-9]{4}$/.test(candidato))
-            return candidato;
-        if (/^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(candidato))
-            return candidato;
-    }
+function hammingPlaca(a, b) {
+    if (!a || !b || a.length !== b.length) return 99;
+    let d = 0;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) d++;
+    return d;
+}
 
-    for (const candidato of candidatos) {
+function consensoPlaca(leituras) {
 
-        const variantes = gerarVariantesPlaca(candidato);
+    const votos = new Map();
+    let total = 0;
+    let validas = 0;
 
-        for (const variante of variantes) {
-            const antiga =
-                corrigirPlacaAntiga(
-                    variante
-                );
+    for (const l of leituras) {
 
-            if (antiga)
-                return antiga;
+        const norm = normalizarCandidato(l.texto);
+        let melhor = null;
+
+        if (norm.length >= 7) {
+            for (let i = 0; i <= norm.length - 7; i++) {
+                const r = melhorCorrecaoPlaca(norm.substr(i, 7));
+                if (r && (!melhor || r.custo < melhor.custo)) melhor = r;
+                if (melhor && melhor.custo === 0) break;
+            }
         }
 
-        const mercosul =
-            corrigirPlacaMercosul(
-                candidato
-            );
+        if (!melhor) continue;
 
-        if (mercosul)
-            return mercosul;
+        const peso = (l.peso || 1) * (melhor.custo === 0 ? 1 : melhor.custo === 1 ? 0.7 : 0.4);
+
+        total += peso;
+        validas++;
+        votos.set(melhor.placa, (votos.get(melhor.placa) || 0) + peso);
     }
 
+    if (!votos.size) return null;
 
-    return null;
+    const ordem = Array.from(votos.entries()).sort((a, b) => b[1] - a[1]);
+
+    return {
+        placa: ordem[0][0],
+        fracao: ordem[0][1] / total,
+        validas: validas,
+        alternativas: ordem.slice(1).map(x => x[0])
+    };
+}
+
+function mesmaLinhaOCR(b1, b2) {
+    const h = Math.max(b1.y1 - b1.y0, b2.y1 - b2.y0, 1);
+    const c1 = (b1.y0 + b1.y1) / 2;
+    const c2 = (b2.y0 + b2.y1) / 2;
+    return Math.abs(c1 - c2) < h * 0.6;
+}
+
+// Procura, entre as palavras que o OCR devolveu (com posição), o grupo
+// de 1 a 3 palavras que forma a placa. Retorna a caixa na imagem
+// original e o texto bruto lido.
+function localizarPlacaNasPalavras(palavras, dica) {
+
+    if (!Array.isArray(palavras) || !palavras.length) return null;
+
+    const lista = palavras
+        .map(p => ({
+            norm: String(p.text || "").toUpperCase().replace(/[^A-Z0-9]/g, ""),
+            b: p.bbox
+        }))
+        .filter(p => p.norm && p.b && isFinite(p.b.x0) && isFinite(p.b.x1));
+
+    const dicaValida = dica && dica.length === 7 ? dica : null;
+
+    let melhor = null;
+
+    const avaliar = function(norm, caixa, extraPos) {
+        const r = melhorCorrecaoPlaca(norm);
+        if (!r) return;
+        const dist = dicaValida ? hammingPlaca(norm, dicaValida) : 0;
+        if (dicaValida && dist > 3) return;
+        const score = r.custo * 10 + dist + extraPos * 0.001;
+        if (!melhor || score < melhor.score)
+            melhor = { score: score, norm: norm, caixa: caixa };
+    };
+
+    for (let i = 0; i < lista.length; i++) {
+
+        let norm = "";
+        let caixa = null;
+
+        for (let k = 0; k < 3 && i + k < lista.length; k++) {
+
+            const it = lista[i + k];
+
+            if (k > 0) {
+                if (!mesmaLinhaOCR(lista[i + k - 1].b, it.b)) break;
+                if (_ROTULOS_NAO_PLACA.includes(lista[i].norm)) break;
+            }
+
+            // Palavra única maior que 7 (ex.: "VEICULO:ABC1D23" colado):
+            // testa as janelas de 7 caracteres dentro dela.
+            if (k === 0 && it.norm.length > 7) {
+                const w = it.b.x1 - it.b.x0;
+                for (let j = 0; j + 7 <= it.norm.length; j++) {
+                    const janela = it.norm.substr(j, 7);
+                    if (dicaValida && hammingPlaca(janela, dicaValida) > 1) continue;
+                    if (!dicaValida && melhorCorrecaoPlaca(janela, 0) === null) continue;
+                    avaliar(janela, {
+                        x0: it.b.x0 + w * (j / it.norm.length),
+                        x1: it.b.x0 + w * ((j + 7) / it.norm.length),
+                        y0: it.b.y0, y1: it.b.y1
+                    }, i);
+                }
+                break;
+            }
+
+            norm += it.norm;
+
+            caixa = caixa
+                ? { x0: Math.min(caixa.x0, it.b.x0), y0: Math.min(caixa.y0, it.b.y0),
+                    x1: Math.max(caixa.x1, it.b.x1), y1: Math.max(caixa.y1, it.b.y1) }
+                : { x0: it.b.x0, y0: it.b.y0, x1: it.b.x1, y1: it.b.y1 };
+
+            if (norm.length > 7) break;
+
+            if (norm.length === 7) {
+                avaliar(norm, caixa, i);
+                break;
+            }
+        }
+    }
+
+    if (!melhor) return null;
+
+    const c = melhor.caixa;
+
+    return {
+        norm: melhor.norm,
+        caixa: {
+            x0: c.x0 / ESCALA_OCR, y0: c.y0 / ESCALA_OCR,
+            x1: c.x1 / ESCALA_OCR, y1: c.y1 / ESCALA_OCR
+        }
+    };
+}
+
+// Recorta a placa da imagem original, amplia e prepara.
+// modo: "cinza" | "contraste" | "binaria"
+function prepararRecortePlaca(canvasOrig, caixa, escala, modo) {
+
+    const h = Math.max(1, caixa.y1 - caixa.y0);
+    const padX = Math.max(4, Math.round(h * 0.35));
+    const padY = Math.max(4, Math.round(h * 0.30));
+
+    const sx = Math.max(0, Math.floor(caixa.x0 - padX));
+    const sy = Math.max(0, Math.floor(caixa.y0 - padY));
+    const sx2 = Math.min(canvasOrig.width, Math.ceil(caixa.x1 + padX));
+    const sy2 = Math.min(canvasOrig.height, Math.ceil(caixa.y1 + padY));
+    const sw = Math.max(1, sx2 - sx);
+    const sh = Math.max(1, sy2 - sy);
+
+    const margem = Math.round(h * escala * 0.6) + 10;
+
+    const out = document.createElement("canvas");
+    out.width = sw * escala + margem * 2;
+    out.height = sh * escala + margem * 2;
+
+    const ctx = out.getContext("2d", { willReadFrequently: true });
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+
+    // Fundo da margem = cor do canto do recorte.
+    const pix = canvasOrig.getContext("2d").getImageData(sx, sy, 1, 1).data;
+    ctx.fillStyle = "rgb(" + pix[0] + "," + pix[1] + "," + pix[2] + ")";
+    ctx.fillRect(0, 0, out.width, out.height);
+
+    ctx.drawImage(canvasOrig, sx, sy, sw, sh, margem, margem, sw * escala, sh * escala);
+
+    const dados = ctx.getImageData(0, 0, out.width, out.height);
+    const p = dados.data;
+    const n = p.length / 4;
+    const cinza = new Uint8ClampedArray(n);
+    const hist = new Array(256).fill(0);
+
+    for (let i = 0; i < n; i++) {
+        const g = Math.round(0.299 * p[i * 4] + 0.587 * p[i * 4 + 1] + 0.114 * p[i * 4 + 2]);
+        cinza[i] = g;
+        hist[g]++;
+    }
+
+    // Limiar de Otsu
+    let soma = 0;
+    for (let t = 0; t < 256; t++) soma += t * hist[t];
+    let somaB = 0, wB = 0, maxVar = -1, limiar = 128;
+    for (let t = 0; t < 256; t++) {
+        wB += hist[t];
+        if (!wB) continue;
+        const wF = n - wB;
+        if (!wF) break;
+        somaB += t * hist[t];
+        const mB = somaB / wB;
+        const mF = (soma - somaB) / wF;
+        const v = wB * wF * (mB - mF) * (mB - mF);
+        if (v > maxVar) { maxVar = v; limiar = t; }
+    }
+
+    // O texto é a minoria dos pixels. Se for a parte clara (tema escuro),
+    // inverte para ficar texto escuro em fundo claro.
+    let escuros = 0;
+    for (let t = 0; t <= limiar; t++) escuros += hist[t];
+    const inverter = escuros > n - escuros;
+
+    // Esticamento de contraste (percentis 2% e 98%)
+    let acum = 0, lo = 0, hi = 255;
+    for (let t = 0; t < 256; t++) { acum += hist[t]; if (acum >= n * 0.02) { lo = t; break; } }
+    acum = 0;
+    for (let t = 255; t >= 0; t--) { acum += hist[t]; if (acum >= n * 0.02) { hi = t; break; } }
+    if (hi - lo < 20) { lo = 0; hi = 255; }
+
+    for (let i = 0; i < n; i++) {
+
+        let g = cinza[i];
+
+        if (modo === "binaria") {
+            g = g > limiar ? 255 : 0;
+        } else if (modo === "contraste") {
+            g = Math.max(0, Math.min(255, (g - lo) * 255 / (hi - lo)));
+        }
+
+        if (inverter) g = 255 - g;
+
+        p[i * 4] = p[i * 4 + 1] = p[i * 4 + 2] = g;
+        p[i * 4 + 3] = 255;
+    }
+
+    ctx.putImageData(dados, 0, 0);
+
+    return out;
+}
+
+// Troca o texto bruto da placa (como o OCR leu) pela placa conferida.
+function substituirPlacaNoTexto(texto, brutoNorm, novaPlaca) {
+
+    if (!brutoNorm || brutoNorm.length !== 7) return { texto: texto, ok: false };
+
+    const padrao = brutoNorm
+        .split("")
+        .map(c => c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+        .join("[^A-Za-z0-9\\n]{0,2}");
+
+    const re = new RegExp(padrao, "i");
+
+    if (!re.test(texto)) return { texto: texto, ok: false };
+
+    return { texto: texto.replace(re, novaPlaca), ok: true };
+}
+
+let _placaDuvida = null;
+
+function limparConfiancaPlaca() {
+    _placaDuvida = null;
+    const el = document.getElementById("placaConfianca");
+    if (el) { el.textContent = ""; el.style.display = "none"; }
+}
+
+function registrarConfiancaPlaca(info) {
+
+    _placaDuvida = {
+        placa: info.placa,
+        nivel: info.nivel,
+        alternativas: info.alternativas || [],
+        confirmada: false
+    };
+
+    const el = document.getElementById("placaConfianca");
+    if (!el) return;
+
+    let msg = "";
+    let cor = "";
+
+    if (info.nivel === "alta") {
+        msg = "✔ Placa conferida em " + info.validas + " leituras independentes.";
+        cor = "#6fdc8c";
+    } else if (info.nivel === "media") {
+        msg = "Placa conferida, mas com pequena divergência entre as leituras. Vale conferir na imagem.";
+        cor = "#ffd166";
+    } else {
+        msg = "⚠ LEITURA COM DÚVIDA — confira a placa na imagem antes de salvar.";
+        if (info.alternativas && info.alternativas.length)
+            msg += " Outras leituras: " + info.alternativas.slice(0, 3).join(", ") + ".";
+        cor = "#ff6b6b";
+    }
+
+    el.textContent = msg;
+    el.style.color = cor;
+    el.style.display = "block";
+}
+
+// Chamado depois de processarTexto: confirma que a placa mostrada é
+// a mesma que foi conferida (senão, rebaixa para "dúvida").
+function finalizarConfiancaPlaca() {
+
+    if (!_placaDuvida) return;
+
+    const mostrada = (document.getElementById("placa")?.innerText || "").trim();
+
+    if (mostrada !== _placaDuvida.placa) {
+        registrarConfiancaPlaca({
+            placa: mostrada,
+            nivel: "baixa",
+            alternativas: [_placaDuvida.placa]
+        });
+    }
+}
+
+// Faz a conferência e devolve o texto com a placa já corrigida.
+async function aplicarRefinoPlaca(canvasOrig, dadosOCR, texto) {
+
+    limparConfiancaPlaca();
+
+    try {
+
+        const textoBase = String(texto || "");
+        const placaTexto = encontrarPlaca(textoBase.toUpperCase());
+
+        if (!placaTexto) return texto;
+
+        const palavras = (dadosOCR && (dadosOCR.words || (dadosOCR.data && dadosOCR.data.words))) || [];
+        const alvo = localizarPlacaNasPalavras(palavras, placaTexto);
+
+        if (!alvo) {
+            // Não foi possível isolar a placa na imagem: mantém a leitura
+            // do texto e avisa que não houve conferência extra.
+            const custo = (melhorCorrecaoPlaca(placaTexto) || {}).custo;
+            registrarConfiancaPlaca({
+                placa: placaTexto,
+                nivel: custo === 0 ? "media" : "baixa",
+                validas: 1
+            });
+            return texto;
+        }
+
+        document.getElementById("status").innerText = "Conferindo a placa...";
+
+        const leituras = [{ texto: alvo.norm, peso: 0.7 }];
+
+        const h = Math.max(1, alvo.caixa.y1 - alvo.caixa.y0);
+        const s0 = Math.max(2, Math.min(8, Math.round(60 / h)));
+
+        const planos = [
+            { modo: "cinza",     esc: s0,     psm: 7 },
+            { modo: "contraste", esc: s0,     psm: 7 },
+            { modo: "binaria",   esc: s0,     psm: 7 },
+            { modo: "binaria",   esc: s0 + 1, psm: 8 },
+            { modo: "contraste", esc: s0 + 1, psm: 8 },
+            { modo: "cinza",     esc: s0 + 1, psm: 7 }
+        ];
+
+        for (const plano of planos) {
+            try {
+                const img = prepararRecortePlaca(canvasOrig, alvo.caixa, plano.esc, plano.modo);
+                const r = await ocrComParametros(img, {
+                    tessedit_pageseg_mode: String(plano.psm),
+                    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                    preserve_interword_spaces: "0",
+                    user_defined_dpi: "300"
+                });
+                leituras.push({ texto: String((r && r.data && r.data.text) || ""), peso: 1 });
+            } catch (e) {
+                console.warn("Leitura da placa falhou:", e);
+            }
+        }
+
+        const c = consensoPlaca(leituras);
+
+        if (!c) {
+            registrarConfiancaPlaca({ placa: placaTexto, nivel: "baixa", validas: 0 });
+            return texto;
+        }
+
+        let nivel = "baixa";
+        if (c.validas >= 5 && c.fracao >= 0.85) nivel = "alta";
+        else if (c.validas >= 3 && c.fracao >= 0.65) nivel = "media";
+
+        const subst = substituirPlacaNoTexto(textoBase, alvo.norm, c.placa);
+
+        if (!subst.ok && c.placa !== placaTexto) nivel = "baixa";
+
+        registrarConfiancaPlaca({
+            placa: subst.ok ? c.placa : placaTexto,
+            nivel: nivel,
+            validas: c.validas,
+            alternativas: c.alternativas
+        });
+
+        return subst.ok ? subst.texto : texto;
+
+    } catch (erro) {
+        console.warn("Conferência da placa não concluída:", erro);
+        return texto;
+    }
+}
+
+
+/* =========================================================
+   CORRIGIR ANO (quando vier um ano só, sem "/")
+========================================================= */
+
+function corrigirAnoUnico(texto) {
+
+    const regex = /(ANO\s*[:\-]?\s*)([0-9A-ZIOBS]{4})(?![0-9A-Z])(?!\s*[\/\-]\s*[0-9A-Z])/i;
+
+    const encontrado = texto.match(regex);
+
+    if (!encontrado)
+        return texto;
+
+    const mapa = { "O": "0", "Q": "0", "I": "1", "L": "1", "S": "5", "B": "8", "G": "6" };
+
+    const ano = encontrado[2]
+        .toUpperCase()
+        .split("")
+        .map(c => mapa[c] || c)
+        .join("");
+
+    const n = parseInt(ano);
+
+    if (/^[0-9]{4}$/.test(ano) && n >= 1900 && n <= 2100)
+        return texto.replace(regex, "$1" + ano);
+
+    return texto;
 }
 
 
@@ -2439,7 +2933,7 @@ function corrigirAno(texto) {
 
 
     if (!encontrado)
-        return texto;
+        return corrigirAnoUnico(texto);
 
 
     function converter(valor) {
@@ -2680,8 +3174,10 @@ async function extrairSelecionado() {
             throw new Error("Não foi possível obter os dados do OCR.");
         }
 
-        const texto = (dados.text || "").trim();
+        let texto = (dados.text || "").trim();
+        texto = await aplicarRefinoPlaca(canvasSelecao, dados, texto);
         const final = processarTexto(texto);
+        finalizarConfiancaPlaca();
 
         document.getElementById("resultado").value =
             final.toUpperCase();
@@ -2765,13 +3261,17 @@ async function extrairInteira() {
                 .filter(Boolean)
             : [];
 
-        const texto =
+        let texto =
             linhasOCR.length
                 ? linhasOCR.join("\n")
                 : String(dadosOCR.text || "");
 
+        texto = await aplicarRefinoPlaca(canvas, dadosOCR, texto);
+
         const final =
             processarTexto(texto, true);
+
+        finalizarConfiancaPlaca();
 
 
         document
@@ -2873,11 +3373,21 @@ async function extrairSomenteCarater() {
         textoOCR = textoOCR.replace(/CADASTRO\s+VE[ÍI1ÌÎÏ]?CULO/g, "CADASTRO VEÍCULO")
             .replace(/SITUA[CÇC]?[AÃA]?O/g, "SITUAÇÃO");
 
+        // Confere a placa direto no recorte e já corrige no texto.
+        textoOCR = (await aplicarRefinoPlaca(canvas, dados, textoOCR)).toUpperCase();
+
         const inicioRegex = /CADASTRO\s+VEÍCULO\s*[:\-]?/i;
-        const inicioMatch = inicioRegex.exec(textoOCR);
+        let inicioMatch = inicioRegex.exec(textoOCR);
         if (!inicioMatch) {
-            alert('Não foi encontrado "CADASTRO VEÍCULO" na imagem. Tente uma captura mais nítida.');
-            document.getElementById("status").innerText = "Campo CADASTRO VEÍCULO não reconhecido.";
+            // Sem o campo "CADASTRO VEÍCULO": começa o caráter na própria placa.
+            const achada = encontrarPlacaSemMarcador(textoOCR);
+            if (achada) {
+                inicioMatch = { index: achada.indice, 0: "" };
+            }
+        }
+        if (!inicioMatch) {
+            alert('Não foi encontrada a placa na imagem. Tente uma captura mais nítida.');
+            document.getElementById("status").innerText = "Placa não reconhecida.";
             return;
         }
 
@@ -2918,6 +3428,7 @@ async function extrairSomenteCarater() {
         if (placa) resultado = corrigirPlacaNoTexto(resultado, placa);
         document.getElementById("resultado").value = resultado.toUpperCase();
         document.getElementById("placa").innerText = placa || "---";
+        finalizarConfiancaPlaca();
         document.getElementById("status").innerText = placa
             ? "Caráter extraído. Emplacamento reconhecido: " + placa + "."
             : "Caráter extraído; confira manualmente o emplacamento antes de salvar.";
@@ -2938,48 +3449,15 @@ let listaTextos = [];
 let canalLista = null;
 const registrosSelecionadosMaster = new Set();
 
-/* ---------- BPM/M x BPM/I ---------- */
-function bpmDoUsuario() {
-    return (perfilAtual && perfilAtual.bpm === "I") ? "I" : "M";
-}
-
-function rotuloBpm(valor) {
-    return valor === "I" ? "BPM/I" : "BPM/M";
-}
-
-function atualizarRotuloBpm() {
-    const el = document.getElementById("bpmBadgeLista");
-    if (!el) return;
-    const v = bpmDoUsuario();
-    el.textContent = rotuloBpm(v);
-    el.classList.toggle("i", v === "I");
-}
-
-// Pergunta ao banco qual é o BPM atual do usuário (pode ter sido alterado por um administrador).
-async function sincronizarBpmUsuario() {
-    try {
-        const { data, error } = await sb.rpc("extrator_meu_bpm");
-        if (!error && (data === "M" || data === "I")) {
-            if (perfilAtual) perfilAtual.bpm = data;
-        }
-    } catch (e) {
-        console.warn("Não foi possível sincronizar o BPM:", e);
-    }
-    atualizarRotuloBpm();
-}
-
 async function carregarLista() {
     const container = document.getElementById("listaSalvos");
     if (!container) return;
 
     container.innerHTML = '<div class="info">Carregando lista online...</div>';
 
-    await sincronizarBpmUsuario();
-
     const { data, error } = await sb
         .from("extrator_lista_carater")
         .select("id,texto,created_at")
-        .eq("bpm", bpmDoUsuario())
         .order("created_at", { ascending: false });
 
     if (error) {
@@ -3243,6 +3721,23 @@ async function salvarTextoLista() {
     const placaNova = encontrarPlaca(texto);
     let textoComArea = texto;
 
+    // Placa lida com dúvida: pede confirmação antes de seguir.
+    if (placaNova && _placaDuvida && _placaDuvida.nivel === "baixa"
+        && _placaDuvida.placa === placaNova && !_placaDuvida.confirmada) {
+        const alt = _placaDuvida.alternativas && _placaDuvida.alternativas.length
+            ? "\nOutras leituras possíveis: " + _placaDuvida.alternativas.slice(0, 3).join(", ")
+            : "";
+        const confirmou = window.confirm(
+            "A leitura da placa " + placaNova + " ficou com dúvida." + alt +
+            "\n\nConferiu na imagem e a placa está correta?"
+        );
+        if (!confirmou) {
+            document.getElementById("status").innerText = "Registro não salvo: confira a placa.";
+            return;
+        }
+        _placaDuvida.confirmada = true;
+    }
+
     if (placaNova) {
         // A área é obrigatória quando existe emplacamento reconhecido.
         // Formato exigido: x/xM (ex.: 1/5M).
@@ -3297,8 +3792,7 @@ async function salvarTextoLista() {
     if (placaNova) {
         const { data: registrosExistentes, error: erroConsulta } = await sb
             .from("extrator_lista_carater")
-            .select("id,texto")
-            .eq("bpm", bpmDoUsuario());
+            .select("id,texto");
 
         if (erroConsulta) {
             console.error(erroConsulta);
@@ -3341,6 +3835,7 @@ async function salvarTextoLista() {
     document.getElementById("imagemContainer").style.display = "none";
     document.getElementById("resultado").value = "";
     document.getElementById("placa").innerText = "---";
+    limparConfiancaPlaca();
 
     limparSelecao();
     document.getElementById("arquivo").value = "";
@@ -4559,7 +5054,7 @@ async function importarListaCarater(arquivo) {
         }
 
         // Usa a lista online mais recente como base para nunca substituir registros existentes.
-        const { data: existentes, error: erroConsulta } = await sb.from("extrator_lista_carater").select("id,texto").eq("bpm", bpmDoUsuario());
+        const { data: existentes, error: erroConsulta } = await sb.from("extrator_lista_carater").select("id,texto");
         if (erroConsulta) throw erroConsulta;
         const chavesPlaca = new Set();
         const chavesTexto = new Set();
@@ -4844,12 +5339,11 @@ async function excluirUltimoOnline() {
 async function limparListaOnline() {
     if (!listaTextos.length) return;
 
-    if (!confirm("Tem certeza que deseja apagar toda a lista online do " + rotuloBpm(bpmDoUsuario()) + "?")) return;
+    if (!confirm("Tem certeza que deseja apagar toda a lista online?")) return;
 
     const { error } = await sb
         .from("extrator_lista_carater")
         .delete()
-        .eq("bpm", bpmDoUsuario())
         .not("id", "is", null);
 
     if (error) {
@@ -5566,9 +6060,6 @@ let cadLivenessSamples = [];
 let cadLivenessFirstSide = null;
 let selfieLivenessAprovada = false;
 let selfieLivenessVerifiedAt = null;
-let cadFaceValidaAgora = false;
-let cadFaceValidaEm = 0;
-let cadResolverVerificacaoFinal = null;
 
 function limparFormularioCadastro() {
     ["cadRE","cadNome","cadUnidade","cadEmail","cadSenha","cadSenha2"].forEach(id => {
@@ -5631,9 +6122,6 @@ function resetLivenessState(){
     cadLivenessBaseline=null;
     cadLivenessSamples=[];
     cadLivenessFirstSide=null;
-    cadFaceValidaAgora=false;
-    cadFaceValidaEm=0;
-    cadResolverVerificacaoFinal=null;
     selfieLivenessAprovada=false;
     selfieLivenessVerifiedAt=null;
     const btn=document.getElementById("btnCapturarSelfie");
@@ -5652,57 +6140,6 @@ function calcularIndicadorGiro(face){
     return (nariz.x-centroOlhos)/larguraFace;
 }
 
-// Avalia se o rosto está bom para a FOTO FINAL: inteiro, grande o bastante, centralizado e de frente.
-function avaliarRostoParaFoto(face){
-    const nariz=face[1], bochechaEsq=face[234], bochechaDir=face[454];
-    if(!nariz||!bochechaEsq||!bochechaDir) return {ok:false,motivo:"Rosto incompleto. Posicione o rosto inteiro na câmera."};
-    const largura=Math.abs(bochechaDir.x-bochechaEsq.x);
-    if(largura<0.22) return {ok:false,motivo:"Aproxime o rosto da câmera."};
-    if(nariz.x<0.25||nariz.x>0.75||nariz.y<0.2||nariz.y>0.8) return {ok:false,motivo:"Centralize o rosto na câmera."};
-    const giro=calcularIndicadorGiro(face);
-    const base=(cadLivenessBaseline===null)?0:cadLivenessBaseline;
-    if(giro===null||Math.abs(giro-base)>0.035) return {ok:false,motivo:"Olhe de frente para a câmera."};
-    return {ok:true,motivo:""};
-}
-
-// Depois da prova de vida, continua vigiando: o botão de capturar só fica ativo com UM rosto válido na câmera.
-function tratarRostoAposVerificacao(faces){
-    const btn=document.getElementById("btnCapturarSelfie");
-    let valido=false, motivo="";
-    if(faces.length===0) motivo="Não detectei um rosto. Posicione o rosto no centro para capturar.";
-    else if(faces.length>1) motivo="Detectei mais de um rosto. Deixe somente uma pessoa diante da câmera.";
-    else { const av=avaliarRostoParaFoto(faces[0]); valido=av.ok; motivo=av.motivo; }
-    cadFaceValidaAgora=valido;
-    if(valido){
-        cadFaceValidaEm=Date.now();
-        atualizarLivenessUI("✅ Verificação concluída. Rosto detectado, pode capturar a selfie.","ok");
-    }else{
-        atualizarLivenessUI(motivo,"warn");
-    }
-    if(btn) btn.disabled=!valido;
-}
-
-// Confere o rosto na própria imagem que vai ser salva (fecha a brecha de tirar a foto sem rosto).
-async function verificarRostoNoFrame(canvas){
-    let tentativas=0;
-    while(cadLivenessProcessing && tentativas<30){ await new Promise(r=>setTimeout(r,100)); tentativas++; }
-    cadLivenessProcessing=true;
-    try{
-        const espera=new Promise((resolve)=>{
-            cadResolverVerificacaoFinal=resolve;
-            setTimeout(()=>resolve(null),5000);
-        });
-        await cadFaceMesh.send({image:canvas});
-        return await espera;
-    }catch(e){
-        console.error(e);
-        return null;
-    }finally{
-        cadResolverVerificacaoFinal=null;
-        cadLivenessProcessing=false;
-    }
-}
-
 async function inicializarFaceMesh(){
     if(cadFaceMesh) return cadFaceMesh;
     if(typeof FaceMesh === "undefined") throw new Error("Módulo de verificação facial indisponível.");
@@ -5715,16 +6152,6 @@ async function inicializarFaceMesh(){
     });
     cadFaceMesh.onResults((results)=>{
         const faces=results.multiFaceLandmarks||[];
-        if(cadResolverVerificacaoFinal){
-            const resolver=cadResolverVerificacaoFinal;
-            cadResolverVerificacaoFinal=null;
-            resolver(faces);
-            return;
-        }
-        if(cadLivenessStage==="done"){
-            tratarRostoAposVerificacao(faces);
-            return;
-        }
         if(faces.length===0){
             atualizarLivenessUI("Não detectei um rosto. Posicione o rosto no centro da câmera.","warn");
             return;
@@ -5767,8 +6194,8 @@ async function inicializarFaceMesh(){
                 selfieLivenessAprovada=true;
                 selfieLivenessVerifiedAt=new Date().toISOString();
                 const btn=document.getElementById("btnCapturarSelfie");
-                if(btn) btn.disabled=true;
-                atualizarLivenessUI("✅ Movimento confirmado. Agora olhe de frente para a câmera.","ok");
+                if(btn) btn.disabled=false;
+                atualizarLivenessUI("✅ Verificação concluída. Agora você pode capturar a selfie.","ok");
             }
         }
     });
@@ -5783,7 +6210,7 @@ async function iniciarMonitoramentoLiveness(){
     await inicializarFaceMesh();
     if(cadLivenessTimer) clearInterval(cadLivenessTimer);
     cadLivenessTimer=setInterval(async()=>{
-        if(!cadSelfieStream || !video.videoWidth || cadLivenessProcessing) return;
+        if(!cadSelfieStream || !video.videoWidth || cadLivenessProcessing || cadLivenessStage==="done") return;
         cadLivenessProcessing=true;
         try{ await cadFaceMesh.send({image:video}); }
         catch(e){ console.error(e); atualizarLivenessUI("Não foi possível verificar o rosto. Tente novamente.","err"); }
@@ -5814,28 +6241,12 @@ function fecharCameraSelfie(){
 
 async function capturarSelfie(){
     const video=document.getElementById("cadSelfieVideo"), canvas=document.getElementById("cadSelfieCanvas");
-    const btn=document.getElementById("btnCapturarSelfie");
     if(!selfieLivenessAprovada){mostrarMsg("cadMsg","Conclua a verificação: vire o rosto levemente para os dois lados.","warn");return;}
     if(!video||!canvas||!video.videoWidth||!video.videoHeight){mostrarMsg("cadMsg","A câmera ainda não está pronta. Aguarde um instante.","warn");return;}
-    // 1ª barreira: o rosto precisa estar válido NESTE momento (resultado recente da câmera).
-    if(!cadFaceValidaAgora || (Date.now()-cadFaceValidaEm)>1500){
-        mostrarMsg("cadMsg","Rosto não detectado. Posicione o rosto de frente para a câmera para capturar.","warn");
-        return;
-    }
-    if(btn) btn.disabled=true;
     const escala=Math.min(1,640/video.videoWidth); canvas.width=Math.max(1,Math.round(video.videoWidth*escala)); canvas.height=Math.max(1,Math.round(video.videoHeight*escala));
     const ctx=canvas.getContext("2d",{alpha:false}); ctx.drawImage(video,0,0,canvas.width,canvas.height);
-    // 2ª barreira: confere o rosto na própria imagem capturada. Se não der certo, NÃO grava.
-    const faces=await verificarRostoNoFrame(canvas);
-    let valido=false;
-    if(faces && faces.length===1){ valido=avaliarRostoParaFoto(faces[0]).ok; }
-    if(!valido){
-        mostrarMsg("cadMsg","A foto não foi registrada: o rosto precisa aparecer inteiro, sozinho, de frente e no centro. Tente novamente.","warn");
-        atualizarLivenessUI("Foto não registrada. Olhe de frente para a câmera e tente de novo.","warn");
-        return;
-    }
     await definirSelfieCadastro(canvas.toDataURL("image/jpeg",0.78)); fecharCameraSelfie();
-    const status=document.getElementById("cadSelfieStatus"); if(status) status.textContent="Selfie capturada com rosto verificado.";
+    const status=document.getElementById("cadSelfieStatus"); if(status) status.textContent="Selfie capturada após verificação de movimento do rosto.";
 }
 
 function obterLocalizacaoAceite() {
@@ -5961,7 +6372,6 @@ async function cadastrarUsuario() {
                 nome_completo: nome,
                 unidade: unidade,
                 email_funcional: email,
-                bpm: (document.getElementById("cadBpm") && document.getElementById("cadBpm").value === "I") ? "I" : "M",
                 selfie_base64: selfieCadastroBase64,
                 selfie_liveness_status: selfieLivenessAprovada ? "aprovado" : "reprovado",
                 selfie_liveness_verified_at: selfieLivenessVerifiedAt,
@@ -6238,7 +6648,7 @@ async function consultarPerfilAtual() {
 
     const { data, error } = await sb
         .from("extrator_usuarios")
-        .select("id,re,nome_completo,unidade,email_funcional,status,created_at,last_seen_at,bpm")
+        .select("id,re,nome_completo,unidade,email_funcional,status,created_at,last_seen_at")
         .eq("id", usuarioAtual.id)
         .single();
 
@@ -6584,7 +6994,7 @@ function filtrarUsuariosAprovados() {
 
     const lista = termo
         ? usuariosAprovadosAdmin.filter(u =>
-            [u.re, u.nome_completo, u.unidade, u.email_funcional, u.status, rotuloBpm(u.bpm)]
+            [u.re, u.nome_completo, u.unidade, u.email_funcional, u.status]
                 .some(v => String(v || "").toUpperCase().includes(termo))
         )
         : usuariosAprovadosAdmin;
@@ -6607,7 +7017,7 @@ async function carregarAdminUsuarios() {
 
     const consultaAdmin = Promise.all([
         sb.from("extrator_usuarios")
-            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at,termo_aceito_em,termo_latitude,termo_longitude,termo_localizacao_precisao,aprovacao_em,aprovacao_latitude,aprovacao_longitude,aprovacao_localizacao_precisao,last_seen_at,bpm")
+            .select("id,re,nome_completo,unidade,email_funcional,selfie_base64,selfie_liveness_status,selfie_liveness_verified_at,status,created_at,updated_at,termo_aceito_em,termo_latitude,termo_longitude,termo_localizacao_precisao,aprovacao_em,aprovacao_latitude,aprovacao_longitude,aprovacao_localizacao_precisao,last_seen_at")
             .order("created_at", { ascending: true }),
         sb.rpc("extrator_lista_admins")
     ]);
@@ -6676,40 +7086,6 @@ async function carregarAdminUsuarios() {
     filtrarUsuariosAprovados();
 }
 
-function criarBotaoBpm(usuario) {
-    // Somente administrador com Acesso Full (ou MASTER) pode mudar o batalhão de alguém.
-    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) return null;
-    const atual = usuario.bpm === "I" ? "I" : "M";
-    const destino = atual === "I" ? "M" : "I";
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn-info";
-    btn.textContent = "🔁 Mover para " + rotuloBpm(destino);
-    btn.title = "Hoje: " + rotuloBpm(atual) + ". Move o usuário para a lista do " + rotuloBpm(destino) + ".";
-    btn.onclick = function(event) {
-        event.stopPropagation();
-        alterarBpmUsuario(usuario.id, destino, usuario.nome_completo);
-    };
-    return btn;
-}
-
-async function alterarBpmUsuario(userId, novoBpm, nome) {
-    if (!confirm("Mover " + (nome || "este usuário") + " para o " + rotuloBpm(novoBpm) + "?\n\nEle passará a ver somente a lista do " + rotuloBpm(novoBpm) + ".")) return;
-
-    const { error } = await sb.rpc("extrator_alterar_bpm", { p_user_id: userId, p_bpm: novoBpm });
-    if (error) {
-        console.error(error);
-        alert("Não foi possível alterar o batalhão. Confirme que a migração SQL foi executada no Supabase e que você tem Acesso Full.");
-        return;
-    }
-
-    // Se o próprio administrador mudou de batalhão, recarrega a lista dele.
-    if (userId === usuarioAtual?.id) {
-        await carregarLista();
-    }
-    await carregarAdminUsuarios();
-}
-
 function montarCardUsuario(usuario, adminIds, pendente) {
     const item = document.createElement("div");
     item.className = "admin-item";
@@ -6729,7 +7105,6 @@ function montarCardUsuario(usuario, adminIds, pendente) {
             ? '<span class="admin-status-badge">REJEITADO</span>'
             : '<span class="admin-status-badge pending">PENDENTE</span>';
     const badgeAdmin = ehAdmin ? ' <span class="admin-status-badge admin">ADMINISTRADOR</span>' : '';
-    const badgeBpm = '<span class="bpm-badge' + (usuario.bpm === "I" ? " i" : "") + '">' + rotuloBpm(usuario.bpm) + '</span>';
     const presenca = classificarPresencaUsuario(usuario.last_seen_at);
     const classePresenca = presenca.classe;
     const tituloPresenca = presenca.titulo;
@@ -6743,7 +7118,7 @@ function montarCardUsuario(usuario, adminIds, pendente) {
             '<div class="admin-grid admin-resumo-aprovado">' +
                 '<div><span>Nome:</span> <strong>' + escapeHtml(usuario.nome_completo) + '</strong></div>' +
                 '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
-                '<div><span>Status:</span> ' + badgePresenca + '<strong class="presenca-texto">' + escapeHtml(tituloPresenca) + '</strong> ' + badgeStatus + badgeAdmin + badgeBpm + '</div>' +
+                '<div><span>Status:</span> ' + badgePresenca + '<strong class="presenca-texto">' + escapeHtml(tituloPresenca) + '</strong> ' + badgeStatus + badgeAdmin + '</div>' +
             '</div>' +
             '<div class="admin-actions" id="acoes-' + escapeHtml(usuario.id) + '"></div>';
 
@@ -6755,7 +7130,7 @@ function montarCardUsuario(usuario, adminIds, pendente) {
         item.innerHTML =
             '<div class="admin-grid">' +
                 '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
-                '<div><span>Status do usuário:</span> ' + badgeStatus + badgeAdmin + badgeBpm + '</div>' +
+                '<div><span>Status do usuário:</span> ' + badgeStatus + badgeAdmin + '</div>' +
                 '<div><span>Status:</span> ' + badgePresenca + '<strong>' + escapeHtml(tituloPresenca) + '</strong></div>' +
                 '<div><span>Nome:</span> ' + escapeHtml(usuario.nome_completo) + '</div>' +
                 '<div><span>Unidade:</span> ' + escapeHtml(usuario.unidade) + '</div>' +
@@ -6791,8 +7166,6 @@ function montarCardUsuario(usuario, adminIds, pendente) {
         rejeitar.textContent = "❌ Rejeitar";
         rejeitar.onclick = () => alterarStatusUsuario(usuario.id, "rejeitado");
         actions.append(aprovar, rejeitar);
-        const btnBpmPendente = criarBotaoBpm(usuario);
-        if (btnBpmPendente) actions.appendChild(btnBpmPendente);
     } else {
         if (usuario.status === "rejeitado") {
             const aprovar = document.createElement("button");
@@ -6832,8 +7205,6 @@ function montarCardUsuario(usuario, adminIds, pendente) {
         excluir.disabled = ehEu || !(adminPermissoes.acesso_full || adminPermissoes.gerenciar_membros || adminPermissoes.is_master);
         excluir.title = ehEu ? "Você não pode excluir seu próprio usuário." : "Excluir usuário e remover o acesso";
         excluir.onclick = () => excluirUsuario(usuario.id, usuario.re, usuario.nome_completo);
-        const btnBpm = criarBotaoBpm(usuario);
-        if (btnBpm) actions.appendChild(btnBpm);
         actions.appendChild(excluir);
     }
 
@@ -6864,7 +7235,6 @@ function abrirDetalhesUsuario(usuario) {
             '<div><span>Nome:</span> <strong>' + escapeHtml(usuario.nome_completo) + '</strong></div>' +
             '<div><span>RE:</span> <strong>' + escapeHtml(usuario.re) + '</strong></div>' +
             '<div><span>Unidade:</span> ' + escapeHtml(usuario.unidade || "-") + '</div>' +
-            '<div><span>Batalhão:</span> <strong>' + rotuloBpm(usuario.bpm) + '</strong></div>' +
             '<div><span>E-mail funcional:</span> ' + escapeHtml(usuario.email_funcional || "-") + '</div>' +
             '<div><span>Status:</span> <span class="admin-status-badge ok">APROVADO</span></div>' +
             '<div><span>Cadastrado em:</span> ' + escapeHtml(cadastroTexto) + '</div>' +
@@ -7346,7 +7716,7 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 
 </div>
 <div class="painel-lista">
-<h3>Lista de Caráter Geral <span id="bpmBadgeLista" class="bpm-badge">BPM/M</span> <span id="contadorCarater" class="contador-carater">Total: 0</span></h3>
+<h3>Lista de Caráter Geral <span id="contadorCarater" class="contador-carater">Total: 0</span></h3>
 <div class="lista-toolbar">
     <input id="buscaLista" type="search" placeholder="🔎 Pesquisar emplacamento ou qualquer palavra..." autocomplete="off">
     <button type="button" onclick="limparBuscaLista()" title="Limpar pesquisa">✕</button>
