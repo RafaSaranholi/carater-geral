@@ -191,9 +191,9 @@
 .lista-toolbar input{flex:1;min-width:0;box-sizing:border-box;padding:12px 13px;border-radius:7px;border:1px solid #555;background:#101010;color:#eee;font-size:15px}
 .lista-toolbar button{margin:0;padding:9px 13px;min-width:42px;background:#333;color:#eee;border:1px solid #555}
 .item-salvo{position:relative;padding-bottom:46px;cursor:default}
-.item-salvo.carater-roubo{border:2px solid var(--cor-roubo,#e53935)}
-.item-salvo.carater-furto{border:2px solid var(--cor-furto,#2e7d32)}
-.item-salvo.carater-outros{border:2px solid var(--cor-outros,#f57c00)}
+.item-salvo.carater-roubo{border:var(--largura-contorno,2px) solid var(--cor-roubo,#e53935)}
+.item-salvo.carater-furto{border:var(--largura-contorno,2px) solid var(--cor-furto,#2e7d32)}
+.item-salvo.carater-outros{border:var(--largura-contorno,2px) solid var(--cor-outros,#f57c00)}
 .item-salvo:hover{border-color:#666}
 .item-salvo .item-conteudo{line-height:1.28}
 .placa-destaque{display:inline-flex;align-items:center;justify-content:center;min-width:92px;margin:0 0 8px;padding:5px 10px;border:2px solid currentColor;border-radius:6px;background:#111;font-size:19px;font-weight:800;letter-spacing:2px;line-height:1.1;box-sizing:border-box;box-shadow:0 0 0 1px rgba(255,255,255,.06),0 2px 8px rgba(0,0,0,.25)}
@@ -203,7 +203,7 @@
 .placa-destaque.placa-outros{color:var(--cor-outros-texto,#ff9d3d);border-color:var(--cor-outros,#f57c00)}
 .cores-linha{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0;font-size:13px;color:#ddd}
 .cores-linha input[type=color]{width:52px;height:32px;padding:0;border:1px solid #555;border-radius:6px;background:#101010;cursor:pointer}
-.item-salvo.carater-acao-criminosa{border:2px solid var(--cor-acao,#f9a825)}
+.item-salvo.carater-acao-criminosa{border:var(--largura-contorno,2px) solid var(--cor-acao,#f9a825)}
 
 .btn-copiar-registro{position:absolute;right:10px;bottom:9px;margin:0;padding:7px 11px;font-size:12px;background:#333;color:#eee;border:1px solid #555}
 .btn-copiar-registro:hover{background:#454545}
@@ -994,6 +994,8 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
             <div class="cores-linha"><span>Furto</span><input type="color" id="corFurto" data-chave="furto" value="#2e7d32"></div>
             <div class="cores-linha"><span>Ação criminosa</span><input type="color" id="corAcao" data-chave="acao" value="#f9a825"></div>
             <div class="cores-linha"><span>Outros / Suspeito</span><input type="color" id="corOutros" data-chave="outros" value="#f57c00"></div>
+            <div class="cores-linha" style="margin-top:14px"><span>Largura do contorno</span><span id="larguraContornoValor">2 px</span></div>
+            <input type="range" id="larguraContorno" min="1" max="8" step="1" value="2" style="width:100%">
             <div class="auth-actions"><button class="btn-secondary" type="button" onclick="restaurarCoresPadrao()">↩️ Restaurar padrão</button></div>
         </div>
 
@@ -6785,6 +6787,7 @@ function lerCoresSalvas() {
 function limparVariaveisCores() {
     const r = document.documentElement.style;
     Object.keys(CORES_PADRAO).forEach(k => { r.removeProperty("--cor-" + k); r.removeProperty("--cor-" + k + "-texto"); });
+    r.removeProperty("--largura-contorno");
 }
 function aplicarCoresUsuario() {
     const btn = document.getElementById("btnCoresUsuario");
@@ -6798,6 +6801,13 @@ function aplicarCoresUsuario() {
     const salvas = lerCoresSalvas();
     const r = document.documentElement.style;
     const ids = { roubo:"corRoubo", furto:"corFurto", acao:"corAcao", outros:"corOutros" };
+    const larg = parseInt(salvas.largura, 10);
+    const largValida = larg >= 1 && larg <= 8;
+    const slider = document.getElementById("larguraContorno");
+    const rotulo = document.getElementById("larguraContornoValor");
+    if (slider) slider.value = largValida ? larg : 2;
+    if (rotulo) rotulo.textContent = (largValida ? larg : 2) + " px";
+    if (largValida) r.setProperty("--largura-contorno", larg + "px");
     Object.keys(CORES_PADRAO).forEach(k => {
         const input = document.getElementById(ids[k]);
         const valida = /^#[0-9a-f]{6}$/i.test(salvas[k] || "");
@@ -6835,6 +6845,7 @@ function fecharMenuCores() {
 }
 document.addEventListener("input", function(e) {
     const el = e.target;
+    if (el && el.id === "larguraContorno") { salvarCorEscolhida("largura", el.value); return; }
     if (el && el.matches && el.matches("#coresUsuarioDropdown input[type=color]")) salvarCorEscolhida(el.dataset.chave, el.value);
 });
 document.addEventListener("click", function(event) {
