@@ -654,7 +654,7 @@
             <p>Acesso restrito. Entre utilizando seu <strong>RE</strong> e sua senha.</p>
 
             <label for="loginRE">RE</label>
-            <input id="loginRE" type="text" inputmode="numeric" autocomplete="username" placeholder="Ex.: 123456-7" maxlength="20">
+            <input id="loginRE" type="text" inputmode="text" autocomplete="username" placeholder="Ex.: ABC123-D ou 123456-7" maxlength="20">
 
             <label for="loginSenha">Senha</label>
             <input id="loginSenha" type="password" autocomplete="current-password" placeholder="Digite sua senha">
@@ -676,7 +676,7 @@
             </div>
 
             <label for="resetRE">RE</label>
-            <input id="resetRE" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex.: 123456-7" maxlength="20">
+            <input id="resetRE" type="text" inputmode="text" autocomplete="off" placeholder="Ex.: ABC123-D ou 123456-7" maxlength="20">
 
             <label for="resetEmail">E-mail funcional</label>
             <input id="resetEmail" type="email" autocomplete="email" placeholder="seu.email@policiamilitar.sp.gov.br">
@@ -693,7 +693,7 @@
             <p>Preencha seus dados. O acesso só será liberado depois da aprovação do administrador.</p>
 
             <label for="cadRE">RE</label>
-            <input id="cadRE" type="text" inputmode="text" autocomplete="off" placeholder="Ex.: 123456-7 ou 123456-A" maxlength="20">
+            <input id="cadRE" type="text" inputmode="text" autocomplete="off" placeholder="Ex.: ABC123-D ou 123456-A" maxlength="20">
 
             <label for="cadNome">Nome completo</label>
             <input id="cadNome" type="text" autocomplete="name" placeholder="Nome completo">
@@ -5753,8 +5753,9 @@ function formatarRE(valor) {
 }
 
 function reValido(valor) {
-    // Ex.: 123456-7 ou 123456-A
-    return /^[0-9]+-[0-9A-Z]$/.test(normalizarRE(valor));
+    // Aceita letras e números no RE, mantendo o hífen antes do último caractere.
+    // Exemplos: 123456-7, 123456-A, ABC123-D.
+    return /^[0-9A-Z]+-[0-9A-Z]$/.test(normalizarRE(valor));
 }
 
 function emailFuncionalValido(valor) {
@@ -6415,7 +6416,7 @@ async function cadastrarUsuario() {
     const senha2 = document.getElementById("cadSenha2").value;
 
     if (!reValido(re)) {
-        mostrarMsg("cadMsg", "Informe o RE no formato com hífen, por exemplo: 123456-7 ou 123456-A.", "err");
+        mostrarMsg("cadMsg", "Informe o RE com letras e/ou números, por exemplo: ABC123-D ou 123456-A.", "err");
         return;
     }
     if (!nome || !unidade || !email) {
@@ -6539,7 +6540,7 @@ async function redefinirSenha() {
     const email = document.getElementById("resetEmail").value.trim().toLowerCase();
 
     if (!reValido(re)) {
-        mostrarMsg("resetMsg", "Informe o RE no formato com hífen, por exemplo: 123456-7 ou 123456-A.", "err");
+        mostrarMsg("resetMsg", "Informe o RE com letras e/ou números, por exemplo: ABC123-D ou 123456-A.", "err");
         return;
     }
     if (!emailFuncionalValido(email)) {
@@ -6962,7 +6963,7 @@ async function entrarSistema() {
         return;
     }
     if (!reValido(re)) {
-        mostrarMsg("loginMsg", "Informe o RE no formato com hífen, por exemplo: 123456-7 ou 123456-A.", "err");
+        mostrarMsg("loginMsg", "Informe o RE com letras e/ou números, por exemplo: ABC123-D ou 123456-A.", "err");
         return;
     }
 
