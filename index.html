@@ -5255,10 +5255,12 @@ function baixarListaTxt() {
         return;
     }
 
-    const conteudo = listaTextos.map(function(registro, indice) {
+      const conteudo = listaTextos.map(function(registro, indice) {
         const dataHora = registro.created_at ? new Date(registro.created_at).toISOString() : "";
         const linhaData = dataHora ? "DATA/HORA DO REGISTRO: " + dataHora + "\n\n" : "";
-        return "===== REGISTRO " + (indice + 1) + " =====\n\n" + linhaData + (registro.texto || "");
+        const obs = String(registro.observacao || "").trim();
+        const linhaObs = obs ? "\n\nOBSERVAÇÃO: " + obs : "";
+        return "===== REGISTRO " + (indice + 1) + " =====\n\n" + linhaData + (registro.texto || "") + linhaObs;
     }).join("\n\n");
 
     const blob = new Blob([conteudo], {type:"text/plain;charset=utf-8"});
