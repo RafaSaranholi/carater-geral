@@ -211,6 +211,16 @@
 .btn-excluir-registro:hover{background:#8a3030}
 .item-data-lancamento{font-size:9px;line-height:1.15;color:#777;margin:-2px 0 6px;letter-spacing:.1px}
 .item-selecao-master{position:absolute;right:9px;top:8px;display:flex;align-items:center;gap:5px;padding:3px 6px;border-radius:5px;background:rgba(0,0,0,.30);color:#999;font-size:10px;line-height:1;cursor:pointer;user-select:none}
+.btn-obs{display:inline-flex;align-items:center;justify-content:center;margin:10px 0 4px 6px;padding:7px 12px;background:#3a3a3a;color:#eee;border:1px solid #666;border-radius:6px;font-size:12px;font-weight:bold;cursor:pointer}
+.btn-obs:hover{background:#4a4a4a}
+.btn-obs.tem-obs{border-color:#f0c04a;color:#ffe9a8}
+.obs-painel{margin:8px 0 6px;padding:10px;background:#181818;border:1px solid #555;border-radius:6px;cursor:default}
+.obs-painel textarea{width:100%;min-height:80px;box-sizing:border-box;background:#101010;color:#eee;border:1px solid #555;border-radius:6px;padding:8px;font-size:14px;font-family:inherit;resize:vertical}
+.obs-texto{white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.4;color:#eee}
+.obs-rotulo{font-size:11px;color:#aaa;margin-bottom:6px}
+.obs-acoes{display:flex;align-items:center;gap:8px;margin-top:8px}
+.obs-acoes button{margin:0;padding:7px 12px;font-size:12px}
+.obs-msg{font-size:12px;color:#8ee0a8}
 .item-selecao-master input{margin:0;accent-color:#dc3545;transform:scale(.92)}
 .item-salvo.selecionado-master{box-shadow:inset 0 0 0 2px rgba(220,53,69,.55)}
 #btnExcluirSelecionados:disabled{opacity:.45;cursor:not-allowed}
@@ -3510,7 +3520,7 @@ async function carregarLista() {
 
     const { data, error } = await sb
         .from("extrator_lista_carater")
-        .select("id,texto,created_at")
+        .select("id,texto,created_at,observacao")
         .eq("bpm", bpmDoUsuario())
         .order("created_at", { ascending: false });
 
@@ -3606,7 +3616,7 @@ function renderizarLista() {
     const termo = obterTextoPesquisaLista();
     const filtrados = !termo
         ? listaTextos
-        : listaTextos.filter(registro => textoNormalizadoPesquisa(registro.texto).includes(termo));
+: listaTextos.filter(registro => textoNormalizadoPesquisa((registro.texto || "") + " " + (registro.observacao || "")).includes(termo));
 
     if (!filtrados.length) {
         container.innerHTML = termo
@@ -3688,6 +3698,7 @@ function renderizarLista() {
 
         // Busca ilustrativa de fotos, sem alterar o registro salvo nem enviar a placa.
         adicionarBotaoFotoVeiculo(item, registro.texto || "");
+        adicionarObservacaoRegistro(item, registro);
 
         const botaoCopiar = document.createElement("button");
         botaoCopiar.type = "button";
@@ -3723,7 +3734,94 @@ function renderizarLista() {
 
     atualizarBotaoExcluirSelecionados();
 }
+const observacoesAbertas = new Set();
+const observacoesRascunho = new Map();
 
+function adicionarObservacaoRegistro(item, registro) {
+    const id = String(registro.id);
+    const podeEditar = souAdmin && (adminPermissoes.acesso_full || adminPermissoes.adicionar_remover_carater || adminPermissoes.is_master);
+    const obsSalva = String(registro.observacao || "");
+    const temObs = obsSalva.trim() !== "";
+
+    // Usuário somente leitura só vê o botão quando existe observação.
+    if (!podeEditar && !temObs) return;
+
+    const botao = document.createElement("button");
+    botao.type = "button";
+    botao.className = "btn-obs" + (temObs ? " tem-obs" : "");
+    botao.textContent = "📝 Observações" + (temObs ? " •" : "");
+
+    const painel = document.createElement("div");
+    painel.className = "obs-painel";
+    painel.style.display = observacoesAbertas.has(id) ? "block" : "none";
+    painel.addEventListener("click", e => e.stopPropagation());
+
+    if (podeEditar) {
+        const rotulo = document.createElement("div");
+        rotulo.className = "obs-rotulo";
+        rotulo.textContent = "Observações deste veículo (visíveis para todos os usuários):";
+
+        const campo = document.createElement("textarea");
+        campo.placeholder = "Escreva aqui o que quiser...";
+        campo.value = observacoesRascunho.has(id) ? observacoesRascunho.get(id) : obsSalva;
+        campo.addEventListener("input", () => observacoesRascunho.set(id, campo.value));
+
+        const acoes = document.createElement("div");
+        acoes.className = "obs-acoes";
+
+        const salvar = document.createElement("button");
+        salvar.type = "button";
+        salvar.className = "btn-success";
+        salvar.textContent = "💾 Salvar observação";
+
+        const msg = document.createElement("span");
+        msg.className = "obs-msg";
+
+        salvar.addEventListener("click", async function() {
+            salvar.disabled = true;
+            msg.style.color = "#bbb";
+            msg.textContent = "Salvando...";
+            const { error } = await sb.rpc("extrator_salvar_observacao", {
+                p_id: id,
+                p_observacao: campo.value
+            });
+            salvar.disabled = false;
+            if (error) {
+                console.error(error);
+                msg.style.color = "#ff9b9b";
+                msg.textContent = "Não foi possível salvar.";
+                return;
+            }
+            registro.observacao = campo.value.trim();
+            observacoesRascunho.delete(id);
+            msg.style.color = "#8ee0a8";
+            msg.textContent = "✔ Salvo";
+            botao.classList.toggle("tem-obs", registro.observacao !== "");
+            botao.textContent = "📝 Observações" + (registro.observacao !== "" ? " •" : "");
+        });
+
+        acoes.append(salvar, msg);
+        painel.append(rotulo, campo, acoes);
+    } else {
+        const rotulo = document.createElement("div");
+        rotulo.className = "obs-rotulo";
+        rotulo.textContent = "Observações:";
+        const texto = document.createElement("div");
+        texto.className = "obs-texto";
+        texto.textContent = obsSalva;
+        painel.append(rotulo, texto);
+    }
+
+    botao.addEventListener("click", function(e) {
+        e.stopPropagation();
+        const abrir = painel.style.display === "none";
+        painel.style.display = abrir ? "block" : "none";
+        if (abrir) observacoesAbertas.add(id); else observacoesAbertas.delete(id);
+    });
+
+    item.appendChild(botao);
+    item.appendChild(painel);
+}
 async function copiarRegistroLista(texto, numeroRegistro) {
     try {
         await navigator.clipboard.writeText(texto);
