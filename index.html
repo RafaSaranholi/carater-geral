@@ -3514,7 +3514,9 @@ async function carregarLista() {
     const container = document.getElementById("listaSalvos");
     if (!container) return;
 
-    container.innerHTML = '<div class="info">Carregando lista online...</div>';
+    const primeiraCarga = !listaTextos.length;
+    const rolagemAnterior = container.scrollTop;
+    if (primeiraCarga) container.innerHTML = '<div class="info">Carregando lista online...</div>';
 
     await sincronizarBpmUsuario();
 
