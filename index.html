@@ -2523,42 +2523,45 @@ function hammingPlaca(a, b) {
 }
 
 function consensoPlaca(leituras) {
-
+    // Só aceita leituras completas de 7 caracteres. Não procura janelas
+    // dentro de textos maiores, pois isso pode transformar palavras em placas.
+    // Também limita a correção automática a UMA ambiguidade por leitura.
     const votos = new Map();
     let total = 0;
     let validas = 0;
 
     for (const l of leituras) {
-
         const norm = normalizarCandidato(l.texto);
-        let melhor = null;
+        if (norm.length !== 7) continue;
 
-        if (norm.length >= 7) {
-            for (let i = 0; i <= norm.length - 7; i++) {
-                const r = melhorCorrecaoPlaca(norm.substr(i, 7));
-                if (r && (!melhor || r.custo < melhor.custo)) melhor = r;
-                if (melhor && melhor.custo === 0) break;
-            }
-        }
+        const correcao = melhorCorrecaoPlaca(norm, 1);
+        if (!correcao) continue;
 
-        if (!melhor) continue;
+        const confianca = Number(l.confianca);
+        if (Number.isFinite(confianca) && confianca < 35) continue;
 
-        const peso = (l.peso || 1) * (melhor.custo === 0 ? 1 : melhor.custo === 1 ? 0.7 : 0.4);
+        const fatorConfianca = Number.isFinite(confianca)
+            ? Math.max(0.45, Math.min(1, confianca / 100))
+            : 0.65;
+        const fatorCorrecao = correcao.custo === 0 ? 1 : 0.55;
+        const peso = (Number(l.peso) || 1) * fatorConfianca * fatorCorrecao;
 
         total += peso;
         validas++;
-        votos.set(melhor.placa, (votos.get(melhor.placa) || 0) + peso);
+        votos.set(correcao.placa, (votos.get(correcao.placa) || 0) + peso);
     }
 
-    if (!votos.size) return null;
+    if (!votos.size || !total) return null;
 
     const ordem = Array.from(votos.entries()).sort((a, b) => b[1] - a[1]);
+    const empate = ordem.length > 1 && Math.abs(ordem[0][1] - ordem[1][1]) < 0.0001;
 
     return {
-        placa: ordem[0][0],
-        fracao: ordem[0][1] / total,
-        validas: validas,
-        alternativas: ordem.slice(1).map(x => x[0])
+        placa: empate ? null : ordem[0][0],
+        fracao: empate ? 0 : ordem[0][1] / total,
+        validas,
+        alternativas: ordem.slice(1).map(x => x[0]),
+        empate
     };
 }
 
@@ -2847,15 +2850,24 @@ async function aplicarRefinoPlaca(canvasOrig, dadosOCR, texto) {
             const custo = (melhorCorrecaoPlaca(placaTexto) || {}).custo;
             registrarConfiancaPlaca({
                 placa: placaTexto,
-                nivel: custo === 0 ? "media" : "baixa",
-                validas: 1
+                nivel: "baixa",
+                validas: 0
             });
             return texto;
         }
 
         document.getElementById("status").innerText = "Conferindo a placa...";
 
-        const leituras = [{ texto: alvo.norm, peso: 0.7 }];
+        const palavraAlvo = palavras.find(p => {
+            const b = p?.bbox;
+            return b && Math.abs((b.x0 / ESCALA_OCR) - alvo.caixa.x0) < 2 &&
+                Math.abs((b.y0 / ESCALA_OCR) - alvo.caixa.y0) < 2;
+        });
+        const leituras = [{
+            texto: alvo.norm,
+            peso: 0.65,
+            confianca: Number(palavraAlvo?.confidence)
+        }];
 
         const h = Math.max(1, alvo.caixa.y1 - alvo.caixa.y0);
         const s0 = Math.max(2, Math.min(8, Math.round(60 / h)));
@@ -2864,9 +2876,11 @@ async function aplicarRefinoPlaca(canvasOrig, dadosOCR, texto) {
             { modo: "cinza",     esc: s0,     psm: 7 },
             { modo: "contraste", esc: s0,     psm: 7 },
             { modo: "binaria",   esc: s0,     psm: 7 },
-            { modo: "binaria",   esc: s0 + 1, psm: 8 },
+            { modo: "cinza",     esc: s0 + 1, psm: 8 },
             { modo: "contraste", esc: s0 + 1, psm: 8 },
-            { modo: "cinza",     esc: s0 + 1, psm: 7 }
+            { modo: "binaria",   esc: s0 + 1, psm: 8 },
+            { modo: "contraste", esc: s0 + 2, psm: 13 },
+            { modo: "cinza",     esc: s0 + 2, psm: 13 }
         ];
 
         for (const plano of planos) {
@@ -2878,7 +2892,11 @@ async function aplicarRefinoPlaca(canvasOrig, dadosOCR, texto) {
                     preserve_interword_spaces: "0",
                     user_defined_dpi: "300"
                 });
-                leituras.push({ texto: String((r && r.data && r.data.text) || ""), peso: 1 });
+                leituras.push({
+                    texto: String((r && r.data && r.data.text) || ""),
+                    peso: 1,
+                    confianca: Number(r?.data?.confidence)
+                });
             } catch (e) {
                 console.warn("Leitura da placa falhou:", e);
             }
@@ -2886,27 +2904,51 @@ async function aplicarRefinoPlaca(canvasOrig, dadosOCR, texto) {
 
         const c = consensoPlaca(leituras);
 
-        if (!c) {
-            registrarConfiancaPlaca({ placa: placaTexto, nivel: "baixa", validas: 0 });
+        if (!c || !c.placa || c.empate) {
+            registrarConfiancaPlaca({
+                placa: placaTexto,
+                nivel: "baixa",
+                validas: c?.validas || 0,
+                alternativas: c?.alternativas || []
+            });
             return texto;
         }
 
+        // Correção automática somente com consenso muito forte.
+        // Leituras intermediárias nunca sobrescrevem silenciosamente a placa.
         let nivel = "baixa";
-        if (c.validas >= 5 && c.fracao >= 0.85) nivel = "alta";
-        else if (c.validas >= 3 && c.fracao >= 0.65) nivel = "media";
+        if (c.validas >= 6 && c.fracao >= 0.90) nivel = "alta";
+        else if (c.validas >= 5 && c.fracao >= 0.78) nivel = "media";
+
+        if (nivel !== "alta") {
+            registrarConfiancaPlaca({
+                placa: placaTexto,
+                nivel,
+                validas: c.validas,
+                alternativas: [c.placa, ...(c.alternativas || [])]
+            });
+            return texto;
+        }
 
         const subst = substituirPlacaNoTexto(textoBase, alvo.norm, c.placa);
-
-        if (!subst.ok && c.placa !== placaTexto) nivel = "baixa";
+        if (!subst.ok) {
+            registrarConfiancaPlaca({
+                placa: placaTexto,
+                nivel: "baixa",
+                validas: c.validas,
+                alternativas: [c.placa]
+            });
+            return texto;
+        }
 
         registrarConfiancaPlaca({
-            placa: subst.ok ? c.placa : placaTexto,
-            nivel: nivel,
+            placa: c.placa,
+            nivel: "alta",
             validas: c.validas,
             alternativas: c.alternativas
         });
 
-        return subst.ok ? subst.texto : texto;
+        return subst.texto;
 
     } catch (erro) {
         console.warn("Conferência da placa não concluída:", erro);
@@ -3877,6 +3919,25 @@ async function salvarTextoLista() {
     let textoComArea = texto;
 
     if (placaNova) {
+        // Uma leitura duvidosa não pode ser salva sem conferência humana.
+        // O operador deve digitar exatamente a placa que conferiu visualmente.
+        if (_placaDuvida && _placaDuvida.nivel !== "alta") {
+            const confirmacaoPlaca = window.prompt(
+                "A leitura automática não atingiu o nível máximo de confiança.\n\n" +
+                "Confira a placa diretamente na imagem e digite os 7 caracteres corretos para liberar o salvamento:\n" +
+                placaNova
+            );
+            if (confirmacaoPlaca === null) return;
+            const placaDigitada = String(confirmacaoPlaca).toUpperCase().replace(/[^A-Z0-9]/g, "");
+            if (placaDigitada !== placaNova) {
+                alert("A placa digitada não corresponde ao texto atual. Corrija a placa no campo de resultado, confira a imagem e tente salvar novamente.");
+                document.getElementById("status").innerText = "Salvamento bloqueado: placa não confirmada.";
+                return;
+            }
+        } else if (_placaDuvida && _placaDuvida.nivel === "alta") {
+            if (!window.confirm("A placa reconhecida foi " + placaNova + ".\n\nConfira visualmente a imagem. Confirma que a placa está correta e deseja continuar?")) return;
+        }
+
         // A área é obrigatória quando existe emplacamento reconhecido.
         // Formato exigido: x/xM (ex.: 1/5M).
         const areaInformada = window.prompt(
