@@ -876,6 +876,7 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
             <label class="permissao-admin-opcao"><input id="permAdicionarRemover" type="checkbox"><span><strong>Adicionar e remover caráter</strong><small>Salvar novos registros e excluir registros da lista.</small></span></label>
             <label class="permissao-admin-opcao"><input id="permGerenciarMembros" type="checkbox"><span><strong>Aceitar e excluir membros</strong><small>Aprovar, rejeitar e excluir usuários.</small></span></label>
             <label class="permissao-admin-opcao"><input id="permGerenciarAdmins" type="checkbox"><span><strong>Tornar membros administradores</strong><small>Conceder, alterar e retirar permissões administrativas.</small></span></label>
+            <label class="permissao-admin-opcao"><input id="permFrases" type="checkbox"><span><strong>Frases prontas</strong><small>Acessar, adicionar e excluir frases prontas. Marque somente esta opção para liberar sem tornar a pessoa administradora.</small></span></label>
         </div>
         <div id="permissaoAdminAviso" class="auth-msg" style="display:none"></div>
         <div class="auth-actions">
@@ -8990,6 +8991,76 @@ montarCardUsuario = function (usuario, adminIds, pendente) {
     }
     acoes.appendChild(btn);
     return item;
+};
+</script>
+    <script id="frases-permissao-js">
+/* Ao abrir a janela, marca a caixinha conforme o acesso atual */
+async function prepararCheckFrases(userId) {
+    const chk = document.getElementById("permFrases");
+    if (!chk) return;
+    chk.checked = false;
+    await carregarAcessosFrases();
+    const full = document.getElementById("permAcessoFull")?.checked === true;
+    chk.checked = full || acessosFrases.has(userId);
+    chk.disabled = full;
+}
+
+const _abrirModalPermissoesAdmin = abrirModalPermissoesAdmin;
+abrirModalPermissoesAdmin = function (userId) {
+    _abrirModalPermissoesAdmin.apply(this, arguments);
+    prepararCheckFrases(userId);
+};
+
+/* Acesso Full já inclui as frases */
+const _alternarPermissaoFull = alternarPermissaoFull;
+alternarPermissaoFull = function () {
+    _alternarPermissaoFull.apply(this, arguments);
+    const full = document.getElementById("permAcessoFull")?.checked === true;
+    const chk = document.getElementById("permFrases");
+    if (chk) { chk.disabled = full; if (full) chk.checked = true; }
+};
+
+/* Ao confirmar: salva as frases e, se necessário, as permissões de administrador */
+const _salvarPermissoesAdministrador = salvarPermissoesAdministrador;
+salvarPermissoesAdministrador = async function () {
+    const userId = document.getElementById("permissaoAdminUserId")?.value;
+    if (!userId) return;
+
+    const full = document.getElementById("permAcessoFull")?.checked === true;
+    const frases = document.getElementById("permFrases")?.checked === true;
+    const algumAdmin = full ||
+        document.getElementById("permAdicionarRemover")?.checked === true ||
+        document.getElementById("permGerenciarMembros")?.checked === true ||
+        document.getElementById("permGerenciarAdmins")?.checked === true;
+    const jaEhAdmin = adminPermissoesCache.has(userId);
+
+    // Full já tem frases automaticamente; nos demais casos grava ON/OFF
+    if (!full) {
+        const { error } = await sb.rpc("extrator_frases_definir_acesso", {
+            p_user_id: userId,
+            p_ativo: frases
+        });
+        if (error) {
+            console.error(error);
+            const aviso = document.getElementById("permissaoAdminAviso");
+            if (aviso) {
+                aviso.style.display = "block";
+                aviso.className = "auth-msg err";
+                aviso.textContent = error.message || "Não foi possível salvar o acesso às frases.";
+            }
+            return;
+        }
+    }
+
+    // Se tem permissão de administrador marcada (ou já era admin), segue o fluxo original
+    if (jaEhAdmin || algumAdmin) {
+        return _salvarPermissoesAdministrador.apply(this, arguments);
+    }
+
+    // Somente frases: a pessoa continua usuário comum
+    fecharModalPermissoesAdmin();
+    await carregarAdminUsuarios();
+    await carregarGerenciadorAdministradores();
 };
 </script>
 </body>
