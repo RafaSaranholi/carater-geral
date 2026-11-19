@@ -649,7 +649,23 @@
 .foto-veiculo-fontes a:hover{background:#315e78}
 .foto-veiculo-credito{margin:8px 0 0;font-size:11px;color:#aaa}
 </style>
-
+<style id="frases-prontas-css">
+.frases-pagina{display:none}
+#appPrincipal.em-frases .frases-pagina{display:block}
+#appPrincipal.em-frases div.conteudo-principal{display:none !important}
+.frases-form{background:#202020;border:1px solid #444;border-radius:8px;padding:14px;margin:12px 0}
+.frases-form textarea{min-height:80px}
+.frases-form .linha{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.frases-form input,.frases-form select{flex:1;min-width:160px;padding:10px;border-radius:6px;border:1px solid #555;background:#101010;color:#eee;font-size:14px}
+#frasesBusca{width:100%;box-sizing:border-box;padding:11px;border-radius:7px;border:1px solid #555;background:#101010;color:#eee;margin-bottom:10px}
+.frase-item{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#101010;border:1px solid #444;border-radius:8px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-size:16px;line-height:1.4;white-space:pre-wrap;word-break:break-word}
+.frase-item:hover{border-color:#2f80ed;background:#141d2a}
+.frase-item.copiada{border-color:#1f7a4d;background:#132219}
+.frase-item .frase-excluir{margin:0;padding:6px 10px;font-size:12px;flex:0 0 auto}
+mark.frase-grifo{background:#ffeb3b;color:#000;padding:0 3px;border-radius:3px;font-weight:700}
+.frase-pisca{color:#ff5252;font-weight:800;animation:frasePisca .9s ease-in-out infinite alternate}
+@keyframes frasePisca{from{opacity:1}to{opacity:.1}}
+</style>
 </head>
 
 <body>
@@ -995,6 +1011,7 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
         <button id="btnCoresUsuario" class="btn-secondary" type="button" onclick="alternarMenuCores(event)" style="display:none">🎨 Cores</button>
         <button class="btn-secondary" type="button" onclick="abrirConfiguracaoBloqueio()">🔒 Bloqueio de tela</button>
         <button id="btnTelaSempreAtiva" class="btn-secondary" type="button" onclick="alternarTelaSempreAtiva()">📱 Tela sempre ativa: OFF</button>
+       <button id="btnFrases" class="btn-secondary" type="button" onclick="alternarPaginaFrases()" style="display:none">💬 Frases prontas</button>
         <button class="btn-secondary" type="button" onclick="sairSistema()">Sair</button>
 
         <div id="coresUsuarioDropdown" class="admin-message-dropdown" aria-hidden="true" style="width:300px">
@@ -8138,6 +8155,26 @@ window.addEventListener("DOMContentLoaded", restaurarSessao);
 </div></div>
 
 </div><!-- /conteudo-principal -->
+    <div id="paginaFrases" class="frases-pagina">
+  <h1>💬 Frases prontas</h1>
+  <div class="info">Clique em uma frase para copiar. Depois é só colar (Ctrl+V).</div>
+
+  <div class="frases-form">
+    <textarea id="fraseTexto" placeholder="Digite a nova frase..."></textarea>
+    <div class="linha">
+      <input id="fraseDestaque" type="text" placeholder="Palavra para destacar (opcional)">
+      <select id="fraseEstilo">
+        <option value="grifo">🖍️ Grifar</option>
+        <option value="pisca">✨ Piscando</option>
+      </select>
+      <button class="btn-success" type="button" onclick="adicionarFrase()">➕ Adicionar frase</button>
+    </div>
+  </div>
+
+  <input id="frasesBusca" type="search" placeholder="🔎 Pesquisar frase..." autocomplete="off">
+  <div id="frasesLista"></div>
+  <div id="frasesMsg" class="info"></div>
+</div>
 </div><!-- /appPrincipal -->
 
 <div id="downloadEscolhaOverlay" class="download-escolha-overlay" aria-hidden="true" onclick="if(event.target===this) fecharEscolhaDownload()">
@@ -8753,7 +8790,207 @@ document.addEventListener("keydown", evento => {
     }
 });
 </script>
+<script id="frases-prontas-js">
+let podeFrases = false;
+let frasesCache = [];
+let acessosFrases = new Set();
 
+/* ---------- acesso / troca de página ---------- */
+async function atualizarAcessoFrases() {
+    podeFrases = false;
+    if (usuarioAtual) {
+        try {
+            const { data, error } = await sb.rpc("extrator_frases_posso");
+            podeFrases = !error && data === true;
+        } catch (e) { console.warn(e); }
+    }
+    const b = document.getElementById("btnFrases");
+    if (b) b.style.display = podeFrases ? "inline-block" : "none";
+    if (!podeFrases) sairDasFrases();
+}
+
+function sairDasFrases() {
+    const app = document.getElementById("appPrincipal");
+    if (app) app.classList.remove("em-frases");
+    const b = document.getElementById("btnFrases");
+    if (b) b.textContent = "💬 Frases prontas";
+}
+
+async function alternarPaginaFrases() {
+    const app = document.getElementById("appPrincipal");
+    const b = document.getElementById("btnFrases");
+    if (!app) return;
+    if (app.classList.contains("em-frases")) { sairDasFrases(); return; }
+    await atualizarAcessoFrases();
+    if (!podeFrases) { alert("Você não tem acesso às frases prontas."); return; }
+    app.classList.add("em-frases");
+    if (b) b.textContent = "↩️ Voltar ao extrator";
+    await carregarFrases();
+}
+
+/* ---------- renderização ---------- */
+function montarTextoFrase(texto, destaque, estilo) {
+    const frag = document.createDocumentFragment();
+    texto = String(texto || "");
+    if (!destaque || !estilo) { frag.append(texto); return frag; }
+    const re = new RegExp(destaque.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    let ultimo = 0, m;
+    while ((m = re.exec(texto))) {
+        if (m.index > ultimo) frag.append(texto.slice(ultimo, m.index));
+        const el = document.createElement(estilo === "grifo" ? "mark" : "span");
+        el.className = estilo === "grifo" ? "frase-grifo" : "frase-pisca";
+        el.textContent = m[0];
+        frag.append(el);
+        ultimo = m.index + m[0].length;
+    }
+    if (ultimo < texto.length) frag.append(texto.slice(ultimo));
+    return frag;
+}
+
+function renderizarFrases() {
+    const lista = document.getElementById("frasesLista");
+    if (!lista) return;
+    const termo = textoNormalizadoPesquisa(document.getElementById("frasesBusca")?.value || "");
+    const itens = termo ? frasesCache.filter(f => textoNormalizadoPesquisa(f.texto).includes(termo)) : frasesCache;
+    lista.innerHTML = "";
+    if (!itens.length) {
+        lista.innerHTML = '<div class="info">' + (termo ? "Nenhuma frase encontrada." : "Nenhuma frase cadastrada ainda.") + "</div>";
+        return;
+    }
+    itens.forEach(function (f) {
+        const div = document.createElement("div");
+        div.className = "frase-item";
+        const txt = document.createElement("div");
+        txt.appendChild(montarTextoFrase(f.texto, f.destaque, f.estilo));
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "btn-danger frase-excluir";
+        del.textContent = "🗑️";
+        del.title = "Excluir frase";
+        del.addEventListener("click", function (e) { e.stopPropagation(); excluirFrase(f.id); });
+        div.append(txt, del);
+        div.addEventListener("click", function () { copiarFrase(f.texto, div); });
+        lista.appendChild(div);
+    });
+}
+
+function msgFrases(t) { const el = document.getElementById("frasesMsg"); if (el) el.textContent = t || ""; }
+
+async function carregarFrases() {
+    const { data, error } = await sb.from("extrator_frases")
+        .select("id,texto,destaque,estilo,created_at")
+        .order("created_at", { ascending: true });
+    if (error) { console.error(error); msgFrases("Não foi possível carregar as frases."); return; }
+    frasesCache = data || [];
+    renderizarFrases();
+}
+
+/* ---------- copiar / adicionar / excluir ---------- */
+async function copiarFrase(texto, el) {
+    try { await navigator.clipboard.writeText(texto); }
+    catch (e) {
+        const a = document.createElement("textarea");
+        a.value = texto; a.style.position = "fixed"; a.style.opacity = "0";
+        document.body.appendChild(a); a.select(); document.execCommand("copy"); a.remove();
+    }
+    document.querySelectorAll(".frase-item.copiada").forEach(x => x.classList.remove("copiada"));
+    if (el) el.classList.add("copiada");
+    msgFrases("✔ Copiado: " + texto);
+}
+
+async function adicionarFrase() {
+    const texto = (document.getElementById("fraseTexto").value || "").trim();
+    const destaque = (document.getElementById("fraseDestaque").value || "").trim();
+    const estilo = document.getElementById("fraseEstilo").value;
+    if (!texto) { alert("Digite a frase."); return; }
+    if (destaque && !texto.toLowerCase().includes(destaque.toLowerCase())) {
+        alert("A palavra de destaque precisa existir dentro da frase.");
+        return;
+    }
+    const { error } = await sb.from("extrator_frases").insert({
+        texto: texto,
+        destaque: destaque || null,
+        estilo: destaque ? estilo : null
+    });
+    if (error) { console.error(error); alert("Não foi possível salvar a frase."); return; }
+    document.getElementById("fraseTexto").value = "";
+    document.getElementById("fraseDestaque").value = "";
+    msgFrases("Frase adicionada.");
+    await carregarFrases();
+}
+
+async function excluirFrase(id) {
+    if (!confirm("Excluir esta frase?")) return;
+    const { error } = await sb.from("extrator_frases").delete().eq("id", id);
+    if (error) { console.error(error); alert("Não foi possível excluir."); return; }
+    msgFrases("Frase excluída.");
+    await carregarFrases();
+}
+
+document.addEventListener("input", function (e) {
+    if (e.target && e.target.id === "frasesBusca") renderizarFrases();
+});
+
+/* ---------- liberar acesso por pessoa (somente Full/Master) ---------- */
+async function carregarAcessosFrases() {
+    acessosFrases = new Set();
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) return;
+    const { data, error } = await sb.rpc("extrator_frases_lista_acessos");
+    if (!error && Array.isArray(data)) data.forEach(x => acessosFrases.add(x));
+}
+
+async function alternarAcessoFrases(userId, ativar) {
+    const { error } = await sb.rpc("extrator_frases_definir_acesso", { p_user_id: userId, p_ativo: ativar });
+    if (error) { console.error(error); alert(error.message || "Não foi possível alterar o acesso."); return; }
+    await carregarAdminUsuarios();
+}
+
+/* ---------- ganchos nas funções existentes (sem editar o código original) ---------- */
+const _atualizarIndicadoresAcesso = atualizarIndicadoresAcesso;
+atualizarIndicadoresAcesso = async function () {
+    await _atualizarIndicadoresAcesso.apply(this, arguments);
+    await atualizarAcessoFrases();
+};
+
+const _mostrarTelaAcesso = mostrarTelaAcesso;
+mostrarTelaAcesso = function () {
+    podeFrases = false;
+    sairDasFrases();
+    return _mostrarTelaAcesso.apply(this, arguments);
+};
+
+const _carregarAdminUsuarios = carregarAdminUsuarios;
+carregarAdminUsuarios = async function () {
+    await carregarAcessosFrases();
+    return _carregarAdminUsuarios.apply(this, arguments);
+};
+
+const _montarCardUsuario = montarCardUsuario;
+montarCardUsuario = function (usuario, adminIds, pendente) {
+    const item = _montarCardUsuario(usuario, adminIds, pendente);
+    if (pendente || usuario.status !== "aprovado") return item;
+    if (!souAdmin || !(adminPermissoes.acesso_full || adminPermissoes.is_master)) return item;
+    const acoes = item.querySelector(".admin-actions");
+    if (!acoes) return item;
+
+    const perm = adminPermissoesCache.get(usuario.id) || {};
+    const btn = document.createElement("button");
+    btn.type = "button";
+    if (perm.acesso_full || perm.is_master) {
+        btn.className = "btn-dark";
+        btn.textContent = "💬 Frases: acesso Full";
+        btn.disabled = true;
+    } else {
+        const ativo = acessosFrases.has(usuario.id);
+        btn.className = ativo ? "btn-success" : "btn-dark";
+        btn.textContent = ativo ? "💬 Frases: ON" : "💬 Frases: OFF";
+        btn.title = ativo ? "Clique para retirar o acesso às frases prontas" : "Clique para liberar as frases prontas";
+        btn.onclick = function (e) { e.stopPropagation(); alternarAcessoFrases(usuario.id, !ativo); };
+    }
+    acoes.appendChild(btn);
+    return item;
+};
+</script>
 </body>
 </html>
 SARTECH.TECHNOLOGY
