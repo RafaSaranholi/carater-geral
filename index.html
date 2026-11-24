@@ -9168,46 +9168,30 @@ const _ext_salvar=salvarPermissoesAdministrador;
 salvarPermissoesAdministrador=async function(){
   const userId=document.getElementById("permissaoAdminUserId")?.value; if(!userId)return;
   const full=document.getElementById("permAcessoFull")?.checked===true;
+  const av=document.getElementById("permissaoAdminAviso");
+  const erro=m=>{if(av){av.style.display="block";av.className="auth-msg err";av.textContent=m;}};
 
-  // grava o acesso ao extrator
+  // 1) grava o acesso ao extrator
   if(!full){
     const ativo=document.getElementById("permExtrator")?.checked===true;
     const {error}=await sb.rpc("extrator_extrator_definir_acesso",{p_user_id:userId,p_ativo:ativo});
-    if(error){
-      console.error(error);
-      const av=document.getElementById("permissaoAdminAviso");
-      if(av){av.style.display="block";av.className="auth-msg err";av.textContent=error.message||"Não foi possível salvar o acesso ao extrator.";}
-      return;
-    }
+    if(error){console.error(error);erro(error.message||"Não foi possível salvar o acesso ao extrator.");return;}
   }
 
-  // se nenhuma permissão de administrador está marcada, só fecha a janela
+  // 2) alguma permissão de administrador marcada?
   const algumAdmin=full||
     document.getElementById("permAdicionarRemover")?.checked===true||
     document.getElementById("permGerenciarMembros")?.checked===true||
     document.getElementById("permGerenciarAdmins")?.checked===true;
 
-  if(!algumAdmin){
-    fecharModalPermissoesAdmin();
-    await carregarAdminUsuarios();
-    await carregarGerenciadorAdministradores();
-    return;
+  // 3) nenhuma permissão de admin: se era admin, volta a ser usuário comum
+  if(!algumAdmin&&adminPermissoesCache.has(userId)){
+    const {error}=await sb.rpc("extrator_alterar_admin",{p_user_id:userId,p_tornar:false});
+    if(error){console.error(error);erro(error.message||"Não foi possível tirar o status de administrador.");return;}
+    adminPermissoesCache.delete(userId);
   }
-  return _ext_salvar.apply(this,arguments);
-};
-  }
-    const algumAdmin=full||
-    document.getElementById("permAdicionarRemover")?.checked===true||
-    document.getElementById("permGerenciarMembros")?.checked===true||
-    document.getElementById("permGerenciarAdmins")?.checked===true;
-  const jaEhAdmin=adminPermissoesCache.has(userId);
 
-  if(!jaEhAdmin&&!algumAdmin){
-    fecharModalPermissoesAdmin();
-    await carregarAdminUsuarios();
-    await carregarGerenciadorAdministradores();
-    return;
-  }
+  // 4) segue o fluxo existente (que também grava as Frases e fecha a janela)
   return _ext_salvar.apply(this,arguments);
 };
 </script>
