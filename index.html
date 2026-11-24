@@ -877,6 +877,7 @@ O aceite deste termo será registrado eletronicamente com a data e hora do aceit
             <label class="permissao-admin-opcao"><input id="permGerenciarMembros" type="checkbox"><span><strong>Aceitar e excluir membros</strong><small>Aprovar, rejeitar e excluir usuários.</small></span></label>
             <label class="permissao-admin-opcao"><input id="permGerenciarAdmins" type="checkbox"><span><strong>Tornar membros administradores</strong><small>Conceder, alterar e retirar permissões administrativas.</small></span></label>
             <label class="permissao-admin-opcao"><input id="permFrases" type="checkbox"><span><strong>Frases prontas</strong><small>Acessar, adicionar e excluir frases prontas. Marque somente esta opção para liberar sem tornar a pessoa administradora.</small></span></label>
+            <label class="permissao-admin-opcao"><input id="permExtrator" type="checkbox"><span><strong>Extrator de texto (sem caráter)</strong><small>Libera o extrator de imagem/OCR para a pessoa, sem poder salvar na lista. Marque somente esta opção para liberar sem tornar a pessoa administradora.</small></span></label>
         </div>
         <div id="permissaoAdminAviso" class="auth-msg" style="display:none"></div>
         <div class="auth-actions">
@@ -9061,6 +9062,69 @@ salvarPermissoesAdministrador = async function () {
     fecharModalPermissoesAdmin();
     await carregarAdminUsuarios();
     await carregarGerenciadorAdministradores();
+};
+</script>
+    <style>
+#appPrincipal.readonly-user.com-extrator:not(.em-frases) .conteudo-principal{display:grid !important;grid-template-columns:minmax(0,1fr) 750px !important;gap:20px}
+#appPrincipal.readonly-user.com-extrator .conteudo-esquerdo{display:block !important}
+@media(max-width:900px){#appPrincipal.readonly-user.com-extrator:not(.em-frases) .conteudo-principal{grid-template-columns:1fr !important}}
+</style>
+<script id="extras-js">
+/* ===== EXTRATOR SEM CARÁTER ===== */
+let podeExtrator=false, acessosExtrator=new Set();
+
+const _ext_atualizarIndicadores=atualizarIndicadoresAcesso;
+atualizarIndicadoresAcesso=async function(){
+  await _ext_atualizarIndicadores.apply(this,arguments);
+  podeExtrator=false;
+  if(usuarioAtual&&!souAdmin){
+    try{const {data,error}=await sb.rpc("extrator_extrator_posso");podeExtrator=!error&&data===true;}catch(e){console.warn(e);}
+  }
+  const app=document.getElementById("appPrincipal");
+  if(app)app.classList.toggle("com-extrator",podeExtrator);
+};
+
+async function carregarAcessosExtrator(){
+  acessosExtrator=new Set();
+  if(!souAdmin||!(adminPermissoes.acesso_full||adminPermissoes.is_master))return;
+  const {data,error}=await sb.rpc("extrator_extrator_lista_acessos");
+  if(!error&&Array.isArray(data))data.forEach(x=>acessosExtrator.add(String(x)));
+}
+
+const _ext_abrirModal=abrirModalPermissoesAdmin;
+abrirModalPermissoesAdmin=function(userId){
+  _ext_abrirModal.apply(this,arguments);
+  (async()=>{
+    const c=document.getElementById("permExtrator"); if(!c)return;
+    c.checked=false; await carregarAcessosExtrator();
+    const full=document.getElementById("permAcessoFull")?.checked===true;
+    c.checked=full||acessosExtrator.has(String(userId)); c.disabled=full;
+  })();
+};
+
+const _ext_full=alternarPermissaoFull;
+alternarPermissaoFull=function(){
+  _ext_full.apply(this,arguments);
+  const full=document.getElementById("permAcessoFull")?.checked===true;
+  const c=document.getElementById("permExtrator");
+  if(c){c.disabled=full;if(full)c.checked=true;}
+};
+
+const _ext_salvar=salvarPermissoesAdministrador;
+salvarPermissoesAdministrador=async function(){
+  const userId=document.getElementById("permissaoAdminUserId")?.value; if(!userId)return;
+  const full=document.getElementById("permAcessoFull")?.checked===true;
+  if(!full){
+    const ativo=document.getElementById("permExtrator")?.checked===true;
+    const {error}=await sb.rpc("extrator_extrator_definir_acesso",{p_user_id:userId,p_ativo:ativo});
+    if(error){
+      console.error(error);
+      const av=document.getElementById("permissaoAdminAviso");
+      if(av){av.style.display="block";av.className="auth-msg err";av.textContent=error.message||"Não foi possível salvar o acesso ao extrator.";}
+      return;
+    }
+  }
+  return _ext_salvar.apply(this,arguments);
 };
 </script>
 </body>
