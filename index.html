@@ -9114,6 +9114,8 @@ const _ext_salvar=salvarPermissoesAdministrador;
 salvarPermissoesAdministrador=async function(){
   const userId=document.getElementById("permissaoAdminUserId")?.value; if(!userId)return;
   const full=document.getElementById("permAcessoFull")?.checked===true;
+
+  // grava o acesso ao extrator
   if(!full){
     const ativo=document.getElementById("permExtrator")?.checked===true;
     const {error}=await sb.rpc("extrator_extrator_definir_acesso",{p_user_id:userId,p_ativo:ativo});
@@ -9123,6 +9125,22 @@ salvarPermissoesAdministrador=async function(){
       if(av){av.style.display="block";av.className="auth-msg err";av.textContent=error.message||"Não foi possível salvar o acesso ao extrator.";}
       return;
     }
+  }
+
+  // se nenhuma permissão de administrador está marcada, só fecha a janela
+  const algumAdmin=full||
+    document.getElementById("permAdicionarRemover")?.checked===true||
+    document.getElementById("permGerenciarMembros")?.checked===true||
+    document.getElementById("permGerenciarAdmins")?.checked===true;
+
+  if(!algumAdmin){
+    fecharModalPermissoesAdmin();
+    await carregarAdminUsuarios();
+    await carregarGerenciadorAdministradores();
+    return;
+  }
+  return _ext_salvar.apply(this,arguments);
+};
   }
     const algumAdmin=full||
     document.getElementById("permAdicionarRemover")?.checked===true||
