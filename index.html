@@ -9064,8 +9064,62 @@ salvarPermissoesAdministrador = async function () {
     await carregarGerenciadorAdministradores();
 };
 </script>
-    <style>
-#appPrincipal.readonly-user.com-extrator:not(.em-frases) .conteudo-principal{display:grid !important;grid-template-columns:minmax(0,1fr) 750px !important;gap:20px}
+ <style>
+/* ===== LAYOUT DA ABA APROVAÇÕES ===== */
+#adminArea{max-width:1100px;margin:0 auto}
+
+/* cartões */
+#adminArea .admin-card{border-radius:12px;padding:18px 20px;margin-bottom:16px;box-shadow:0 6px 20px rgba(0,0,0,.22)}
+#adminArea .admin-card h2{margin:0 0 6px;font-size:22px}
+#adminArea .admin-card h3{margin:0;font-size:17px}
+
+/* barra de botões do topo */
+#adminArea .admin-card > .auth-actions{margin-top:14px;gap:8px}
+#adminArea .admin-card > .auth-actions button{flex:0 1 auto;min-width:0;margin:0;padding:9px 14px;font-size:13px}
+
+/* título das seções com contagem */
+#adminArea .admin-section-title{padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid #333}
+#adminArea .admin-count{background:#101010;border:1px solid #444;border-radius:999px;padding:3px 10px;font-size:12px;color:#ccc}
+#adminArea .admin-count-secundario{background:none;border:0;padding:0;margin-top:4px}
+
+/* busca */
+#buscaUsuariosAprovados{border-radius:8px !important;padding:11px 14px !important}
+#buscaUsuariosAprovados:focus{outline:none;border-color:#2f80ed !important}
+
+/* lista e itens */
+#adminArea .admin-list{gap:8px}
+#adminArea .admin-item{border-radius:10px;padding:12px 14px;border-left:4px solid #555;transition:background .15s,border-color .15s}
+#listaPendentes .admin-item{border-left-color:#d9a21b}
+#listaAprovados .admin-item{border-left-color:#2e9e5b}
+#listaAprovados .admin-item:hover{background:#171717}
+
+/* dados dentro do item */
+#adminArea .admin-grid{gap:6px 18px;font-size:13px}
+#adminArea .admin-grid > div{min-width:0;overflow-wrap:anywhere}
+#adminArea .admin-resumo-aprovado{grid-template-columns:1.6fr .9fr 1.6fr;align-items:center}
+#adminArea .admin-grid strong{color:#fff}
+
+/* botões de ação do item, menores e alinhados */
+#adminArea .admin-actions{gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #2a2a2a}
+#adminArea .admin-actions:empty{display:none}
+#adminArea .admin-actions button{padding:7px 11px;font-size:12px;border-radius:6px}
+
+/* selos */
+#adminArea .admin-status-badge{padding:2px 8px;font-size:10.5px;letter-spacing:.3px}
+#adminArea .bpm-badge{font-size:11px}
+
+/* caixa de backup */
+#adminArea .backup-box{border-radius:10px;padding:14px 16px}
+#adminArea .backup-actions button{padding:8px 12px;font-size:12px}
+
+/* celular */
+@media(max-width:700px){
+  #adminArea .admin-card{padding:14px}
+  #adminArea .admin-resumo-aprovado{grid-template-columns:1fr}
+  #adminArea .admin-actions button{flex:1 1 calc(50% - 6px)}
+  #adminArea .admin-card > .auth-actions button{flex:1 1 calc(50% - 8px)}
+}
+     #appPrincipal.readonly-user.com-extrator:not(.em-frases) .conteudo-principal{display:grid !important;grid-template-columns:minmax(0,1fr) 750px !important;gap:20px}
 #appPrincipal.readonly-user.com-extrator .conteudo-esquerdo{display:block !important}
 @media(max-width:900px){#appPrincipal.readonly-user.com-extrator:not(.em-frases) .conteudo-principal{grid-template-columns:1fr !important}}
 </style>
