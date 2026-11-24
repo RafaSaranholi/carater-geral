@@ -9119,9 +9119,11 @@ salvarPermissoesAdministrador = async function () {
   #adminArea .admin-actions button{flex:1 1 calc(50% - 6px)}
   #adminArea .admin-card > .auth-actions button{flex:1 1 calc(50% - 8px)}
 }
-     #appPrincipal.readonly-user.com-extrator:not(.em-frases) .conteudo-principal{display:grid !important;grid-template-columns:minmax(0,1fr) 750px !important;gap:20px}
+     #appPrincipal.readonly-user.com-extrator:not(.em-frases) .conteudo-principal{display:block !important}
+/* usuário só com Extrator de texto: sem lista de caráter e sem botão de caráter */
+#appPrincipal.readonly-user.com-extrator .painel-lista{display:none !important}
+#appPrincipal.readonly-user.com-extrator button[onclick="extrairSomenteCarater()"]{display:none !important}
 #appPrincipal.readonly-user.com-extrator .conteudo-esquerdo{display:block !important}
-@media(max-width:900px){#appPrincipal.readonly-user.com-extrator:not(.em-frases) .conteudo-principal{grid-template-columns:1fr !important}}
 </style>
 <script id="extras-js">
 /* ===== EXTRATOR SEM CARÁTER ===== */
