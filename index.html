@@ -9124,6 +9124,18 @@ salvarPermissoesAdministrador=async function(){
       return;
     }
   }
+    const algumAdmin=full||
+    document.getElementById("permAdicionarRemover")?.checked===true||
+    document.getElementById("permGerenciarMembros")?.checked===true||
+    document.getElementById("permGerenciarAdmins")?.checked===true;
+  const jaEhAdmin=adminPermissoesCache.has(userId);
+
+  if(!jaEhAdmin&&!algumAdmin){
+    fecharModalPermissoesAdmin();
+    await carregarAdminUsuarios();
+    await carregarGerenciadorAdministradores();
+    return;
+  }
   return _ext_salvar.apply(this,arguments);
 };
 </script>
