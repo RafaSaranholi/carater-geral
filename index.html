@@ -9196,6 +9196,65 @@ salvarPermissoesAdministrador=async function(){
   // 4) segue o fluxo existente (que também grava as Frases e fecha a janela)
   return _ext_salvar.apply(this,arguments);
 };
+
+/* ===== DERRUBAR USUÁRIO ===== */
+let canalDerrubar=null, baselineUpd=null;
+
+async function lerAtualizadoEm(){
+  const {data}=await sb.from("extrator_usuarios").select("updated_at").eq("id",usuarioAtual.id).single();
+  return data?data.updated_at:null;
+}
+
+async function iniciarCanalDerrubar(){
+  if(canalDerrubar||!usuarioAtual)return;
+  baselineUpd=await lerAtualizadoEm();
+  canalDerrubar=sb.channel("extrator-derrubar")
+    .on("broadcast",{event:"derrubar"},async({payload})=>{
+      if(!usuarioAtual||!payload||payload.user_id!==usuarioAtual.id)return;
+      const atual=await lerAtualizadoEm();
+      if(atual&&atual!==baselineUpd){
+        await sairSistema();
+        mostrarMsg("loginMsg","Sua sessão foi encerrada por um administrador.","warn");
+      }
+    }).subscribe();
+}
+
+function pararCanalDerrubar(){
+  if(canalDerrubar){sb.removeChannel(canalDerrubar);canalDerrubar=null;}
+  baselineUpd=null;
+}
+
+const _ext_ini=iniciarRealtimeLista;
+iniciarRealtimeLista=function(){_ext_ini.apply(this,arguments);iniciarCanalDerrubar();};
+const _ext_par=pararRealtimeLista;
+pararRealtimeLista=function(){_ext_par.apply(this,arguments);pararCanalDerrubar();};
+
+async function derrubarUsuario(id,nome){
+  if(!confirm("Derrubar "+(nome||"este usuário")+" agora?\n\nEle será desconectado imediatamente, se estiver online."))return;
+  const {error}=await sb.from("extrator_usuarios").update({updated_at:new Date().toISOString()}).eq("id",id);
+  if(error){console.error(error);alert("Não foi possível derrubar o usuário.");return;}
+  try{
+    const canal=sb.channel("extrator-derrubar");
+    await new Promise(r=>canal.subscribe(st=>{if(st==="SUBSCRIBED")r();}));
+    await canal.send({type:"broadcast",event:"derrubar",payload:{user_id:id}});
+    sb.removeChannel(canal);
+  }catch(e){console.error(e);}
+  alert("Sinal de desconexão enviado.");
+}
+
+const _ext_card=montarCardUsuario;
+montarCardUsuario=function(usuario,adminIds,pendente){
+  const item=_ext_card.apply(this,arguments);
+  if(pendente||usuario.status!=="aprovado")return item;
+  if(!souAdmin||!(adminPermissoes.acesso_full||adminPermissoes.gerenciar_membros||adminPermissoes.is_master))return item;
+  if(usuario.id===usuarioAtual?.id||(adminPermissoesCache.get(usuario.id)||{}).is_master)return item;
+  const acoes=item.querySelector(".admin-actions"); if(!acoes)return item;
+  const b=document.createElement("button");
+  b.type="button"; b.className="btn-danger"; b.textContent="⛔ Derrubar acesso";
+  b.onclick=e=>{e.stopPropagation();derrubarUsuario(usuario.id,usuario.nome_completo);};
+  acoes.appendChild(b);
+  return item;
+};
 </script>
 </body>
 </html>
